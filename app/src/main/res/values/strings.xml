@@ -1,4 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Massager</string>
+    <string name="settings_profile_section">Account</string>
+    <string name="settings_personal_info">Personal Information</string>
+    <string name="settings_account_security">Account and Security</string>
+    <string name="settings_temperature_unit">Temperature Unit</string>
+    <string name="settings_clear_cache">Clear Cache</string>
+    <string name="settings_other_section">Service</string>
+    <string name="settings_history">Browsing History</string>
+    <string name="settings_favorites">My Favorites</string>
+    <string name="settings_about">About</string>
+    <string name="settings_tab_home">Home</string>
+    <string name="settings_tab_manual">Manual</string>
+    <string name="settings_tab_devices">Device</string>
+    <string name="settings_tab_profile">Profile</string>
+    <string name="settings_header_greeting">Hi, I am your smart customer service</string>
+    <string name="settings_user_id">ComfyTemp ID: %1$s</string>
+    <string name="settings_logout">Logout</string>
+    <string name="settings_avatar_greeting">Nice to meet you, %1$s!</string>
+    <string name="settings_avatar_content_desc">User avatar</string>
 </resources>

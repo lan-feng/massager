@@ -13,6 +13,7 @@ import com.massager.app.presentation.auth.LoginScreen
 import com.massager.app.presentation.auth.RegisterScreen
 import com.massager.app.presentation.device.DeviceScanScreen
 import com.massager.app.presentation.device.DeviceViewModel
+import com.massager.app.presentation.home.AppBottomTab
 import com.massager.app.presentation.home.HomeDashboardScreen
 import com.massager.app.presentation.home.HomeViewModel
 import com.massager.app.presentation.recovery.RecoverySelectionScreen
@@ -55,7 +56,11 @@ fun MassagerNavHost(
                 onRegister = { name, email, password ->
                     authViewModel.register(name, email, password)
                 },
-                onNavigateToLogin = { navController.popBackStack() }
+                onNavigateToLogin = { navController.popBackStack() },
+                onRegistrationHandled = {
+                    authViewModel.clearRegistrationFlag()
+                    authViewModel.clearError()
+                }
             )
         }
         composable(Screen.Home.route) {
@@ -63,8 +68,19 @@ fun MassagerNavHost(
             val homeState = viewModel.uiState.collectAsStateWithLifecycle()
             HomeDashboardScreen(
                 state = homeState.value,
+                currentTab = AppBottomTab.Home,
                 onRefresh = viewModel::refresh,
-                onDismissError = viewModel::clearError
+                onDismissError = viewModel::clearError,
+                onAddDevice = { viewModel.onAddDevice() },
+                onDeviceClick = { /* TODO navigate to device control */ },
+                onConsumeDeviceAddedToast = viewModel::consumeAddDeviceToast,
+                onTabSelected = { tab ->
+                    when (tab) {
+                        AppBottomTab.Home -> Unit
+                        AppBottomTab.Profile -> navController.navigate(Screen.Settings.route)
+                        else -> Unit
+                    }
+                }
             )
         }
         composable(Screen.DeviceScan.route) {
@@ -76,13 +92,33 @@ fun MassagerNavHost(
         }
         composable(Screen.Settings.route) {
             val viewModel: SettingsViewModel = hiltViewModel()
+            val settingsState = viewModel.uiState.collectAsStateWithLifecycle()
             SettingsScreen(
+                state = settingsState.value,
+                currentTab = AppBottomTab.Profile,
+                onTabSelected = { tab ->
+                    when (tab) {
+                        AppBottomTab.Home -> navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Settings.route) { inclusive = true }
+                        }
+                        AppBottomTab.Profile -> Unit
+                        else -> Unit
+                    }
+                },
+                onToggleTemperature = viewModel::toggleTemperatureUnit,
+                onClearCache = viewModel::clearCache,
+                onNavigatePersonalInfo = { /* TODO */ },
+                onNavigateAccountSecurity = { /* TODO */ },
+                onNavigateHistory = { /* TODO */ },
+                onNavigateFavorites = { /* TODO */ },
+                onNavigateAbout = { /* TODO */ },
                 onLogout = {
                     viewModel.logout()
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }
-                }
+                },
+                onConsumeToast = viewModel::consumeToast
             )
         }
         composable(Screen.Recovery.route) {

@@ -20,7 +20,8 @@ data class HomeUiState(
     val devices: List<DeviceMetadata> = emptyList(),
     val measurements: List<TemperatureRecord> = emptyList(),
     val isRefreshing: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val showDeviceAddedToast: Boolean = false
 )
 
 @HiltViewModel
@@ -83,5 +84,13 @@ class HomeViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    fun onAddDevice() {
+        _uiState.update { it.copy(showDeviceAddedToast = true) }
+    }
+
+    fun consumeAddDeviceToast() {
+        _uiState.update { it.copy(showDeviceAddedToast = false) }
     }
 }

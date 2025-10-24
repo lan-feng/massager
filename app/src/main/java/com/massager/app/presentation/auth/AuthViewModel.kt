@@ -15,7 +15,8 @@ import kotlinx.coroutines.launch
 data class AuthUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val isAuthenticated: Boolean = false
+    val isAuthenticated: Boolean = false,
+    val registrationSuccess: Boolean = false
 )
 
 @HiltViewModel
@@ -42,8 +43,8 @@ class AuthViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
             when (val result = registerUseCase(name, email, password)) {
-                is AuthResult.RegisterSuccess -> _uiState.value = AuthUiState(isAuthenticated = true)
-                is AuthResult.Error -> _uiState.value = AuthUiState(errorMessage = result.message)
+                is AuthResult.RegisterSuccess -> _uiState.value = AuthUiState(registrationSuccess = true)
+                is AuthResult.Error -> _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = result.message)
                 else -> _uiState.value = AuthUiState()
             }
         }
@@ -51,5 +52,9 @@ class AuthViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
+
+    fun clearRegistrationFlag() {
+        _uiState.value = _uiState.value.copy(registrationSuccess = false)
     }
 }
