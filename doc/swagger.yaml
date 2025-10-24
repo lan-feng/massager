@@ -1,0 +1,4608 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "健康监测系统API",
+    "description": "健康监测系统后端API文档",
+    "contact": {
+      "name": "项目团队",
+      "email": "team@example.com"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "http://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "version": "v1.0"
+  },
+  "servers": [
+    {
+      "url": "http://192.168.2.110:9100/iot/api",
+      "description": "开发环境"
+    }
+  ],
+  "security": [
+    {
+      "Bearer Auth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "文件上传",
+      "description": "通用文件/图片上传接口"
+    },
+    {
+      "name": "用户会话管理",
+      "description": "用户登录会话、设备管理相关接口"
+    },
+    {
+      "name": "系统配置管理",
+      "description": "系统参数配置、动态配置管理相关接口"
+    },
+    {
+      "name": "认证管理",
+      "description": "用户注册、登录、信息管理相关接口"
+    },
+    {
+      "name": "测量数据管理",
+      "description": "测量数据上传、查询、分析相关接口"
+    }
+  ],
+  "paths": {
+    "/device/v1/update": {
+      "post": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "updateDevice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Device"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultDevice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/updateLastSeen": {
+      "post": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "updateLastSeen",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/del": {
+      "post": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "deleteDevice",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/delById/{id}": {
+      "post": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "deleteDeviceById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/bind": {
+      "post": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "bindDevice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceBindRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultDevice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/files/upload": {
+      "post": {
+        "tags": [
+          "文件上传"
+        ],
+        "summary": "上传文件到COS",
+        "description": "支持图片、视频、文档等多种类型文件上传，返回可访问URL。",
+        "operationId": "uploadFile",
+        "parameters": [
+          {
+            "name": "x-app-id",
+            "in": "header",
+            "description": "可选。调用方应用标识。"
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "file"
+                ],
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "上传失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResult"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "上传成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUploadResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/update": {
+      "post": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "更新配置值",
+        "description": "更新指定配置的值",
+        "operationId": "updateConfigValue",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "configValue",
+            "in": "query",
+            "description": "新配置值",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultSystemConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/reload": {
+      "post": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "重新加载配置",
+        "description": "重新加载配置缓存",
+        "operationId": "reloadConfigCache",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/init": {
+      "post": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "初始化默认配置",
+        "description": "初始化系统默认配置",
+        "operationId": "initializeDefaultConfigs",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/enable": {
+      "post": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "启用配置",
+        "description": "启用指定的配置",
+        "operationId": "enableConfig",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/disable": {
+      "post": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "禁用配置",
+        "description": "禁用指定的配置",
+        "operationId": "disableConfig",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/delete": {
+      "post": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "删除配置",
+        "description": "逻辑删除指定的配置",
+        "operationId": "deleteConfig",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/create": {
+      "post": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "创建配置",
+        "description": "创建新的系统配置（默认global地区）",
+        "operationId": "createConfig",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "configValue",
+            "in": "query",
+            "description": "配置值",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "configType",
+            "in": "query",
+            "description": "配置类型",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "description",
+            "in": "query",
+            "description": "配置描述",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultSystemConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/create/region": {
+      "post": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "创建带地区的配置",
+        "description": "创建新的系统配置，支持指定地区",
+        "operationId": "createConfigByRegion",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "configValue",
+            "in": "query",
+            "description": "配置值",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "configType",
+            "in": "query",
+            "description": "配置类型",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "description",
+            "in": "query",
+            "description": "配置描述",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "description": "地区代码",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultSystemConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/thing/update": {
+      "post": {
+        "tags": [
+          "thing-controller"
+        ],
+        "operationId": "updateThing",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Thing"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultThing"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/thing/del": {
+      "post": {
+        "tags": [
+          "thing-controller"
+        ],
+        "operationId": "deleteThing",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/thing/delById/{id}": {
+      "post": {
+        "tags": [
+          "thing-controller"
+        ],
+        "operationId": "deleteThingById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/thing/create": {
+      "post": {
+        "tags": [
+          "thing-controller"
+        ],
+        "operationId": "createThing",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThingCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultThing"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/markAsRead": {
+      "post": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "markAsRead",
+        "parameters": [
+          {
+            "name": "recordId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/del": {
+      "post": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "deleteRecord",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/delById/{id}": {
+      "post": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "deleteRecordById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/create": {
+      "post": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "createRecord",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Record"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/measurement/upload": {
+      "post": {
+        "tags": [
+          "测量数据管理"
+        ],
+        "summary": "上传测量数据",
+        "description": "上传体温等测量数据，系统会自动分析并生成健康建议",
+        "operationId": "uploadMeasurement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeasurementUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "上传成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "success": true,
+                  "message": "上传成功",
+                  "data": {
+                    "id": 1,
+                    "thingId": 1,
+                    "deviceId": 1,
+                    "timestamp": "2024-01-15T10:30:00",
+                    "data": "{\"temperature\":37.8,\"mode\":\"oral\"}"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "上传失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "参数错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/measurement/delById/{id}": {
+      "post": {
+        "tags": [
+          "测量数据管理"
+        ],
+        "summary": "删除测量数据",
+        "description": "删除指定ID的测量数据，仅限数据所属用户操作",
+        "operationId": "deleteMeasurementById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/measurement/bindThing": {
+      "post": {
+        "tags": [
+          "测量数据管理"
+        ],
+        "summary": "绑定受管对象到测量数据",
+        "description": "将未绑定的测量数据绑定到指定的受管对象（仅限数据所属用户操作）",
+        "operationId": "bindThingToMeasurement",
+        "parameters": [
+          {
+            "name": "measurementId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "thingId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultMeasurement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/user/update": {
+      "post": {
+        "tags": [
+          "认证管理"
+        ],
+        "operationId": "updateUser",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/User"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultUser"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/user/del": {
+      "post": {
+        "tags": [
+          "认证管理"
+        ],
+        "operationId": "deleteUser",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/user/change-password": {
+      "post": {
+        "tags": [
+          "认证管理"
+        ],
+        "summary": "修改密码",
+        "description": "用户修改密码接口",
+        "operationId": "changePassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "密码修改成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "success": true,
+                  "message": "密码修改成功",
+                  "data": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "密码修改失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "原密码错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/user/change-email": {
+      "post": {
+        "tags": [
+          "认证管理"
+        ],
+        "summary": "修改邮箱",
+        "description": "用户修改邮箱接口，需要验证原密码",
+        "operationId": "changeEmail",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "邮箱修改失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "原密码错误"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "邮箱修改成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "success": true,
+                  "message": "邮箱修改成功",
+                  "data": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/session/revoke": {
+      "post": {
+        "tags": [
+          "用户会话管理"
+        ],
+        "summary": "撤销会话",
+        "description": "撤销指定的登录会话",
+        "operationId": "revokeSession",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "description": "会话ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer Authentication": []
+          }
+        ]
+      }
+    },
+    "/auth/v1/session/revokeOthers": {
+      "post": {
+        "tags": [
+          "用户会话管理"
+        ],
+        "summary": "撤销其他会话",
+        "description": "撤销当前用户的其他所有登录会话",
+        "operationId": "revokeOtherSessions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer Authentication": []
+          }
+        ]
+      }
+    },
+    "/auth/v1/session/revokeAll": {
+      "post": {
+        "tags": [
+          "用户会话管理"
+        ],
+        "summary": "撤销所有会话",
+        "description": "撤销当前用户的所有登录会话",
+        "operationId": "revokeAllSessions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer Authentication": []
+          }
+        ]
+      }
+    },
+    "/auth/v1/session/cleanup": {
+      "post": {
+        "tags": [
+          "用户会话管理"
+        ],
+        "summary": "清理过期会话",
+        "description": "清理系统中的过期会话",
+        "operationId": "cleanupExpiredSessions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/register": {
+      "post": {
+        "tags": [
+          "认证管理"
+        ],
+        "summary": "用户注册",
+        "description": "新用户注册接口",
+        "operationId": "register",
+        "parameters": [
+          {
+            "name": "x-app-id",
+            "in": "header",
+            "description": "可选。应用标识，用于区分调用方应用，未提供时默认值为 default。"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserRegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "注册失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "邮箱已存在"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "注册成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "success": true,
+                  "message": "注册成功",
+                  "data": {
+                    "id": 1,
+                    "email": "test@example.com",
+                    "name": "测试用户"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/logout": {
+      "post": {
+        "tags": [
+          "认证管理"
+        ],
+        "summary": "用户登出",
+        "description": "用户主动退出登录，撤销当前会话",
+        "operationId": "logout",
+        "responses": {
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "success": false,
+                  "message": "未提供认证令牌"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "登出成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "success": true,
+                  "message": "登出成功",
+                  "data": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/login": {
+      "post": {
+        "tags": [
+          "认证管理"
+        ],
+        "summary": "用户登录",
+        "description": "用户登录获取JWT Token",
+        "operationId": "login",
+        "parameters": [
+          {
+            "name": "x-app-id",
+            "in": "header",
+            "description": "可选。应用标识，用于区分调用方应用，未提供时默认值为 default。"
+          },
+          {
+            "name": "X-Device-Info",
+            "in": "header",
+            "description": "可选。调用侧自定义的设备信息/终端标识，用于记录登录设备。"
+          },
+          {
+            "name": "X-Forwarded-For",
+            "in": "header",
+            "description": "可选。客户端真实IP（反向代理透传），用于登录风控。"
+          },
+          {
+            "name": "X-Real-IP",
+            "in": "header",
+            "description": "可选。当没有X-Forwarded-For时可携带真实IP。"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "登录失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "密码错误"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "success": true,
+                  "message": "登录成功",
+                  "data": {
+                    "token": "eyJhbGciOiJIUzUxMiJ9...",
+                    "tokenType": "Bearer",
+                    "expiresIn": 86400000,
+                    "userInfo": {
+                      "id": 1,
+                      "email": "test@example.com",
+                      "name": "测试用户"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/pageList": {
+      "get": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "getDevicePageList",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultPageDevice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/offline": {
+      "get": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "getOfflineDevices",
+        "parameters": [
+          {
+            "name": "offlineMinutes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListDevice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/list": {
+      "get": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "getDeviceList",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListDevice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/listByType": {
+      "get": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "getDeviceListByType",
+        "parameters": [
+          {
+            "name": "deviceType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListDevice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/detail": {
+      "get": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "getDeviceDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultDevice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/detailBySerial": {
+      "get": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "getDeviceBySerial",
+        "parameters": [
+          {
+            "name": "deviceSerial",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultDevice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/detailById/{id}": {
+      "get": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "getDeviceDetailById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultDevice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/checkSerial": {
+      "get": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "checkDeviceSerial",
+        "parameters": [
+          {
+            "name": "deviceSerial",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultBoolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/value": {
+      "get": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "获取配置值",
+        "description": "根据配置键获取配置值",
+        "operationId": "getConfigValue",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultString"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/value/region": {
+      "get": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "按地区获取配置值",
+        "description": "根据配置键和地区获取配置值，如果指定地区没有配置，返回global地区的配置",
+        "operationId": "getConfigValueByRegion",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "description": "地区代码",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultString"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/value/number": {
+      "get": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "获取数字配置值",
+        "description": "获取数字类型的配置值",
+        "operationId": "getConfigValueAsNumber",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "defaultValue",
+            "in": "query",
+            "description": "默认值",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultDouble"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/value/number/region": {
+      "get": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "按地区获取数字配置值",
+        "description": "获取数字类型的配置值，支持地区",
+        "operationId": "getConfigValueAsNumberByRegion",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "description": "地区代码",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "defaultValue",
+            "in": "query",
+            "description": "默认值",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultDouble"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/value/boolean": {
+      "get": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "获取布尔配置值",
+        "description": "获取布尔类型的配置值",
+        "operationId": "getConfigValueAsBoolean",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "defaultValue",
+            "in": "query",
+            "description": "默认值",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultBoolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/value/boolean/region": {
+      "get": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "按地区获取布尔配置值",
+        "description": "获取布尔类型的配置值，支持地区",
+        "operationId": "getConfigValueAsBooleanByRegion",
+        "parameters": [
+          {
+            "name": "configKey",
+            "in": "query",
+            "description": "配置键",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "description": "地区代码",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "defaultValue",
+            "in": "query",
+            "description": "默认值",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultBoolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/common/v1/config/list": {
+      "get": {
+        "tags": [
+          "系统配置管理"
+        ],
+        "summary": "获取所有配置",
+        "description": "获取所有启用的系统配置",
+        "operationId": "getAllConfigs",
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "success": true,
+                  "message": "获取成功",
+                  "data": [
+                    {
+                      "configKey": "fever_threshold",
+                      "configValue": "37.5",
+                      "configType": "number"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "获取失败",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListSystemConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/thing/search": {
+      "get": {
+        "tags": [
+          "thing-controller"
+        ],
+        "operationId": "searchThings",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListThing"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/thing/pageList": {
+      "get": {
+        "tags": [
+          "thing-controller"
+        ],
+        "operationId": "getThingPageList",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultPageThing"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/thing/list": {
+      "get": {
+        "tags": [
+          "thing-controller"
+        ],
+        "operationId": "getThingList",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListThing"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/thing/listByType": {
+      "get": {
+        "tags": [
+          "thing-controller"
+        ],
+        "operationId": "getThingListByType",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListThing"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/thing/detail": {
+      "get": {
+        "tags": [
+          "thing-controller"
+        ],
+        "operationId": "getThingDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultThing"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/thing/detailById/{id}": {
+      "get": {
+        "tags": [
+          "thing-controller"
+        ],
+        "operationId": "getThingDetailById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultThing"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/thing/count": {
+      "get": {
+        "tags": [
+          "thing-controller"
+        ],
+        "operationId": "getThingCount",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultLong"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/unreadNotifications": {
+      "get": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "getUnreadNotifications",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/unreadCount": {
+      "get": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "getUnreadNotificationCount",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultLong"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/pageList": {
+      "get": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "getRecordPageList",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultPageRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/list": {
+      "get": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "getRecordList",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/listByType": {
+      "get": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "getRecordListByType",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/listByTimeRange": {
+      "get": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "getRecordListByTimeRange",
+        "parameters": [
+          {
+            "name": "startTime",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endTime",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/listByThing": {
+      "get": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "getRecordListByThing",
+        "parameters": [
+          {
+            "name": "thingId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/listByThingAndType": {
+      "get": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "getRecordListByThingAndType",
+        "parameters": [
+          {
+            "name": "thingId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/detail": {
+      "get": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "getRecordDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/record/detailById/{id}": {
+      "get": {
+        "tags": [
+          "record-controller"
+        ],
+        "operationId": "getRecordDetailById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/measurement/user/thing/list": {
+      "get": {
+        "tags": [
+          "测量数据管理"
+        ],
+        "summary": "查询用户指定受管对象的测量数据",
+        "description": "查询当前用户指定受管对象的所有测量数据",
+        "operationId": "getUserMeasurementByThingId",
+        "parameters": [
+          {
+            "name": "thingId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListMeasurement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/measurement/user/pageList": {
+      "get": {
+        "tags": [
+          "测量数据管理"
+        ],
+        "summary": "分页查询用户测量数据",
+        "description": "分页查询当前用户的所有测量数据",
+        "operationId": "getUserMeasurementPageList",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultPageMeasurement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/measurement/user/device/list": {
+      "get": {
+        "tags": [
+          "测量数据管理"
+        ],
+        "summary": "查询用户指定设备的测量数据",
+        "description": "查询当前用户指定设备的所有测量数据",
+        "operationId": "getUserMeasurementByDeviceId",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListMeasurement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/measurement/unbound/pageList": {
+      "get": {
+        "tags": [
+          "测量数据管理"
+        ],
+        "summary": "分页查询未绑定的测量数据",
+        "description": "分页查询当前用户的尚未绑定受管对象的测量数据",
+        "operationId": "getUnboundMeasurementsPage",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultPageMeasurement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/measurement/unbound/list": {
+      "get": {
+        "tags": [
+          "测量数据管理"
+        ],
+        "summary": "查询未绑定的测量数据",
+        "description": "查询当前用户的尚未绑定受管对象的测量数据",
+        "operationId": "getUnboundMeasurements",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListMeasurement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/measurement/unbound/listByDevice": {
+      "get": {
+        "tags": [
+          "测量数据管理"
+        ],
+        "summary": "根据设备ID查询未绑定的测量数据",
+        "description": "查询当前用户指定设备的未绑定测量数据",
+        "operationId": "getUnboundMeasurementsByDevice",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListMeasurement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/measurement/detail": {
+      "get": {
+        "tags": [
+          "测量数据管理"
+        ],
+        "operationId": "getMeasurementDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultMeasurement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/business/v1/measurement/detailById/{id}": {
+      "get": {
+        "tags": [
+          "测量数据管理"
+        ],
+        "operationId": "getMeasurementDetailById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultMeasurement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/users": {
+      "get": {
+        "tags": [
+          "认证管理"
+        ],
+        "operationId": "getAllUsers",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListUser"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/user/info": {
+      "get": {
+        "tags": [
+          "认证管理"
+        ],
+        "operationId": "getUserInfo",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultUser"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/session/stats": {
+      "get": {
+        "tags": [
+          "用户会话管理"
+        ],
+        "summary": "获取会话统计",
+        "description": "获取当前用户的会话统计信息",
+        "operationId": "getSessionStats",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultObject"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer Authentication": []
+          }
+        ]
+      }
+    },
+    "/auth/v1/session/list": {
+      "get": {
+        "tags": [
+          "用户会话管理"
+        ],
+        "summary": "获取用户会话列表",
+        "description": "获取当前用户的所有登录会话",
+        "operationId": "getUserSessions",
+        "responses": {
+          "401": {
+            "description": "未授权",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListUserSession"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "success": true,
+                  "message": "获取成功",
+                  "data": [
+                    {
+                      "id": 1,
+                      "deviceInfo": "iPhone",
+                      "ipAddress": "192.168.1.100",
+                      "lastUsedAt": "2024-01-15T10:30:00"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer Authentication": []
+          }
+        ]
+      }
+    },
+    "/auth/v1/session/checkSuspicious": {
+      "get": {
+        "tags": [
+          "用户会话管理"
+        ],
+        "summary": "检查异常登录",
+        "description": "检查是否存在异常登录活动",
+        "operationId": "checkSuspiciousActivity",
+        "parameters": [
+          {
+            "name": "X-Forwarded-For",
+            "in": "header",
+            "description": "可选。反向代理透传的客户端真实IP。"
+          },
+          {
+            "name": "X-Real-IP",
+            "in": "header",
+            "description": "可选。直接携带客户端真实IP，若无代理可留空。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultBoolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer Authentication": []
+          }
+        ]
+      }
+    },
+    "/auth/v1/session/active": {
+      "get": {
+        "tags": [
+          "用户会话管理"
+        ],
+        "summary": "获取活跃会话",
+        "description": "获取当前用户的活跃登录会话",
+        "operationId": "getActiveSessions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListUserSession"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer Authentication": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Device": {
+        "required": [
+          "deviceSerial",
+          "deviceType",
+          "userId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "设备ID",
+            "format": "int64"
+          },
+          "userId": {
+            "type": "integer",
+            "description": "所属用户ID",
+            "format": "int64"
+          },
+          "deviceSerial": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "设备序列号，唯一"
+          },
+          "deviceType": {
+            "type": "integer",
+            "description": "设备类型：1=体温计，2=手环，3=体重秤，4=其他",
+            "format": "int32"
+          },
+          "firmwareVersion": {
+            "maxLength": 40,
+            "minLength": 0,
+            "type": "string",
+            "description": "固件版本号"
+          },
+          "nameAlias": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "设备别名"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "description": "最近在线时间",
+            "format": "date-time"
+          },
+          "batteryLevel": {
+            "type": "integer",
+            "description": "电量百分比（0-100）",
+            "format": "int32"
+          },
+          "status": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "设备状态：online=在线，offline=离线，maintenance=维护，unbound=未绑定"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用，false 表示设备解绑"
+          },
+          "bindStatus": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "绑定状态：bound=已绑定，unbound=已解绑，pending=待绑定"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "创建时间",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "更新时间",
+            "format": "date-time"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "description": "设备信息"
+      },
+      "User": {
+        "required": [
+          "email",
+          "name",
+          "passwordHash"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "用户ID",
+            "format": "int64"
+          },
+          "email": {
+            "maxLength": 254,
+            "minLength": 0,
+            "type": "string",
+            "description": "邮箱地址，用作登录账号"
+          },
+          "passwordHash": {
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string",
+            "description": "密码哈希（加密存储）"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "用户姓名"
+          },
+          "appid": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "description": "应用标识，用于多应用隔离"
+          },
+          "country": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "description": "国家/地区"
+          },
+          "avatarUrl": {
+            "maxLength": 512,
+            "minLength": 0,
+            "type": "string",
+            "description": "头像图片地址"
+          },
+          "timezone": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "description": "时区，默认 UTC"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用，false 表示逻辑删除"
+          },
+          "status": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "用户状态：active=正常，suspended=暂停，deleted=已删除"
+          },
+          "lastLoginAt": {
+            "type": "string",
+            "description": "最后登录时间",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "记录创建时间",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "记录更新时间",
+            "format": "date-time"
+          }
+        },
+        "description": "用户信息"
+      },
+      "HttpResultDevice": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Device"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultVoid": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "object",
+            "description": "响应数据"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "DeviceBindRequest": {
+        "required": [
+          "deviceSerial",
+          "deviceType"
+        ],
+        "type": "object",
+        "properties": {
+          "deviceSerial": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "deviceType": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "firmwareVersion": {
+            "type": "string"
+          },
+          "nameAlias": {
+            "type": "string"
+          }
+        }
+      },
+      "HttpResult": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "object",
+            "description": "响应数据"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "FileUploadResponse": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "文件访问URL",
+            "example": "https://bucket.cos.ap-guangzhou.myqcloud.com/uploads/2024/10/16/id/file.png"
+          },
+          "path": {
+            "type": "string",
+            "description": "在COS中的对象键",
+            "example": "uploads/2024/10/16/default/uuid.png"
+          },
+          "bucket": {
+            "type": "string",
+            "description": "存储桶名称",
+            "example": "example-123456"
+          },
+          "size": {
+            "type": "integer",
+            "description": "文件大小（字节）",
+            "format": "int64",
+            "example": 20480
+          },
+          "contentType": {
+            "type": "string",
+            "description": "文件类型",
+            "example": "image/png"
+          }
+        },
+        "description": "文件上传响应"
+      },
+      "HttpResultSystemConfig": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SystemConfig"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "SystemConfig": {
+        "required": [
+          "configKey"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "配置ID",
+            "format": "int64"
+          },
+          "configKey": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "配置键，结合 region 唯一"
+          },
+          "region": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "生效区域，默认 global"
+          },
+          "configValue": {
+            "type": "string",
+            "description": "配置值，字符串形式存储"
+          },
+          "configType": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "配置类型：string/number/boolean/json 等"
+          },
+          "description": {
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string",
+            "description": "配置描述"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用"
+          },
+          "status": {
+            "type": "string",
+            "description": "配置状态：active=有效，deprecated=已废弃，deleted=已删除"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "创建时间",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "更新时间",
+            "format": "date-time"
+          }
+        },
+        "description": "系统配置项"
+      },
+      "Thing": {
+        "required": [
+          "name",
+          "type",
+          "userId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "受管对象ID",
+            "format": "int64"
+          },
+          "userId": {
+            "type": "integer",
+            "description": "所属用户ID",
+            "format": "int64"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "对象名称"
+          },
+          "type": {
+            "type": "integer",
+            "description": "对象类型：1=个人，2=宠物，3=物品",
+            "format": "int32"
+          },
+          "avatarUrl": {
+            "maxLength": 512,
+            "minLength": 0,
+            "type": "string",
+            "description": "头像URL"
+          },
+          "birthDate": {
+            "type": "string",
+            "description": "出生日期",
+            "format": "date"
+          },
+          "gender": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string",
+            "description": "性别"
+          },
+          "relation": {
+            "maxLength": 30,
+            "minLength": 0,
+            "type": "string",
+            "description": "与用户关系"
+          },
+          "heightCm": {
+            "type": "integer",
+            "description": "身高（厘米）",
+            "format": "int32"
+          },
+          "weightKg": {
+            "type": "number",
+            "description": "体重（公斤）"
+          },
+          "notes": {
+            "type": "string",
+            "description": "备注信息"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用，false 表示逻辑删除"
+          },
+          "status": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "状态：active=正常，archived=已归档，deleted=已删除"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "创建时间",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "更新时间",
+            "format": "date-time"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "description": "受管对象信息"
+      },
+      "HttpResultThing": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Thing"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "ThingCreateRequest": {
+        "required": [
+          "name",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "type": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "avatarUrl": {
+            "type": "string"
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "gender": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          },
+          "heightCm": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "weightKg": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "Record": {
+        "required": [
+          "data",
+          "thingId",
+          "timestamp",
+          "type",
+          "userId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "记录ID",
+            "format": "int64"
+          },
+          "userId": {
+            "type": "integer",
+            "description": "关联用户ID",
+            "format": "int64"
+          },
+          "thingId": {
+            "type": "integer",
+            "description": "关联受管对象ID",
+            "format": "int64"
+          },
+          "deviceId": {
+            "type": "integer",
+            "description": "关联设备ID，可为空",
+            "format": "int64"
+          },
+          "type": {
+            "type": "integer",
+            "description": "记录类型：1=症状，2=用药，3=通知，4=建议，5=提醒，6=诊断",
+            "format": "int32"
+          },
+          "subType": {
+            "type": "integer",
+            "description": "记录子类型，具体含义由业务定义",
+            "format": "int32"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "记录时间",
+            "format": "date-time"
+          },
+          "isRead": {
+            "type": "boolean",
+            "description": "是否已读"
+          },
+          "readAt": {
+            "type": "string",
+            "description": "阅读时间",
+            "format": "date-time"
+          },
+          "riskLevel": {
+            "type": "integer",
+            "description": "风险级别",
+            "format": "int32"
+          },
+          "data": {
+            "type": "string",
+            "description": "记录内容（JSON）"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用，false 表示记录无效"
+          },
+          "status": {
+            "type": "string",
+            "description": "记录状态：active=有效，archived=已归档，deleted=已删除"
+          },
+          "priority": {
+            "type": "string",
+            "description": "优先级：normal/low/high 等"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "创建时间",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "更新时间",
+            "format": "date-time"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "thing": {
+            "$ref": "#/components/schemas/Thing"
+          },
+          "device": {
+            "$ref": "#/components/schemas/Device"
+          }
+        },
+        "description": "记录信息（症状/用药/通知/建议等）"
+      },
+      "HttpResultRecord": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Record"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "MeasurementUploadRequest": {
+        "required": [
+          "deviceId",
+          "temperature",
+          "timestamp"
+        ],
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "integer",
+            "description": "受管对象ID（可选，未绑定时可以为null）",
+            "format": "int64",
+            "example": 1
+          },
+          "deviceId": {
+            "type": "integer",
+            "description": "设备ID",
+            "format": "int64",
+            "example": 1
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "测量时间",
+            "format": "date-time"
+          },
+          "temperature": {
+            "type": "number",
+            "description": "体温值",
+            "format": "double",
+            "example": 37.8
+          },
+          "mode": {
+            "type": "string",
+            "description": "测量模式",
+            "example": "oral"
+          },
+          "notes": {
+            "type": "string",
+            "description": "备注信息",
+            "example": "轻微发热"
+          }
+        },
+        "description": "测量数据信息"
+      },
+      "HttpResultMeasurement": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Measurement"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "Measurement": {
+        "required": [
+          "data",
+          "deviceId",
+          "thingId",
+          "timestamp",
+          "userId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "测量记录ID",
+            "format": "int64"
+          },
+          "thingId": {
+            "type": "integer",
+            "description": "关联对象ID，可为空表示未绑定",
+            "format": "int64"
+          },
+          "deviceId": {
+            "type": "integer",
+            "description": "采集设备ID",
+            "format": "int64"
+          },
+          "userId": {
+            "type": "integer",
+            "description": "所属用户ID（冗余字段）",
+            "format": "int64"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "测量时间",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "string",
+            "description": "测量数据内容（JSON）"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用，false 表示数据无效"
+          },
+          "status": {
+            "type": "string",
+            "description": "数据状态：valid=有效，invalid=无效，abnormal=异常，deleted=已删除"
+          },
+          "quality": {
+            "type": "string",
+            "description": "数据质量：good=良好，fair=一般，poor=较差"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "记录创建时间",
+            "format": "date-time"
+          },
+          "thing": {
+            "$ref": "#/components/schemas/Thing"
+          },
+          "device": {
+            "$ref": "#/components/schemas/Device"
+          }
+        },
+        "description": "测量数据"
+      },
+      "HttpResultUser": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "ChangePasswordRequest": {
+        "required": [
+          "newPassword",
+          "oldPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "oldPassword": {
+            "type": "string",
+            "description": "原密码",
+            "example": "123456"
+          },
+          "newPassword": {
+            "maxLength": 20,
+            "minLength": 6,
+            "type": "string",
+            "description": "新密码",
+            "example": "new123456"
+          }
+        },
+        "description": "密码修改信息"
+      },
+      "ChangeEmailRequest": {
+        "required": [
+          "newEmail",
+          "oldPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "oldPassword": {
+            "maxLength": 2147483647,
+            "minLength": 6,
+            "type": "string",
+            "description": "用户原密码",
+            "example": "123456"
+          },
+          "newEmail": {
+            "type": "string",
+            "description": "用户新邮箱",
+            "example": "newemail@example.com"
+          }
+        },
+        "description": "邮箱修改信息"
+      },
+      "UserRegisterRequest": {
+        "required": [
+          "email",
+          "name",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "邮箱地址",
+            "example": "test@example.com"
+          },
+          "password": {
+            "maxLength": 20,
+            "minLength": 6,
+            "type": "string",
+            "description": "密码",
+            "example": "123456"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "用户姓名",
+            "example": "张三"
+          },
+          "appid": {
+            "type": "string",
+            "description": "应用ID",
+            "example": "test-app"
+          },
+          "country": {
+            "type": "string",
+            "description": "国家",
+            "example": "CN"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "时区",
+            "example": "Asia/Shanghai"
+          }
+        },
+        "description": "用户注册信息"
+      },
+      "UserLoginRequest": {
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "邮箱地址",
+            "example": "test@example.com"
+          },
+          "password": {
+            "type": "string",
+            "description": "密码",
+            "example": "123456"
+          },
+          "appid": {
+            "type": "string",
+            "description": "应用ID",
+            "example": "test-app"
+          }
+        },
+        "description": "用户登录信息"
+      },
+      "HttpResultPageDevice": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageDevice"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "PageDevice": {
+        "type": "object",
+        "properties": {
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        },
+        "description": "响应数据"
+      },
+      "PageableObject": {
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paged": {
+            "type": "boolean"
+          },
+          "unpaged": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SortObject": {
+        "type": "object",
+        "properties": {
+          "empty": {
+            "type": "boolean"
+          },
+          "sorted": {
+            "type": "boolean"
+          },
+          "unsorted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "HttpResultListDevice": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "array",
+            "description": "响应数据",
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            }
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultBoolean": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "boolean",
+            "description": "响应数据"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultString": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "string",
+            "description": "响应数据"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultDouble": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "number",
+            "description": "响应数据",
+            "format": "double"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultListSystemConfig": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "array",
+            "description": "响应数据",
+            "items": {
+              "$ref": "#/components/schemas/SystemConfig"
+            }
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultListThing": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "array",
+            "description": "响应数据",
+            "items": {
+              "$ref": "#/components/schemas/Thing"
+            }
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultPageThing": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageThing"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "PageThing": {
+        "type": "object",
+        "properties": {
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thing"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        },
+        "description": "响应数据"
+      },
+      "HttpResultLong": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "integer",
+            "description": "响应数据",
+            "format": "int64"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultListRecord": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "array",
+            "description": "响应数据",
+            "items": {
+              "$ref": "#/components/schemas/Record"
+            }
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultPageRecord": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageRecord"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "PageRecord": {
+        "type": "object",
+        "properties": {
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        },
+        "description": "响应数据"
+      },
+      "HttpResultListMeasurement": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "array",
+            "description": "响应数据",
+            "items": {
+              "$ref": "#/components/schemas/Measurement"
+            }
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultPageMeasurement": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageMeasurement"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "PageMeasurement": {
+        "type": "object",
+        "properties": {
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Measurement"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        },
+        "description": "响应数据"
+      },
+      "HttpResultListUser": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "array",
+            "description": "响应数据",
+            "items": {
+              "$ref": "#/components/schemas/User"
+            }
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultObject": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "object",
+            "description": "响应数据"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "HttpResultListUserSession": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "array",
+            "description": "响应数据",
+            "items": {
+              "$ref": "#/components/schemas/UserSession"
+            }
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "UserSession": {
+        "required": [
+          "expiresAt",
+          "sessionToken",
+          "userId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "会话ID",
+            "format": "int64"
+          },
+          "userId": {
+            "type": "integer",
+            "description": "关联用户ID",
+            "format": "int64"
+          },
+          "sessionToken": {
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string",
+            "description": "会话令牌"
+          },
+          "deviceInfo": {
+            "type": "string",
+            "description": "设备信息（JSON）"
+          },
+          "ipAddress": {
+            "maxLength": 45,
+            "minLength": 0,
+            "type": "string",
+            "description": "客户端 IP 地址"
+          },
+          "userAgent": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string",
+            "description": "User-Agent 信息"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用，false 表示会话无效"
+          },
+          "status": {
+            "type": "string",
+            "description": "会话状态：active=活跃，expired=已过期，revoked=已撤销"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "过期时间",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "description": "最后使用时间",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "创建时间",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "更新时间",
+            "format": "date-time"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "description": "用户会话信息"
+      }
+    },
+    "parameters": {
+      "appid": {
+        "name": "appid",
+        "in": "header",
+        "description": "应用标识，用于区分不同应用来源的请求",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "example": "web_app"
+        },
+        "example": "web_app"
+      }
+    },
+    "securitySchemes": {
+      "Bearer Auth": {
+        "type": "http",
+        "in": "header",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+# Built files
+/build/
+*.iml
+.gradle/
+/local.properties
+/.idea/
+
+# Android/IntelliJ
+captures/
+.externalNativeBuild/
+.cxx/
+app/build/
+
+# Keystores
+*.jks
+*.keystore
+
+# Gradle Wrapper JAR (kept)
+
+# Log files
+*.log
+
+# Misc
+.DS_Store
+Thumbs.db
+/.vscode/settings.json
