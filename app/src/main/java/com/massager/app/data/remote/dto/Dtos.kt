@@ -13,7 +13,16 @@ data class AuthRequest(
 data class RegisterRequest(
     val email: String,
     val password: String,
-    @SerialName("display_name") val displayName: String
+    val name: String,
+    val verificationCode: String,
+    @SerialName("appid") val appId: String? = null
+)
+
+@Serializable
+data class ResetPasswordRequest(
+    val email: String,
+    @SerialName("newPassword") val newPassword: String,
+    val verificationCode: String
 )
 
 @Serializable
@@ -49,6 +58,14 @@ data class DeviceDto(
     val status: String? = null,
     val enabled: Boolean? = null,
     @SerialName("bindStatus") val bindStatus: String? = null
+)
+
+@Serializable
+data class DeviceBindRequest(
+    @SerialName("deviceSerial") val deviceSerial: String,
+    @SerialName("deviceType") val deviceType: Int,
+    @SerialName("nameAlias") val nameAlias: String? = null,
+    @SerialName("firmwareVersion") val firmwareVersion: String? = null
 )
 
 @Serializable

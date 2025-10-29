@@ -10,13 +10,27 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.massager.app.presentation.auth.AuthViewModel
 import com.massager.app.presentation.auth.LoginScreen
+import com.massager.app.presentation.auth.ForgetPasswordScreen
+import com.massager.app.presentation.auth.ForgetPasswordViewModel
 import com.massager.app.presentation.auth.RegisterScreen
+import com.massager.app.presentation.device.AddDeviceScreen
+import com.massager.app.presentation.device.AddDeviceViewModel
+import com.massager.app.presentation.device.DeviceControlScreen
+import com.massager.app.presentation.device.DeviceControlViewModel
 import com.massager.app.presentation.device.DeviceScanScreen
 import com.massager.app.presentation.device.DeviceViewModel
+import com.massager.app.presentation.device.ManualAddDeviceScreen
+import com.massager.app.presentation.device.ManualAddDeviceViewModel
 import com.massager.app.presentation.home.AppBottomTab
 import com.massager.app.presentation.home.HomeDashboardScreen
 import com.massager.app.presentation.home.HomeViewModel
 import com.massager.app.presentation.recovery.RecoverySelectionScreen
+import com.massager.app.presentation.settings.AccountSecurityScreen
+import com.massager.app.presentation.settings.AccountSecurityViewModel
+import com.massager.app.presentation.settings.ChangePasswordScreen
+import com.massager.app.presentation.settings.DeleteAccountConfirmScreen
+import com.massager.app.presentation.settings.PersonalInformationScreen
+import com.massager.app.presentation.settings.PersonalInformationViewModel
 import com.massager.app.presentation.settings.SettingsScreen
 import com.massager.app.presentation.settings.SettingsViewModel
 
@@ -47,14 +61,18 @@ fun MassagerNavHost(
             LoginScreen(
                 state = authState.value,
                 onLogin = { email, password -> authViewModel.login(email, password) },
-                onNavigateToRegister = { navController.navigate(Screen.Register.route) }
+                onNavigateToRegister = { navController.navigate(Screen.Register.route) },
+                onForgotPassword = { navController.navigate(Screen.ForgetPassword.route) }
             )
         }
         composable(Screen.Register.route) {
             RegisterScreen(
                 state = authState.value,
-                onRegister = { name, email, password ->
-                    authViewModel.register(name, email, password)
+                onRegister = { name, email, password, code ->
+                    authViewModel.register(name, email, password, code)
+                },
+                onSendVerificationCode = { email ->
+                    authViewModel.sendRegisterVerificationCode(email)
                 },
                 onNavigateToLogin = { navController.popBackStack() },
                 onRegistrationHandled = {
@@ -71,8 +89,10 @@ fun MassagerNavHost(
                 currentTab = AppBottomTab.Home,
                 onRefresh = viewModel::refresh,
                 onDismissError = viewModel::clearError,
-                onAddDevice = { viewModel.onAddDevice() },
-                onDeviceClick = { /* TODO navigate to device control */ },
+                onAddDevice = {
+                    navController.navigate(Screen.AddDevice.route)
+                },
+                onDeviceClick = { navController.navigate(Screen.DeviceControl.route) },
                 onConsumeDeviceAddedToast = viewModel::consumeAddDeviceToast,
                 onTabSelected = { tab ->
                     when (tab) {
@@ -88,6 +108,38 @@ fun MassagerNavHost(
             DeviceScanScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.DeviceControl.route) {
+            val viewModel: DeviceControlViewModel = hiltViewModel()
+            DeviceControlScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.AddDevice.route) {
+            val viewModel: AddDeviceViewModel = hiltViewModel()
+            AddDeviceScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onNavigateManual = { navController.navigate(Screen.ManualAddDevice.route) },
+                onNavigateHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable(Screen.ManualAddDevice.route) {
+            val viewModel: ManualAddDeviceViewModel = hiltViewModel()
+            ManualAddDeviceScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onNavigateHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                }
             )
         }
         composable(Screen.Settings.route) {
@@ -107,8 +159,10 @@ fun MassagerNavHost(
                 },
                 onToggleTemperature = viewModel::toggleTemperatureUnit,
                 onClearCache = viewModel::clearCache,
-                onNavigatePersonalInfo = { /* TODO */ },
-                onNavigateAccountSecurity = { /* TODO */ },
+                onUpdateName = viewModel::updateUserName,
+                onUpdateAvatar = viewModel::updateAvatar,
+                onNavigatePersonalInfo = { navController.navigate(Screen.PersonalInfo.route) },
+                onNavigateAccountSecurity = { navController.navigate(Screen.AccountSecurity.route) },
                 onNavigateHistory = { /* TODO */ },
                 onNavigateFavorites = { /* TODO */ },
                 onNavigateAbout = { /* TODO */ },
@@ -117,12 +171,82 @@ fun MassagerNavHost(
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }
+                    authViewModel.clearAuthenticationFlag()
                 },
                 onConsumeToast = viewModel::consumeToast
             )
         }
         composable(Screen.Recovery.route) {
             RecoverySelectionScreen(options = emptyList())
+        }
+        composable(Screen.ForgetPassword.route) {
+            val viewModel: ForgetPasswordViewModel = hiltViewModel()
+            val state = viewModel.uiState.collectAsStateWithLifecycle()
+            ForgetPasswordScreen(
+                state = state.value,
+                onBack = { navController.popBackStack() },
+                onSendCode = viewModel::sendCode,
+                onSubmit = viewModel::resetPassword,
+                onConsumeToast = viewModel::consumeToast,
+                onConsumeError = viewModel::consumeError,
+                onConsumeSnackbar = viewModel::consumeSnackbar,
+                onPasswordResetSuccess = {
+                    authViewModel.clearAuthenticationFlag()
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(navController.graph.startDestinationId) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+        composable(Screen.PersonalInfo.route) {
+            val viewModel: PersonalInformationViewModel = hiltViewModel()
+            PersonalInformationScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.AccountSecurity.route) {
+            val viewModel: AccountSecurityViewModel = hiltViewModel()
+            val uiState = viewModel.uiState.collectAsStateWithLifecycle()
+            LaunchedEffect(uiState.value.logoutCompleted) {
+                if (uiState.value.logoutCompleted) {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                    viewModel.consumeLogoutNavigation()
+                }
+            }
+            AccountSecurityScreen(
+                state = uiState.value,
+                onBack = { navController.popBackStack() },
+                onSetPassword = { navController.navigate(Screen.ChangePassword.route) },
+                onDeleteAccount = { navController.navigate(Screen.DeleteAccount.route) },
+                onRequestLogout = { viewModel.toggleLogoutDialog(true) },
+                onConfirmLogout = { viewModel.logout() },
+                onDismissLogoutDialog = { viewModel.toggleLogoutDialog(false) }
+            )
+        }
+        composable(Screen.ChangePassword.route) {
+            ChangePasswordScreen(
+                onBack = { navController.popBackStack() },
+                onPasswordChanged = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                    authViewModel.clearAuthenticationFlag()
+                },
+                onForgotPassword = { navController.navigate(Screen.ForgetPassword.route) }
+            )
+        }
+        composable(Screen.DeleteAccount.route) {
+            DeleteAccountConfirmScreen(
+                onBack = { navController.popBackStack() },
+                onConfirm = { navController.popBackStack() }
+            )
         }
     }
 }

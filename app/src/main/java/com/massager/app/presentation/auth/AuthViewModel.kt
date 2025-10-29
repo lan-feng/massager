@@ -29,25 +29,41 @@ class AuthViewModel @Inject constructor(
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     fun login(email: String, password: String) {
-        _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            errorMessage = null,
+            isAuthenticated = false
+        )
         viewModelScope.launch {
             when (val result = loginUseCase(email, password)) {
-                is AuthResult.LoginSuccess -> _uiState.value = AuthUiState(isAuthenticated = true)
-                is AuthResult.Error -> _uiState.value = AuthUiState(errorMessage = result.message)
+                is AuthResult.LoginSuccess -> _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = null,
+                    isAuthenticated = true
+                )
+                is AuthResult.Error -> _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = result.message,
+                    isAuthenticated = false
+                )
                 else -> _uiState.value = AuthUiState()
             }
         }
     }
 
-    fun register(name: String, email: String, password: String) {
+    fun register(name: String, email: String, password: String, verificationCode: String) {
         _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
-            when (val result = registerUseCase(name, email, password)) {
+            when (val result = registerUseCase(name, email, password, verificationCode)) {
                 is AuthResult.RegisterSuccess -> _uiState.value = AuthUiState(registrationSuccess = true)
                 is AuthResult.Error -> _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = result.message)
                 else -> _uiState.value = AuthUiState()
             }
         }
+    }
+
+    suspend fun sendRegisterVerificationCode(email: String): Result<Unit> {
+        return registerUseCase.sendVerificationCode(email)
     }
 
     fun clearError() {
@@ -56,5 +72,9 @@ class AuthViewModel @Inject constructor(
 
     fun clearRegistrationFlag() {
         _uiState.value = _uiState.value.copy(registrationSuccess = false)
+    }
+
+    fun clearAuthenticationFlag() {
+        _uiState.value = _uiState.value.copy(isAuthenticated = false)
     }
 }

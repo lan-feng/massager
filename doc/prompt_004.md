@@ -1,57 +1,103 @@
-Build a "Profile / Settings" screen for an app named ComfyTemp using Kotlin (Jetpack Compose) or Flutter.
+Create a modern "Profile" screen for the ComfyTemp app using Kotlin Jetpack Compose (or Flutter).
 
-### Layout requirements:
-- The top section shows:
-  - A welcome text: “Hi, I'm your smart customer service”
-  - An avatar (circle image) for the user (default cartoon style)
-  - Username below (e.g., “Geoffrey”)
-- Below that, display a list of setting options, each with an icon, label, and optional value or arrow.
-
-### Setting items (in order):
-1. Personal Information → navigate to personal info screen
-  - Icon: user outline
-2. Account and Security → navigate to account settings
-  - Icon: shield
-3. Temperature Unit → toggle between °C and °F
-  - Icon: temperature symbol
-  - Current selection displayed at right side (default °F)
-4. Clear Cache → show current cache size (e.g., “8.64MB”)
-  - Icon: trash bin
-  - Tap to clear cache and show a toast “Cache cleared successfully”
-5. Browsing History → navigate to browsing history page
-  - Icon: eye
-6. My Favorites → navigate to favorites page
-  - Icon: heart
-7. About → navigate to about page
-  - Icon: info circle
-
-### Bottom Navigation Bar:
-- 4 tabs with icons and labels:
-  1. Home
-  2. Manual / Guide
-  3. Device
-  4. Profile (this screen, highlighted in red)
-
-### Design requirements:
-- Clean, minimalist layout with soft shadows and rounded corners.
+### Design Goals
+- Maintain a soft, minimal wellness/health-tech aesthetic.
+- White background (#FAFAFA) with subtle gray shadows.
+- Rounded cards and calm spacing.
+- Accent color: ComfyTemp Red (#E54335).
+- Smooth transitions, adaptive layout for mobile devices.
 - Use Material 3 components.
-- Icons should match labels visually (use Material Icons if Kotlin, or Flutter's Icons.*).
-- Use light background color (#F8F8F8) and white cards for each list item.
-- Add ripple effect on tap.
-- Support dark mode automatically.
 
-### Behavior:
-- Support localization (i18n) for all labels.
-- Pull data from mock user object:
-  {
-  name: "Geoffrey",
-  avatarUrl: "",
-  cacheSize: "8.64MB",
-  tempUnit: "°F"
-  }
-- Save temperature unit selection and cache size to local preferences.
-- Animate avatar slightly on tap (e.g., bounce or rotate).
-- Include toast messages for Clear Cache and Temperature Unit changes.
+### Layout Sections
+
+#### Top Header Section
+- Background: soft gradient (white → light gray).
+- Left-aligned greeting text: “Hi, I'm your smart customer service”.
+  - Font size: 16sp, color #555.
+- Small chatbot icon (rounded, gradient background with subtle glow).
+- Center: Avatar + Username block.
+  - Circular avatar (default cartoon style).
+  - Username below, e.g. “Geoffrey”.
+  - Add subtle entry animation (fade-in or slide-up).
+
+#### Settings List Section
+- Use a rounded white card container with shadow and padding.
+- Each list item includes:
+  - Icon (Material Icons / Fluent Icons).
+  - Label text.
+  - Optional right-side value or unit.
+  - Chevron (>) icon for navigation.
+  - Tap animation (ripple).
+- List items (in order):
+  1. Personal Information → navigate to `PersonalInfoScreen`
+    - Icon: person outline.
+  2. Account and Security → navigate to `AccountSecurityScreen`
+    - Icon: shield outline.
+  3. Temperature Unit → toggle between “°C” and “°F”.
+    - Icon: thermostat or thermometer.
+    - Value on the right (“°F” by default).
+  4. Clear Cache → show current cache size (e.g. “8.28MB”)
+    - Icon: trash can.
+    - Tap → clear cache → show toast “Cache cleared successfully”.
+  5. Browsing History → navigate to browsing history.
+    - Icon: eye outline.
+  6. My Favorites → navigate to favorites page.
+    - Icon: heart outline.
+  7. About → navigate to about page.
+    - Icon: info outline.
+
+#### Bottom Navigation Bar
+- Tabs (icons + labels):
+  - Home
+  - Manual
+  - Device
+  - Profile (active, red highlight)
+- Height ~56dp, soft white background, active icon colored red (#E54335).
+
+---
+
+### ⚙️ Functional Logic
+- Store user info (name, avatar, temperature unit, cache size) in ViewModel or state.
+- Cache size fetched from local storage on init.
+- Temperature unit toggle saves to SharedPreferences (or DataStore).
+- “Clear Cache” triggers coroutine cleanup + toast message.
+- Each navigation item links to respective route via NavController (Compose) or Navigator (Flutter).
+- Support theme switching and dark mode automatically.
+
+---
+
+### 🌐 Internationalization
+Use resource files for all text (English & Simplified Chinese).
+
+Example:
+<string name="profile_title">Profile</string>
+<string name="hi_smart_assistant">Hi, I'm your smart customer service</string>
+<string name="personal_info">Personal Information</string>
+<string name="account_security">Account and Security</string>
+<string name="temperature_unit">Temperature Unit</string>
+<string name="clear_cache">Clear Cache</string>
+<string name="browsing_history">Browsing History</string>
+<string name="my_favorites">My Favorites</string>
+<string name="about">About</string>
+<string name="cache_cleared">Cache cleared successfully</string>
+<string name="unit_celsius">°C</string>
+<string name="unit_fahrenheit">°F</string>
+
+
+Chinese (values-zh/strings.xml):
+
+<string name="profile_title">我的</string>
+<string name="hi_smart_assistant">您好，我是您的智能客服</string>
+<string name="personal_info">个人信息</string>
+<string name="account_security">账号与安全</string>
+<string name="temperature_unit">温度单位</string>
+<string name="clear_cache">清除缓存</string>
+<string name="browsing_history">浏览记录</string>
+<string name="my_favorites">我的收藏</string>
+<string name="about">关于</string>
+<string name="cache_cleared">缓存清理完成</string>
+<string name="unit_celsius">°C</string>
+<string name="unit_fahrenheit">°F</string>
 
 ### Navigation:
 - Home  screen navigate to setting screen.

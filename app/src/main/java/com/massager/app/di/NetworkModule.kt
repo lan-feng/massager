@@ -8,6 +8,7 @@ import com.massager.app.BuildConfig
 import com.massager.app.data.remote.AuthApiService
 import com.massager.app.data.remote.AuthInterceptor
 import com.massager.app.data.remote.MassagerApiService
+import com.massager.app.data.remote.UserApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -61,6 +62,11 @@ object NetworkModule {
     @Singleton
     fun provideMassagerApi(retrofit: Retrofit): MassagerApiService =
         retrofit.create(MassagerApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideUserApi(retrofit: Retrofit): UserApiService =
+        retrofit.create(UserApiService::class.java)
 
     @Provides
     fun provideBluetoothAdapter(

@@ -3,6 +3,7 @@ package com.massager.app.presentation.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,16 +16,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -49,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -68,7 +70,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Velocity
 
-private val AccentRed = Color(0xFFE53935)
+private val AccentRed = Color(0xFFE54335)
 
 @Composable
 fun HomeDashboardScreen(
@@ -272,63 +274,61 @@ private fun HomeContent(
             state.errorMessage?.let { message ->
                 ToastCard(
                     message = message,
-                    actionLabel = "Dismiss",
+                    actionLabel = stringResource(id = R.string.home_dismiss_action),
                     onAction = onDismissError
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
             Text(
-                text = "Common Device",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                text = stringResource(id = R.string.home_common_devices_title),
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF777777),
+                    fontSize = 14.sp
+                )
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            val devices = if (state.devices.isEmpty()) {
-                listOf(
-                    DeviceMetadata(
-                        id = "demo",
-                        name = "SmartPulse TENS Unit",
-                        macAddress = "SmartPulse TENS Device",
-                        isConnected = true
-                    )
-                )
-            } else {
-                state.devices
-            }
+            val devices = state.devices
 
-            if (isTablet) {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(280.dp),
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(devices) { device ->
-                        DeviceCard(
-                            device = device,
-                            subtitle = device.macAddress ?: "SmartPulse TENS Device",
-                            onClick = onDeviceClick
-                        )
-                    }
-                }
+            if (devices.isEmpty()) {
+                HomeDevicesEmptyState(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = true),
+                    onAddDevice = onAddDevice
+                )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(bottom = 96.dp)
                 ) {
-                    items(
+                    itemsIndexed(
                         items = devices,
-                        key = { it.id }
-                    ) { device ->
-                        DeviceCard(
-                            device = device,
-                            subtitle = device.macAddress ?: "SmartPulse TENS Device",
-                            onClick = onDeviceClick
-                        )
-                    }
-                    item {
-                        Spacer(modifier = Modifier.height(96.dp))
+                        key = { _, device -> device.id }
+                    ) { index, device ->
+                        var isVisible by remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) {
+                            // Staggered reveal for a gentle entrance animation.
+                            delay(index * 60L)
+                            isVisible = true
+                        }
+                        AnimatedVisibility(
+                            visible = isVisible,
+                            enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
+                            exit = fadeOut()
+                        ) {
+                            DeviceCard(
+                                device = device,
+                                subtitle = device.macAddress
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: stringResource(id = R.string.home_device_subtitle_default),
+                                onClick = onDeviceClick
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(if (isTablet) 4.dp else 0.dp))
                     }
                 }
             }
@@ -347,13 +347,13 @@ private fun TopBar(onAddDevice: () -> Unit) {
     ) {
         Column {
             Text(
-                text = "Welcome to MASSAGER",
+                text = stringResource(id = R.string.home_welcome_title),
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.Bold
                 )
             )
             Text(
-                text = "Manage your wellness devices",
+                text = stringResource(id = R.string.home_welcome_subtitle),
                 style = MaterialTheme.typography.bodySmall.copy(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -362,14 +362,63 @@ private fun TopBar(onAddDevice: () -> Unit) {
         IconButton(
             onClick = onAddDevice,
             modifier = Modifier
-                .size(48.dp)
-                .background(AccentRed.copy(alpha = 0.12f), CircleShape)
+            .size(48.dp)
+            .background(AccentRed.copy(alpha = 0.12f), CircleShape)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Add,
+            contentDescription = stringResource(id = R.string.home_add_device_content_desc),
+            tint = AccentRed
+        )
+    }
+}
+}
+
+@Composable
+private fun HomeDevicesEmptyState(
+    modifier: Modifier = Modifier,
+    onAddDevice: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .padding(top = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = AccentRed.copy(alpha = 0.08f),
+            modifier = Modifier.size(120.dp)
         ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = "Add device",
-                tint = AccentRed
+            Image(
+                painter = painterResource(id = R.drawable.ic_massager_logo),
+                contentDescription = null,
+                modifier = Modifier.padding(28.dp)
             )
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = stringResource(id = R.string.home_device_empty_title),
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = stringResource(id = R.string.home_device_empty_description),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onAddDevice,
+            modifier = Modifier
+                .height(48.dp)
+        ) {
+            Text(text = stringResource(id = R.string.home_device_empty_action))
         }
     }
 }
@@ -383,11 +432,13 @@ private fun DeviceCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(20.dp))
             .clickable { onClick(device) },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 3.dp,
+            pressedElevation = 6.dp
+        )
     ) {
         Row(
             modifier = Modifier
@@ -422,12 +473,28 @@ private fun DeviceCard(
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
-            val statusColor = if (device.isConnected) Color(0xFF4CAF50) else Color(0xFFFFA000)
-            Text(
-                text = if (device.isConnected) "Online" else "Offline",
-                color = statusColor,
-                style = MaterialTheme.typography.labelMedium
-            )
+            val statusColor = if (device.isConnected) Color(0xFF4CAF50) else Color(0xFFB0B0B0)
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(statusColor, CircleShape)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = stringResource(
+                        id = if (device.isConnected) {
+                            R.string.home_device_status_online
+                        } else {
+                            R.string.home_device_status_offline
+                        }
+                    ),
+                    color = statusColor,
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
         }
     }
 }

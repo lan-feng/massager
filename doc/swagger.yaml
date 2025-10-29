@@ -15,13 +15,14 @@
   },
   "servers": [
     {
-      "url": "http://192.168.2.110:9100/iot/api",
-      "description": "开发环境"
+      "url": "http://localhost:8080/iot/api",
+      "description": "本地开发环境"
     }
   ],
   "security": [
     {
-      "Bearer Auth": []
+      "Bearer Auth": [],
+      "AppId": []
     }
   ],
   "tags": [
@@ -242,22 +243,22 @@
           }
         },
         "responses": {
-          "400": {
-            "description": "上传失败",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HttpResult"
-                }
-              }
-            }
-          },
           "200": {
             "description": "上传成功",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FileUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "上传失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResult"
                 }
               }
             }
@@ -843,6 +844,18 @@
           "required": true
         },
         "responses": {
+          "400": {
+            "description": "上传失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "参数错误"
+                }
+              }
+            }
+          },
           "200": {
             "description": "上传成功",
             "content": {
@@ -858,18 +871,6 @@
                     "timestamp": "2024-01-15T10:30:00",
                     "data": "{\"temperature\":37.8,\"mode\":\"oral\"}"
                   }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "上传失败",
-            "content": {
-              "application/json": {
-                "example": {
-                  "code": 500,
-                  "success": false,
-                  "message": "参数错误"
                 }
               }
             }
@@ -1079,18 +1080,6 @@
           "required": true
         },
         "responses": {
-          "400": {
-            "description": "邮箱修改失败",
-            "content": {
-              "application/json": {
-                "example": {
-                  "code": 500,
-                  "success": false,
-                  "message": "原密码错误"
-                }
-              }
-            }
-          },
           "200": {
             "description": "邮箱修改成功",
             "content": {
@@ -1100,6 +1089,18 @@
                   "success": true,
                   "message": "邮箱修改成功",
                   "data": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "邮箱修改失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "原密码错误"
                 }
               }
             }
@@ -1248,18 +1249,6 @@
           "required": true
         },
         "responses": {
-          "400": {
-            "description": "注册失败",
-            "content": {
-              "application/json": {
-                "example": {
-                  "code": 500,
-                  "success": false,
-                  "message": "邮箱已存在"
-                }
-              }
-            }
-          },
           "200": {
             "description": "注册成功",
             "content": {
@@ -1273,6 +1262,83 @@
                     "email": "test@example.com",
                     "name": "测试用户"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "注册失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "邮箱已存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/register/send-code": {
+      "post": {
+        "tags": [
+          "认证管理"
+        ],
+        "summary": "Send registration verification code",
+        "description": "Send a 6-digit email verification code for registration, valid for 60 seconds.",
+        "operationId": "sendRegisterEmailCode",
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "description": "Email address to receive verification code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/password/reset": {
+      "post": {
+        "tags": [
+          "认证管理"
+        ],
+        "summary": "Reset password",
+        "description": "Reset account password via email verification code.",
+        "operationId": "resetPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultVoid"
                 }
               }
             }
@@ -1499,10 +1565,10 @@
           {
             "name": "deviceType",
             "in": "query",
+            "description": "设备类型，多个类型用逗号或分号分隔",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "string"
             }
           }
         ],
@@ -2593,6 +2659,15 @@
               "format": "int32",
               "default": 10
             }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
           }
         ],
         "responses": {
@@ -2617,6 +2692,17 @@
         "summary": "查询未绑定的测量数据",
         "description": "查询当前用户的尚未绑定受管对象的测量数据",
         "operationId": "getUnboundMeasurements",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -2647,6 +2733,15 @@
             "schema": {
               "type": "integer",
               "format": "int64"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
             }
           }
         ],
@@ -2802,16 +2897,6 @@
         "description": "获取当前用户的所有登录会话",
         "operationId": "getUserSessions",
         "responses": {
-          "401": {
-            "description": "未授权",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/HttpResultListUserSession"
-                }
-              }
-            }
-          },
           "200": {
             "description": "获取成功",
             "content": {
@@ -2828,6 +2913,16 @@
                       "lastUsedAt": "2024-01-15T10:30:00"
                     }
                   ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListUserSession"
                 }
               }
             }
@@ -2985,95 +3080,9 @@
             "type": "string",
             "description": "更新时间",
             "format": "date-time"
-          },
-          "user": {
-            "$ref": "#/components/schemas/User"
           }
         },
         "description": "设备信息"
-      },
-      "User": {
-        "required": [
-          "email",
-          "name",
-          "passwordHash"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "description": "用户ID",
-            "format": "int64"
-          },
-          "email": {
-            "maxLength": 254,
-            "minLength": 0,
-            "type": "string",
-            "description": "邮箱地址，用作登录账号"
-          },
-          "passwordHash": {
-            "maxLength": 255,
-            "minLength": 0,
-            "type": "string",
-            "description": "密码哈希（加密存储）"
-          },
-          "name": {
-            "maxLength": 100,
-            "minLength": 0,
-            "type": "string",
-            "description": "用户姓名"
-          },
-          "appid": {
-            "maxLength": 50,
-            "minLength": 0,
-            "type": "string",
-            "description": "应用标识，用于多应用隔离"
-          },
-          "country": {
-            "maxLength": 50,
-            "minLength": 0,
-            "type": "string",
-            "description": "国家/地区"
-          },
-          "avatarUrl": {
-            "maxLength": 512,
-            "minLength": 0,
-            "type": "string",
-            "description": "头像图片地址"
-          },
-          "timezone": {
-            "maxLength": 50,
-            "minLength": 0,
-            "type": "string",
-            "description": "时区，默认 UTC"
-          },
-          "enabled": {
-            "type": "boolean",
-            "description": "是否启用，false 表示逻辑删除"
-          },
-          "status": {
-            "maxLength": 20,
-            "minLength": 0,
-            "type": "string",
-            "description": "用户状态：active=正常，suspended=暂停，deleted=已删除"
-          },
-          "lastLoginAt": {
-            "type": "string",
-            "description": "最后登录时间",
-            "format": "date-time"
-          },
-          "createdAt": {
-            "type": "string",
-            "description": "记录创建时间",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "description": "记录更新时间",
-            "format": "date-time"
-          }
-        },
-        "description": "用户信息"
       },
       "HttpResultDevice": {
         "type": "object",
@@ -3093,6 +3102,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "$ref": "#/components/schemas/Device"
@@ -3118,6 +3133,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "type": "object",
@@ -3149,32 +3170,6 @@
             "type": "string"
           }
         }
-      },
-      "HttpResult": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "description": "响应码，0表示成功，其他表示失败",
-            "format": "int32",
-            "example": 0
-          },
-          "success": {
-            "type": "boolean",
-            "description": "是否成功",
-            "example": true
-          },
-          "message": {
-            "type": "string",
-            "description": "响应消息",
-            "example": "操作成功"
-          },
-          "data": {
-            "type": "object",
-            "description": "响应数据"
-          }
-        },
-        "description": "统一响应格式"
       },
       "FileUploadResponse": {
         "type": "object",
@@ -3208,6 +3203,38 @@
         },
         "description": "文件上传响应"
       },
+      "HttpResult": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "data": {
+            "type": "object",
+            "description": "响应数据"
+          }
+        },
+        "description": "统一响应格式"
+      },
       "HttpResultSystemConfig": {
         "type": "object",
         "properties": {
@@ -3226,6 +3253,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "$ref": "#/components/schemas/SystemConfig"
@@ -3384,6 +3417,89 @@
         },
         "description": "受管对象信息"
       },
+      "User": {
+        "required": [
+          "email",
+          "name",
+          "passwordHash"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "用户ID",
+            "format": "int64"
+          },
+          "email": {
+            "maxLength": 254,
+            "minLength": 0,
+            "type": "string",
+            "description": "邮箱地址，用作登录账号"
+          },
+          "passwordHash": {
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string",
+            "description": "密码哈希（加密存储）"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "用户姓名"
+          },
+          "appid": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "description": "应用标识，用于多应用隔离"
+          },
+          "country": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "description": "国家/地区"
+          },
+          "avatarUrl": {
+            "maxLength": 512,
+            "minLength": 0,
+            "type": "string",
+            "description": "头像图片地址"
+          },
+          "timezone": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "description": "时区，默认 UTC"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用，false 表示逻辑删除"
+          },
+          "status": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "用户状态：active=正常，suspended=暂停，deleted=已删除"
+          },
+          "lastLoginAt": {
+            "type": "string",
+            "description": "最后登录时间",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "记录创建时间",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "记录更新时间",
+            "format": "date-time"
+          }
+        },
+        "description": "用户信息"
+      },
       "HttpResultThing": {
         "type": "object",
         "properties": {
@@ -3402,6 +3518,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "$ref": "#/components/schemas/Thing"
@@ -3482,7 +3604,7 @@
           },
           "type": {
             "type": "integer",
-            "description": "记录类型：1=症状，2=用药，3=通知，4=建议，5=提醒，6=诊断",
+            "description": "记录类型:1=症状,2=用药,3=通知,4=建议,5=提醒,6=诊断,7=体温数据",
             "format": "int32"
           },
           "subType": {
@@ -3523,7 +3645,7 @@
           },
           "priority": {
             "type": "string",
-            "description": "优先级：normal/low/high 等"
+            "description": "优先级：normal/low/high"
           },
           "createdAt": {
             "type": "string",
@@ -3565,6 +3687,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "$ref": "#/components/schemas/Record"
@@ -3634,6 +3762,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "$ref": "#/components/schemas/Measurement"
@@ -3725,6 +3859,12 @@
             "description": "响应消息",
             "example": "操作成功"
           },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
           "data": {
             "$ref": "#/components/schemas/User"
           }
@@ -3778,8 +3918,8 @@
       "UserRegisterRequest": {
         "required": [
           "email",
-          "name",
-          "password"
+          "password",
+          "verificationCode"
         ],
         "type": "object",
         "properties": {
@@ -3799,7 +3939,7 @@
             "maxLength": 100,
             "minLength": 0,
             "type": "string",
-            "description": "用户姓名",
+            "description": "用户名",
             "example": "张三"
           },
           "appid": {
@@ -3816,9 +3956,41 @@
             "type": "string",
             "description": "时区",
             "example": "Asia/Shanghai"
+          },
+          "verificationCode": {
+            "type": "string",
+            "description": "注册验证码",
+            "example": "123456"
           }
         },
         "description": "用户注册信息"
+      },
+      "PasswordResetRequest": {
+        "required": [
+          "email",
+          "newPassword",
+          "verificationCode"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Account email",
+            "example": "user@example.com"
+          },
+          "verificationCode": {
+            "type": "string",
+            "description": "Email verification code"
+          },
+          "newPassword": {
+            "maxLength": 20,
+            "minLength": 6,
+            "type": "string",
+            "description": "New password",
+            "example": "newPass123"
+          }
+        },
+        "description": "Password reset request payload"
       },
       "UserLoginRequest": {
         "required": [
@@ -3864,6 +4036,12 @@
             "description": "响应消息",
             "example": "操作成功"
           },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
           "data": {
             "$ref": "#/components/schemas/PageDevice"
           }
@@ -3873,13 +4051,26 @@
       "PageDevice": {
         "type": "object",
         "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
           "totalPages": {
             "type": "integer",
             "format": "int32"
           },
-          "totalElements": {
+          "numberOfElements": {
             "type": "integer",
-            "format": "int64"
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
           },
           "size": {
             "type": "integer",
@@ -3898,19 +4089,6 @@
           "sort": {
             "$ref": "#/components/schemas/SortObject"
           },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
-          },
-          "numberOfElements": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "first": {
-            "type": "boolean"
-          },
-          "last": {
-            "type": "boolean"
-          },
           "empty": {
             "type": "boolean"
           }
@@ -3920,13 +4098,6 @@
       "PageableObject": {
         "type": "object",
         "properties": {
-          "offset": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "sort": {
-            "$ref": "#/components/schemas/SortObject"
-          },
           "pageNumber": {
             "type": "integer",
             "format": "int32"
@@ -3940,19 +4111,26 @@
           },
           "unpaged": {
             "type": "boolean"
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
           }
         }
       },
       "SortObject": {
         "type": "object",
         "properties": {
-          "empty": {
-            "type": "boolean"
-          },
           "sorted": {
             "type": "boolean"
           },
           "unsorted": {
+            "type": "boolean"
+          },
+          "empty": {
             "type": "boolean"
           }
         }
@@ -3975,6 +4153,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "type": "array",
@@ -4005,6 +4189,12 @@
             "description": "响应消息",
             "example": "操作成功"
           },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
           "data": {
             "type": "boolean",
             "description": "响应数据"
@@ -4030,6 +4220,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "type": "string",
@@ -4057,6 +4253,12 @@
             "description": "响应消息",
             "example": "操作成功"
           },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
           "data": {
             "type": "number",
             "description": "响应数据",
@@ -4083,6 +4285,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "type": "array",
@@ -4113,6 +4321,12 @@
             "description": "响应消息",
             "example": "操作成功"
           },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
           "data": {
             "type": "array",
             "description": "响应数据",
@@ -4142,6 +4356,12 @@
             "description": "响应消息",
             "example": "操作成功"
           },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
           "data": {
             "$ref": "#/components/schemas/PageThing"
           }
@@ -4151,13 +4371,26 @@
       "PageThing": {
         "type": "object",
         "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
           "totalPages": {
             "type": "integer",
             "format": "int32"
           },
-          "totalElements": {
+          "numberOfElements": {
             "type": "integer",
-            "format": "int64"
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
           },
           "size": {
             "type": "integer",
@@ -4175,19 +4408,6 @@
           },
           "sort": {
             "$ref": "#/components/schemas/SortObject"
-          },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
-          },
-          "numberOfElements": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "first": {
-            "type": "boolean"
-          },
-          "last": {
-            "type": "boolean"
           },
           "empty": {
             "type": "boolean"
@@ -4213,6 +4433,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "type": "integer",
@@ -4240,6 +4466,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "type": "array",
@@ -4270,6 +4502,12 @@
             "description": "响应消息",
             "example": "操作成功"
           },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
           "data": {
             "$ref": "#/components/schemas/PageRecord"
           }
@@ -4279,13 +4517,26 @@
       "PageRecord": {
         "type": "object",
         "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
           "totalPages": {
             "type": "integer",
             "format": "int32"
           },
-          "totalElements": {
+          "numberOfElements": {
             "type": "integer",
-            "format": "int64"
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
           },
           "size": {
             "type": "integer",
@@ -4303,19 +4554,6 @@
           },
           "sort": {
             "$ref": "#/components/schemas/SortObject"
-          },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
-          },
-          "numberOfElements": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "first": {
-            "type": "boolean"
-          },
-          "last": {
-            "type": "boolean"
           },
           "empty": {
             "type": "boolean"
@@ -4341,6 +4579,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "type": "array",
@@ -4371,6 +4615,12 @@
             "description": "响应消息",
             "example": "操作成功"
           },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
           "data": {
             "$ref": "#/components/schemas/PageMeasurement"
           }
@@ -4380,13 +4630,26 @@
       "PageMeasurement": {
         "type": "object",
         "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
           "totalPages": {
             "type": "integer",
             "format": "int32"
           },
-          "totalElements": {
+          "numberOfElements": {
             "type": "integer",
-            "format": "int64"
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
           },
           "size": {
             "type": "integer",
@@ -4404,19 +4667,6 @@
           },
           "sort": {
             "$ref": "#/components/schemas/SortObject"
-          },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
-          },
-          "numberOfElements": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "first": {
-            "type": "boolean"
-          },
-          "last": {
-            "type": "boolean"
           },
           "empty": {
             "type": "boolean"
@@ -4442,6 +4692,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "type": "array",
@@ -4472,6 +4728,12 @@
             "description": "响应消息",
             "example": "操作成功"
           },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
           "data": {
             "type": "object",
             "description": "响应数据"
@@ -4497,6 +4759,12 @@
             "type": "string",
             "description": "响应消息",
             "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           },
           "data": {
             "type": "array",
@@ -4584,8 +4852,8 @@
       }
     },
     "parameters": {
-      "appid": {
-        "name": "appid",
+      "x-app-id": {
+        "name": "x-app-id",
         "in": "header",
         "description": "应用标识，用于区分不同应用来源的请求",
         "required": false,
@@ -4597,6 +4865,11 @@
       }
     },
     "securitySchemes": {
+      "AppId": {
+        "type": "apiKey",
+        "name": "x-app-id",
+        "in": "header"
+      },
       "Bearer Auth": {
         "type": "http",
         "in": "header",

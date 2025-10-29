@@ -1,10 +1,13 @@
 package com.massager.app.data.repository
 
-import com.massager.app.data.bluetooth.MassagerBluetoothService
+import androidx.room.withTransaction
+import com.massager.app.core.DeviceTypeConfig
 import com.massager.app.data.local.MassagerDatabase
 import com.massager.app.data.local.entity.DeviceEntity
 import com.massager.app.data.local.entity.MeasurementEntity
 import com.massager.app.data.remote.MassagerApiService
+import com.massager.app.data.remote.dto.DeviceBindRequest
+import com.massager.app.data.remote.dto.DeviceDto
 import com.massager.app.di.IoDispatcher
 import com.massager.app.domain.model.DeviceMetadata
 import com.massager.app.domain.model.TemperatureRecord
@@ -24,53 +27,65 @@ import javax.inject.Singleton
 class MassagerRepository @Inject constructor(
     private val api: MassagerApiService,
     private val database: MassagerDatabase,
-    private val bluetoothService: MassagerBluetoothService,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
 
-    val pairedDevices: Flow<List<String>> = bluetoothService.scanNearbyDevices().map { devices ->
-        devices.map { device -> device.name ?: device.address ?: "Unknown device" }
-    }
-
     fun deviceMetadata(): Flow<List<DeviceMetadata>> =
         database.deviceDao().getDevices().map { devices ->
-            devices.map {
-                DeviceMetadata(
-                    id = it.id,
-                    name = it.name,
-                    macAddress = it.serial,
-                    isConnected = it.status?.equals("online", ignoreCase = true) == true
+            devices
+                .sortedWith(
+                    compareByDescending<DeviceEntity> {
+                        it.status?.equals("online", ignoreCase = true) == true
+                    }.thenByDescending { it.lastSeenAt ?: Instant.EPOCH }
                 )
-            }
+                .map { it.toDeviceMetadata() }
         }
 
-    suspend fun refreshDevices(): Result<List<DeviceMetadata>> = withContext(ioDispatcher) {
+    suspend fun refreshDevices(
+        deviceTypes: List<Int> = DeviceTypeConfig.RESERVED_DEVICE_TYPES
+    ): Result<List<DeviceMetadata>> = withContext(ioDispatcher) {
         runCatching {
-            val response = api.fetchDevices()
+            val typesToRequest = deviceTypes.ifEmpty { DeviceTypeConfig.RESERVED_DEVICE_TYPES }
+            val response = api.fetchDevicesByType(typesToRequest.joinToString(","))
             if (response.success.not()) {
                 throw IllegalStateException(response.message ?: "Failed to load devices")
             }
-            val devices = response.data.orEmpty()
-            val entities = devices.map { dto ->
-                DeviceEntity(
-                    id = dto.id.toString(),
-                    name = dto.nameAlias?.takeIf { it.isNotBlank() } ?: dto.deviceSerial.orEmpty(),
-                    serial = dto.deviceSerial,
-                    ownerId = dto.userId?.toString().orEmpty(),
-                    status = dto.status,
-                    batteryLevel = dto.batteryLevel,
-                    lastSeenAt = parseInstant(dto.lastSeenAt)
-                )
+            val allowedTypeSet = typesToRequest.toSet()
+            val devices = response.data.orEmpty().filter { dto ->
+                val type = dto.deviceType
+                type == null || allowedTypeSet.contains(type)
             }
-            database.deviceDao().upsertAll(entities)
-            entities.map { entity ->
-                DeviceMetadata(
-                    id = entity.id,
-                    name = entity.name,
-                    macAddress = entity.serial,
-                    isConnected = entity.status?.equals("online", ignoreCase = true) == true
-                )
+            val entities = devices.map { dto -> dto.toEntity() }
+            database.withTransaction {
+                database.deviceDao().clear()
+                database.deviceDao().upsertAll(entities)
             }
+            entities.map { entity -> entity.toDeviceMetadata() }
+        }
+    }
+
+    suspend fun bindDevice(
+        deviceSerial: String,
+        displayName: String,
+        firmwareVersion: String? = null
+    ): Result<DeviceMetadata> = withContext(ioDispatcher) {
+        runCatching {
+            val type = DeviceTypeConfig.resolveTypeForName(displayName)
+            val response = api.bindDevice(
+                DeviceBindRequest(
+                    deviceSerial = deviceSerial,
+                    deviceType = type,
+                    nameAlias = displayName.takeIf { it.isNotBlank() },
+                    firmwareVersion = firmwareVersion
+                )
+            )
+            if (response.success.not()) {
+                throw IllegalStateException(response.message ?: "Failed to bind device")
+            }
+            val dto = response.data ?: throw IllegalStateException("Empty bind response")
+            val entity = dto.toEntity(defaultAlias = displayName)
+            database.deviceDao().upsert(entity)
+            entity.toDeviceMetadata()
         }
     }
 
@@ -141,4 +156,27 @@ class MassagerRepository @Inject constructor(
             null
         }
     }
+
+    private fun DeviceDto.toEntity(defaultAlias: String? = null): DeviceEntity =
+        DeviceEntity(
+            id = id.toString(),
+            name = nameAlias?.takeIf { it.isNotBlank() }
+                ?: defaultAlias?.takeIf { it.isNotBlank() }
+                ?: deviceSerial?.takeIf { it.isNotBlank() }
+                ?: id.toString(),
+            serial = deviceSerial,
+            ownerId = userId?.toString().orEmpty(),
+            status = status,
+            batteryLevel = batteryLevel,
+            lastSeenAt = parseInstant(lastSeenAt)
+        )
+
+    private fun DeviceEntity.toDeviceMetadata(): DeviceMetadata =
+        DeviceMetadata(
+            id = id,
+            name = name,
+            macAddress = serial,
+            isConnected = status?.equals("online", ignoreCase = true) == true
+        )
+
 }

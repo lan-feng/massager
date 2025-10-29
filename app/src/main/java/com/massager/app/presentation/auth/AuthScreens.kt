@@ -1,6 +1,7 @@
 package com.massager.app.presentation.auth
 
 import android.util.Patterns
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -10,12 +11,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,6 +29,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Facebook
 import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Person
@@ -33,6 +37,9 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
@@ -41,6 +48,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,13 +61,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -68,6 +85,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.massager.app.R
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val AccentRed = Color(0xFFE53935)
 
@@ -152,8 +170,8 @@ fun LoginScreen(
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = email,
-                    onValueChange = {
-                        email = it
+                    onValueChange = { updated ->
+                        email = updated.trimEnd { ch -> ch.isWhitespace() }
                         emailError = null
                     },
                     label = { Text("Email") },
@@ -185,8 +203,8 @@ fun LoginScreen(
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = password,
-                    onValueChange = {
-                        password = it
+                    onValueChange = { updated ->
+                        password = updated.trimEnd { ch -> ch.isWhitespace() }
                         passwordError = null
                     },
                     label = { Text("Password") },
@@ -366,14 +384,19 @@ fun LoginScreen(
 @Composable
 fun RegisterScreen(
     state: AuthUiState,
-    onRegister: (name: String, email: String, password: String) -> Unit,
+    onRegister: (name: String, email: String, password: String, verificationCode: String) -> Unit,
+    onSendVerificationCode: suspend (email: String) -> Result<Unit>,
     onNavigateToLogin: () -> Unit,
     onRegistrationHandled: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var verificationCode by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var nameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -399,8 +422,9 @@ fun RegisterScreen(
     }
 
     val scrollState = rememberScrollState()
-    val canSubmit = emailError == null && passwordError == null &&
-        email.isNotBlank() && password.isNotBlank() && verificationCode.isNotBlank() && !state.isLoading
+    val canSubmit = emailError == null && passwordError == null && nameError == null &&
+        name.isNotBlank() && email.isNotBlank() && password.isNotBlank() &&
+        verificationCode.isNotBlank() && !state.isLoading
 
     Surface(
         modifier = Modifier
@@ -453,11 +477,19 @@ fun RegisterScreen(
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = email,
-                    onValueChange = {
-                        email = it
+                    onValueChange = { input ->
+                        val sanitized = input.trimEnd { ch -> ch.isWhitespace() }
+                        email = sanitized
+                        val suggestedName = sanitized.substringBefore("@", "").trim()
+                        if (suggestedName.isNotEmpty()) {
+                            name = suggestedName
+                            nameError = null
+                        } else {
+                            name = ""
+                        }
                         emailError = when {
-                            it.isBlank() -> "Email cannot be empty"
-                            !Patterns.EMAIL_ADDRESS.matcher(it).matches() -> "Please enter a valid email"
+                            sanitized.isBlank() -> "Email cannot be empty"
+                            !Patterns.EMAIL_ADDRESS.matcher(sanitized).matches() -> "Please enter a valid email"
                             else -> null
                         }
                     },
@@ -488,7 +520,9 @@ fun RegisterScreen(
                     OutlinedTextField(
                         modifier = Modifier.weight(1f),
                         value = verificationCode,
-                        onValueChange = { verificationCode = it },
+                        onValueChange = { input ->
+                            verificationCode = input.trimEnd { ch -> ch.isWhitespace() }
+                        },
                         label = { Text("Verification code") },
                         placeholder = { Text("Please enter the verification code") },
                         keyboardOptions = KeyboardOptions(
@@ -498,7 +532,26 @@ fun RegisterScreen(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     OutlinedButton(
-                        onClick = { countdown = 60 },
+                        onClick = {
+                            focusManager.clearFocus()
+                            if (email.isBlank() || emailError != null) {
+                                emailError = "Please enter a valid email"
+                                return@OutlinedButton
+                            }
+                            coroutineScope.launch {
+                                val result = onSendVerificationCode(email.trim())
+                                if (result.isSuccess) {
+                                    countdown = 60
+                                    Toast.makeText(context, "Verification code sent", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        result.exceptionOrNull()?.message ?: "Failed to send verification code",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        },
                         enabled = countdown == 0 && !state.isLoading,
                         shape = RoundedCornerShape(16.dp)
                     ) {
@@ -511,9 +564,10 @@ fun RegisterScreen(
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = password,
-                    onValueChange = {
-                        password = it
-                        passwordError = validatePassword(it)
+                    onValueChange = { input ->
+                        val sanitized = input.trimEnd { ch -> ch.isWhitespace() }
+                        password = sanitized
+                        passwordError = validatePassword(sanitized)
                     },
                     label = { Text("Password") },
                     placeholder = { Text("Please enter your password") },
@@ -560,7 +614,28 @@ fun RegisterScreen(
                 Button(
                     onClick = {
                         focusManager.clearFocus()
-                        onRegister("Massager User", email.trim(), password.trim())
+                        if (name.isBlank()) {
+                            nameError = "Name cannot be empty"
+                            return@Button
+                        }
+                        if (nameError != null) return@Button
+                        if (email.isBlank()) {
+                            emailError = "Email cannot be empty"
+                            return@Button
+                        }
+                        if (emailError != null) return@Button
+                        passwordError = validatePassword(password)
+                        if (passwordError != null) return@Button
+                        if (verificationCode.isBlank()) {
+                            Toast.makeText(context, "Verification code cannot be empty", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        onRegister(
+                            name.trim(),
+                            email.trim(),
+                            password.trim(),
+                            verificationCode.trim()
+                        )
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = canSubmit,
@@ -600,6 +675,278 @@ fun RegisterScreen(
 
                 AuthFooter()
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ForgetPasswordScreen(
+    state: ForgetPasswordUiState,
+    onBack: () -> Unit,
+    onSendCode: (String) -> Unit,
+    onSubmit: (String, String, String) -> Unit,
+    onConsumeToast: () -> Unit,
+    onConsumeError: () -> Unit,
+    onConsumeSnackbar: () -> Unit,
+    onPasswordResetSuccess: () -> Unit
+) {
+    val accentRed = Color(0xFFE54335)
+    val accentDarkRed = Color(0xFFD22020)
+    val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    var email by remember { mutableStateOf("") }
+    var verificationCode by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var logoVisible by remember { mutableStateOf(false) }
+
+    val passwordPattern = remember { Regex("^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{6,12}$") }
+    val trimmedEmail = email.trim()
+    val isEmailValid = trimmedEmail.isNotEmpty() && Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()
+    val emailHasError = trimmedEmail.isNotEmpty() && !Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()
+    val isPasswordValid = passwordPattern.matches(password)
+    val isSubmitEnabled = isEmailValid && verificationCode.isNotBlank() && isPasswordValid && !state.isResetting
+
+    LaunchedEffect(Unit) {
+        logoVisible = true
+    }
+
+    state.toastMessageRes?.let { resId ->
+        LaunchedEffect(resId) {
+            Toast.makeText(context, context.getString(resId), Toast.LENGTH_SHORT).show()
+            onConsumeToast()
+        }
+    }
+
+    state.errorMessage?.let { message ->
+        LaunchedEffect(message) {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            onConsumeError()
+        }
+    }
+
+    state.snackbarMessageRes?.let { resId ->
+        LaunchedEffect(resId) {
+            val message = context.getString(resId)
+            snackbarHostState.showSnackbar(message)
+            onConsumeSnackbar()
+            if (resId == R.string.password_reset_success) {
+                onPasswordResetSuccess()
+            }
+        }
+    }
+
+    val sendCodeEnabled = state.countdownSeconds == 0 && !state.isSendingCode && !state.isResetting
+
+    fun handleSendCode() {
+        val currentEmail = email.trim()
+        if (currentEmail.isEmpty() || !Patterns.EMAIL_ADDRESS.matcher(currentEmail).matches()) {
+            Toast.makeText(context, context.getString(R.string.invalid_email), Toast.LENGTH_SHORT).show()
+        } else {
+            onSendCode(currentEmail)
+        }
+    }
+
+    fun handleSubmit() {
+        if (!isSubmitEnabled) return
+        onSubmit(email.trim(), verificationCode.trim(), password)
+    }
+
+    val getCodeText = if (state.countdownSeconds > 0) {
+        stringResource(R.string.resend_in_seconds, state.countdownSeconds)
+    } else {
+        stringResource(R.string.get_code)
+    }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text(text = stringResource(R.string.forget_password_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = null)
+                    }
+                }
+            )
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            AnimatedVisibility(visible = logoVisible, enter = fadeIn()) {
+                Card(
+                    shape = CircleShape,
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.linearGradient(listOf(accentRed, accentDarkRed))
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_massager_logo),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .padding(12.dp)
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = { input ->
+                    email = input.trimEnd { ch -> ch.isWhitespace() }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(text = stringResource(id = R.string.email_hint)) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.MailOutline,
+                        contentDescription = null
+                    )
+                },
+                singleLine = true,
+                isError = emailHasError,
+                enabled = !state.isResetting,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                )
+            )
+
+            OutlinedTextField(
+                value = verificationCode,
+                onValueChange = { input ->
+                    verificationCode = input.trimEnd { ch -> ch.isWhitespace() }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(text = stringResource(id = R.string.verification_hint)) },
+                singleLine = true,
+                enabled = !state.isResetting,
+                trailingIcon = {
+                    TextButton(
+                        onClick = ::handleSendCode,
+                        enabled = sendCodeEnabled
+                    ) {
+                        if (state.isSendingCode) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = getCodeText,
+                                color = if (sendCodeEnabled) {
+                                    accentRed
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                )
+            )
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = { input ->
+                    password = input.trimEnd { ch -> ch.isWhitespace() }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(text = stringResource(id = R.string.password_hint)) },
+                singleLine = true,
+                isError = password.isNotEmpty() && !isPasswordValid,
+                enabled = !state.isResetting,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (isSubmitEnabled) {
+                            handleSubmit()
+                        } else {
+                            focusManager.clearFocus()
+                        }
+                    }
+                ),
+                visualTransformation = if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        val icon = if (passwordVisible) {
+                            Icons.Filled.Visibility
+                        } else {
+                            Icons.Filled.VisibilityOff
+                        }
+                        Icon(imageVector = icon, contentDescription = null)
+                    }
+                }
+            )
+
+            Text(
+                text = stringResource(R.string.password_rule),
+                style = MaterialTheme.typography.bodySmall.copy(color = accentRed),
+                textAlign = TextAlign.Start,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Button(
+                onClick = ::handleSubmit,
+                enabled = isSubmitEnabled,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                shape = RoundedCornerShape(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = accentRed),
+                contentPadding = PaddingValues(vertical = 16.dp)
+            ) {
+                if (state.isResetting) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(20.dp)
+                    )
+                } else {
+                    Text(
+                        text = stringResource(R.string.submit),
+                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            AuthFooter()
         }
     }
 }
@@ -700,3 +1047,7 @@ private fun validatePassword(password: String): String? {
     }
     return null
 }
+
+
+
+
