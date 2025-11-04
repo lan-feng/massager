@@ -5,9 +5,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.massager.app.presentation.auth.AuthViewModel
 import com.massager.app.presentation.auth.LoginScreen
 import com.massager.app.presentation.auth.ForgetPasswordScreen
@@ -86,19 +88,48 @@ fun MassagerNavHost(
             val homeState = viewModel.uiState.collectAsStateWithLifecycle()
             HomeDashboardScreen(
                 state = homeState.value,
+                effects = viewModel.effects,
                 currentTab = AppBottomTab.Home,
-                onRefresh = viewModel::refresh,
-                onDismissError = viewModel::clearError,
-                onAddDevice = {
-                    navController.navigate(Screen.AddDevice.route)
+                onAddDevice = { navController.navigate(Screen.AddDevice.route) },
+                onDeviceToggle = { device -> viewModel.toggleDeviceSelection(device.id) },
+                onDeviceOpen = { device ->
+                    navController.navigate(
+                        Screen.DeviceControl.createRoute(
+                            device.id,
+                            device.name,
+                            device.macAddress
+                        )
+                    ) {
+                        launchSingleTop = true
+                    }
                 },
-                onDeviceClick = { navController.navigate(Screen.DeviceControl.route) },
-                onConsumeDeviceAddedToast = viewModel::consumeAddDeviceToast,
+                onRenameClick = viewModel::showRenameDialog,
+                onRemoveClick = viewModel::showRemoveDialog,
+                onCancelManagement = viewModel::cancelManagement,
+                onRenameInputChanged = viewModel::onRenameInputChanged,
+                onRenameConfirm = viewModel::confirmRename,
+                onRenameDismiss = viewModel::dismissRenameDialog,
+                onRemoveConfirm = viewModel::confirmRemove,
+                onRemoveDismiss = viewModel::dismissRemoveDialog,
+                onDismissError = viewModel::clearError,
                 onTabSelected = { tab ->
                     when (tab) {
                         AppBottomTab.Home -> Unit
-                        AppBottomTab.Profile -> navController.navigate(Screen.Settings.route)
-                        else -> Unit
+                        AppBottomTab.Manual -> {
+                            navController.navigate(Screen.Recovery.route) {
+                                launchSingleTop = true
+                            }
+                        }
+                        AppBottomTab.Devices -> {
+                            navController.navigate(Screen.DeviceScan.route) {
+                                launchSingleTop = true
+                            }
+                        }
+                        AppBottomTab.Profile -> {
+                            navController.navigate(Screen.Settings.route) {
+                                launchSingleTop = true
+                            }
+                        }
                     }
                 }
             )
@@ -110,7 +141,24 @@ fun MassagerNavHost(
                 onBack = { navController.popBackStack() }
             )
         }
-        composable(Screen.DeviceControl.route) {
+        composable(
+            Screen.DeviceControl.routePattern,
+            arguments = listOf(
+                navArgument(Screen.DeviceControl.ARG_DEVICE_ID) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument(Screen.DeviceControl.ARG_DEVICE_NAME) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument(Screen.DeviceControl.ARG_DEVICE_MAC) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                    nullable = true
+                }
+            )
+        ) {
             val viewModel: DeviceControlViewModel = hiltViewModel()
             DeviceControlScreen(
                 viewModel = viewModel,

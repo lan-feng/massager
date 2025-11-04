@@ -9,8 +9,18 @@ object DeviceTypeConfig {
         "massager" to 12
     )
 
-    fun resolveTypeForName(name: String): Int {
-        val normalized = name.lowercase()
+    private val productIdToType: Map<Int, Int> = mapOf(
+        1 to 12 // EMS v2 product id maps to massager slot
+    )
+
+    fun resolveType(productId: Int?, name: String?): Int {
+        val fromProduct = productId?.let(productIdToType::get)
+        if (fromProduct != null) return fromProduct
+        return resolveTypeForName(name)
+    }
+
+    fun resolveTypeForName(name: String?): Int {
+        val normalized = name.orEmpty().lowercase()
         return deviceNameToType.entries.firstOrNull { (keyword, _) ->
             normalized.contains(keyword)
         }?.value ?: RESERVED_DEVICE_TYPES.first()

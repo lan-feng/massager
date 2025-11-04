@@ -69,6 +69,12 @@ data class DeviceBindRequest(
 )
 
 @Serializable
+data class DeviceUpdateRequest(
+    val id: Long,
+    @SerialName("nameAlias") val nameAlias: String
+)
+
+@Serializable
 data class MeasurementDto(
     val id: Long,
     @SerialName("deviceId") val deviceId: Long,

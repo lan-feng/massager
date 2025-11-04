@@ -1,10 +1,11 @@
 package com.massager.app.presentation.device
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.with
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,8 +21,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -77,6 +80,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
 import androidx.compose.material3.SnackbarHostState
 
+private val AccentRed = Color(0xFFE54335)
+private val RenameTeal = Color(0xFF16A085)
+
 @Composable
 fun DeviceControlScreen(
     viewModel: DeviceControlViewModel,
@@ -88,6 +94,7 @@ fun DeviceControlScreen(
     DeviceControlContent(
         state = state,
         onBack = onBack,
+        onReconnect = viewModel::reconnect,
         onSelectZone = viewModel::selectZone,
         onSelectMode = viewModel::selectMode,
         onSelectTimer = viewModel::selectTimer,
@@ -108,6 +115,7 @@ fun DeviceControlScreen(
 private fun DeviceControlContent(
     state: DeviceControlUiState,
     onBack: () -> Unit,
+    onReconnect: () -> Unit,
     onSelectZone: (BodyZone) -> Unit,
     onSelectMode: (Int) -> Unit,
     onSelectTimer: (Int) -> Unit,
@@ -129,7 +137,7 @@ private fun DeviceControlContent(
                 val text = context.getString(
                     R.string.device_session_started,
                     message.level,
-                    message.mode
+                    context.getString(modeLabelRes(message.mode))
                 )
                 snackbarHostState.showSnackbar(text)
             }
@@ -146,6 +154,19 @@ private fun DeviceControlContent(
                 )
             }
 
+            is DeviceMessage.MuteChanged -> {
+                val resId = if (message.enabled) {
+                    R.string.device_mute_enabled
+                } else {
+                    R.string.device_mute_disabled
+                }
+                snackbarHostState.showSnackbar(context.getString(resId))
+            }
+
+            is DeviceMessage.CommandFailed -> {
+                snackbarHostState.showSnackbar(context.getString(message.messageRes))
+            }
+
             null -> Unit
         }
         if (state.message != null) {
@@ -158,7 +179,7 @@ private fun DeviceControlContent(
             TopAppBar(
                 title = {
                     Text(
-                        text = stringResource(id = R.string.device_title),
+                        text = state.deviceName.ifBlank { stringResource(id = R.string.device_title) },
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
@@ -184,12 +205,13 @@ private fun DeviceControlContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             DeviceDisplaySection(
-                batteryPercent = state.batteryPercent,
-                isMuted = state.isMuted,
+                state = state,
+                onReconnect = onReconnect,
                 onToggleMute = onToggleMute
             )
             BodyZoneTabs(
@@ -204,7 +226,7 @@ private fun DeviceControlContent(
             )
             LevelControlSection(
                 level = state.level,
-                isRunning = state.isRunning,
+                isConnected = state.isConnected,
                 onIncrease = {
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onIncreaseLevel()
@@ -244,41 +266,75 @@ private fun DeviceControlContent(
 
 @Composable
 private fun DeviceDisplaySection(
-    batteryPercent: Int,
-    isMuted: Boolean,
+    state: DeviceControlUiState,
+    onReconnect: () -> Unit,
     onToggleMute: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Card(
+        Column(
             modifier = Modifier
-                .weight(1f)
-                .shadow(6.dp, RoundedCornerShape(24.dp)),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = state.deviceName.ifBlank { stringResource(id = R.string.device_title) },
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        text = stringResource(
+                            id = if (state.isConnected) {
+                                R.string.device_status_connected
+                            } else {
+                                R.string.device_status_disconnected
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (state.isConnected) Color(0xFF4CAF50) else AccentRed
+                    )
+                }
+                IconButton(
+                    onClick = onReconnect,
+                    enabled = !state.isConnected,
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(
+                            color = if (state.isConnected) Color(0xFFE0E0E0) else Color(0xFFFFEBEE)
+                        )
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(id = R.string.device_reconnect),
+                        tint = if (state.isConnected) Color.Gray else AccentRed
+                    )
+                }
+            }
             Box(
                 modifier = Modifier
-                    .padding(20.dp)
-                    .height(180.dp)
                     .fillMaxWidth()
+                    .height(140.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Surface(
-                    modifier = Modifier
-                        .size(150.dp)
-                        .align(Alignment.Center),
-                    color = Color(0xFFF0F0F0),
+                    modifier = Modifier.size(160.dp),
                     shape = CircleShape,
-                    tonalElevation = 6.dp
+                    color = Color(0xFFF2F2F2)
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.ic_massager_logo),
-                        contentDescription = stringResource(R.string.device_title),
-                        modifier = Modifier.padding(32.dp),
+                        contentDescription = null,
+                        modifier = Modifier.padding(36.dp),
                         contentScale = ContentScale.Fit
                     )
                 }
@@ -287,26 +343,21 @@ private fun DeviceDisplaySection(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(Color.White)
                 ) {
                     Icon(
-                        imageVector = if (isMuted) Icons.Outlined.VolumeOff else Icons.Outlined.VolumeUp,
-                        contentDescription = if (isMuted) {
-                            stringResource(R.string.device_unmute)
+                        imageVector = if (state.isMuted) Icons.Outlined.VolumeOff else Icons.Outlined.VolumeUp,
+                        contentDescription = if (state.isMuted) {
+                            stringResource(id = R.string.device_mute_disabled)
                         } else {
-                            stringResource(R.string.device_mute)
-                        }
+                            stringResource(id = R.string.device_mute_enabled)
+                        },
+                        tint = AccentRed
                     )
                 }
             }
-            BatteryStatusRow(batteryPercent = batteryPercent)
+            BatteryStatusRow(batteryPercent = state.batteryPercent)
         }
-        DottedPlaceholder(
-            modifier = Modifier
-                .width(120.dp)
-                .height(180.dp),
-            label = stringResource(id = R.string.device_add_placeholder)
-        )
     }
 }
 
@@ -315,7 +366,9 @@ private fun BatteryStatusRow(batteryPercent: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFFF9F9F9))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -329,44 +382,6 @@ private fun BatteryStatusRow(batteryPercent: Int) {
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold
         )
-    }
-}
-
-@Composable
-private fun DottedPlaceholder(
-    modifier: Modifier = Modifier,
-    label: String
-) {
-    val dashEffect = remember { PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f) }
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White)
-            .drawBehind {
-                val strokeWidth = 3.dp.toPx()
-                drawRoundRect(
-                    color = Color(0xFFE0E0E0),
-                    style = Stroke(width = strokeWidth, pathEffect = dashEffect),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(24.dp.toPx())
-                )
-            }
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = null,
-                tint = Color(0xFFE53935),
-                modifier = Modifier.size(32.dp)
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }
 
@@ -392,17 +407,11 @@ private fun BodyZoneTabs(
                     .padding(horizontal = 4.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .clickable(enabled = !isRunning) { onSelectZone(zone) },
-                color = if (isSelected) Color(0xFFE54335) else Color.Transparent,
+                color = if (isSelected) AccentRed else Color.Transparent,
                 tonalElevation = if (isSelected) 4.dp else 0.dp
             ) {
                 Text(
-                    text = when (zone) {
-                        BodyZone.SHLDR -> stringResource(id = R.string.device_zone_shldr)
-                        BodyZone.WAIST -> stringResource(id = R.string.device_zone_waist)
-                        BodyZone.LEGS -> stringResource(id = R.string.device_zone_legs)
-                        BodyZone.ARMS -> stringResource(id = R.string.device_zone_arms)
-                        BodyZone.JC -> stringResource(id = R.string.device_zone_jc)
-                    },
+                    text = stringResource(id = zone.labelRes),
                     modifier = Modifier
                         .padding(vertical = 12.dp)
                         .align(Alignment.CenterVertically),
@@ -434,7 +443,7 @@ private fun ModeSelectionGrid(
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(12.dp))
-            val modeRows = (1..5).toList().chunked(3)
+            val modeRows = (0..7).toList().chunked(3)
             modeRows.forEachIndexed { rowIndex, rowModes ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -447,14 +456,14 @@ private fun ModeSelectionGrid(
                             enabled = !isRunning,
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) Color(0xFFE54335) else Color(0xFFF4F4F4),
+                                containerColor = if (isSelected) AccentRed else Color(0xFFF4F4F4),
                                 contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
                             ),
                             modifier = Modifier
                                 .weight(1f)
                         ) {
                             Text(
-                                text = stringResource(id = R.string.device_mode_label, mode),
+                                text = stringResource(id = modeLabelRes(mode)),
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -477,7 +486,7 @@ private fun ModeSelectionGrid(
 @Composable
 private fun LevelControlSection(
     level: Int,
-    isRunning: Boolean,
+    isConnected: Boolean,
     onIncrease: () -> Unit,
     onDecrease: () -> Unit
 ) {
@@ -502,12 +511,12 @@ private fun LevelControlSection(
             ) {
                 ControlCircularButton(
                     icon = Icons.Filled.Remove,
-                    enabled = isRunning && level > 0,
+                    enabled = isConnected && level > 0,
                     onClick = onDecrease
                 )
                 AnimatedContent(
                     targetState = level,
-                    transitionSpec = { fadeIn() with fadeOut() },
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
                     label = "level-counter"
                 ) { value ->
                     Text(
@@ -520,7 +529,7 @@ private fun LevelControlSection(
                 }
                 ControlCircularButton(
                     icon = Icons.Filled.Add,
-                    enabled = isRunning && level < 20,
+                    enabled = isConnected && level < 19,
                     onClick = onIncrease
                 )
             }
@@ -579,12 +588,13 @@ private fun TimerActionSection(
             ) {
                 Icon(Icons.Outlined.Timer, contentDescription = null, tint = Color(0xFFE54335))
                 Text(
-                    text = if (state.isRunning && state.remainingSeconds > 0) {
-                        formatMinutes(state.remainingSeconds)
-                    } else if (state.timerMinutes == 0) {
-                        stringResource(id = R.string.device_timer_placeholder)
-                    } else {
-                        "${state.timerMinutes} ${stringResource(id = R.string.device_minutes_suffix)}"
+                    text = when {
+                        state.isRunning && state.remainingSeconds > 0 -> formatDuration(state.remainingSeconds)
+                        state.timerMinutes > 0 -> stringResource(
+                            id = R.string.device_timer_minutes_format,
+                            state.timerMinutes
+                        )
+                        else -> stringResource(id = R.string.device_timer_placeholder)
                     },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
@@ -598,7 +608,10 @@ private fun TimerActionSection(
                     DropdownMenuItem(
                         text = {
                             Text(
-                                text = "$minutes ${stringResource(id = R.string.device_minutes_suffix)}"
+                                text = stringResource(
+                                    id = R.string.device_timer_minutes_format,
+                                    minutes
+                                )
                             )
                         },
                         onClick = { onSelectTimer(minutes) }
@@ -614,7 +627,7 @@ private fun TimerActionSection(
                 .height(64.dp),
             shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (state.isRunning) Color(0xFFE54335) else Color(0xFFFFC107),
+                containerColor = if (state.isRunning) AccentRed else RenameTeal,
                 contentColor = Color.White
             )
         ) {
@@ -631,7 +644,19 @@ private fun TimerActionSection(
     }
 }
 
-private fun formatMinutes(remainingSeconds: Int): String {
+@StringRes
+private fun modeLabelRes(mode: Int): Int = when (mode.coerceIn(0, 7)) {
+    0 -> R.string.device_mode_0
+    1 -> R.string.device_mode_1
+    2 -> R.string.device_mode_2
+    3 -> R.string.device_mode_3
+    4 -> R.string.device_mode_4
+    5 -> R.string.device_mode_5
+    6 -> R.string.device_mode_6
+    else -> R.string.device_mode_7
+}
+
+private fun formatDuration(remainingSeconds: Int): String {
     val minutes = remainingSeconds / 60
     val seconds = remainingSeconds % 60
     return "%02d:%02d".format(minutes, seconds)

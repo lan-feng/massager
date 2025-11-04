@@ -100,6 +100,49 @@ class MassagerRepository @Inject constructor(
             }
         }
 
+    suspend fun renameDevice(deviceId: String, newName: String): Result<DeviceMetadata> =
+        withContext(ioDispatcher) {
+            runCatching {
+                val idLong = deviceId.toLongOrNull()
+                    ?: throw IllegalArgumentException("Invalid device id: $deviceId")
+                val response = api.updateDevice(
+                    com.massager.app.data.remote.dto.DeviceUpdateRequest(
+                        id = idLong,
+                        nameAlias = newName
+                    )
+                )
+                if (response.success.not()) {
+                    throw IllegalStateException(response.message ?: "Failed to rename device")
+                }
+                val dto = response.data
+                if (dto != null) {
+                    val entity = dto.toEntity(defaultAlias = newName)
+                    database.deviceDao().upsert(entity)
+                    entity.toDeviceMetadata()
+                } else {
+                    database.deviceDao().updateName(deviceId, newName)
+                    database.deviceDao().findById(deviceId)?.toDeviceMetadata()
+                        ?: throw IllegalStateException("Device not found locally after rename")
+                }
+            }
+        }
+
+    suspend fun removeDevice(deviceId: String): Result<Unit> =
+        withContext(ioDispatcher) {
+            runCatching {
+                val idLong = deviceId.toLongOrNull()
+                    ?: throw IllegalArgumentException("Invalid device id: $deviceId")
+                val response = api.deleteDevice(idLong)
+                if (response.success.not()) {
+                    throw IllegalStateException(response.message ?: "Failed to remove device")
+                }
+                database.withTransaction {
+                    database.deviceDao().deleteById(deviceId)
+                    database.measurementDao().deleteForDevice(deviceId)
+                }
+            }
+        }
+
     suspend fun refreshMeasurements(deviceId: String): Result<List<TemperatureRecord>> =
         withContext(ioDispatcher) {
             runCatching {

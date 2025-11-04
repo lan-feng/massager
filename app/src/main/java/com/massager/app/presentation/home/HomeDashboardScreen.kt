@@ -1,41 +1,55 @@
 package com.massager.app.presentation.home
 
+import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,401 +58,269 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.annotation.StringRes
 import com.massager.app.R
 import com.massager.app.domain.model.DeviceMetadata
-import kotlinx.coroutines.delay
-import androidx.compose.material3.TextButton
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Velocity
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.collectLatest
 
+private val ScreenBackground = Color(0xFFFAFAFA)
+private val CardBackground = Color.White
 private val AccentRed = Color(0xFFE54335)
+private val RenameTeal = Color(0xFF16A085)
 
 @Composable
 fun HomeDashboardScreen(
     state: HomeUiState,
+    effects: SharedFlow<HomeEffect>,
     currentTab: AppBottomTab,
-    onRefresh: () -> Unit,
-    onDismissError: () -> Unit,
     onAddDevice: () -> Unit,
-    onDeviceClick: (DeviceMetadata) -> Unit,
-    onConsumeDeviceAddedToast: () -> Unit,
+    onDeviceToggle: (DeviceMetadata) -> Unit,
+    onDeviceOpen: (DeviceMetadata) -> Unit,
+    onRenameClick: () -> Unit,
+    onRemoveClick: () -> Unit,
+    onCancelManagement: () -> Unit,
+    onRenameInputChanged: (String) -> Unit,
+    onRenameConfirm: () -> Unit,
+    onRenameDismiss: () -> Unit,
+    onRemoveConfirm: () -> Unit,
+    onRemoveDismiss: () -> Unit,
+    onDismissError: () -> Unit,
     onTabSelected: (AppBottomTab) -> Unit
 ) {
-    val density = LocalDensity.current
-    val pullThresholdPx = with(density) { 120.dp.toPx() }
-    var pullOffset by remember { mutableStateOf(0f) }
-    val nestedScrollConnection = remember(state.isRefreshing) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.Drag && available.y > 0f && !state.isRefreshing) {
-                    pullOffset += available.y
-                }
-                return Offset.Zero
-            }
+    val context = LocalContext.current
 
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource
-            ): Offset {
-                if (source == NestedScrollSource.Drag) {
-                    pullOffset = (pullOffset + available.y).coerceAtLeast(0f)
+    LaunchedEffect(effects) {
+        effects.collectLatest { effect ->
+            when (effect) {
+                is HomeEffect.ShowMessage -> {
+                    Toast.makeText(context, context.getString(effect.messageRes), Toast.LENGTH_SHORT).show()
                 }
-                return Offset.Zero
-            }
 
-            override suspend fun onPreFling(available: Velocity): Velocity {
-                if (!state.isRefreshing && pullOffset > pullThresholdPx) {
-                    onRefresh()
+                is HomeEffect.ShowMessageText -> {
+                    Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
-                pullOffset = 0f
-                return Velocity.Zero
-            }
-
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                pullOffset = 0f
-                return Velocity.Zero
             }
         }
     }
 
-    LaunchedEffect(state.isRefreshing) {
-        if (!state.isRefreshing) {
-            pullOffset = 0f
+    LaunchedEffect(state.errorMessage) {
+        state.errorMessage?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            onDismissError()
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(nestedScrollConnection)
-    ) {
-        HomeContent(
-            state = state,
-            onAddDevice = onAddDevice,
-            onDismissError = onDismissError,
-            onDeviceClick = onDeviceClick
-        )
-
-        val showPullIndicator = pullOffset > 0f || state.isRefreshing
-        if (showPullIndicator) {
-            val progress = (pullOffset / pullThresholdPx).coerceIn(0f, 1f)
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 16.dp),
-                shape = RoundedCornerShape(24.dp),
-                color = Color.White,
-                tonalElevation = 4.dp,
-                shadowElevation = 6.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    if (state.isRefreshing) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = AccentRed
-                        )
-                    } else {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            progress = progress,
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = AccentRed
-                        )
-                    }
-                    Text(
-                        text = when {
-                            state.isRefreshing -> "Refreshing..."
-                            progress >= 1f -> "Release to refresh"
-                            else -> "Pull to refresh"
-                        },
-                        style = MaterialTheme.typography.bodySmall
+    Scaffold(
+        containerColor = ScreenBackground,
+        bottomBar = {
+            Column {
+                AnimatedVisibility(visible = state.isManagementActive) {
+                    ManagementBottomBar(
+                        isSelectionActive = state.isManagementActive,
+                        selectionCount = state.selectedDeviceIds.size,
+                        isProcessing = state.isActionInProgress,
+                        onRenameClick = onRenameClick,
+                        onRemoveClick = onRemoveClick,
+                        onCancel = onCancelManagement
                     )
                 }
-            }
-        }
-
-        AnimatedVisibility(
-            visible = state.showDeviceAddedToast,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 100.dp),
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = AccentRed,
-                    contentColor = Color.White
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-            ) {
-                Text(
-                    text = "Success",
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                    style = MaterialTheme.typography.bodyMedium
+                BottomNavigationBar(
+                    currentTab = currentTab,
+                    onTabSelected = onTabSelected
                 )
             }
         }
-
-        LaunchedEffect(state.showDeviceAddedToast) {
-            if (state.showDeviceAddedToast) {
-                delay(2000)
-                onConsumeDeviceAddedToast()
-            }
-        }
-
-        NavigationBar(
-            containerColor = Color.White,
-            tonalElevation = 4.dp,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            AppBottomTab.entries.forEach { tab ->
-                NavigationBarItem(
-                    selected = currentTab == tab,
-                    onClick = { onTabSelected(tab) },
-                    icon = {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = stringResource(tab.labelRes),
-                            tint = when {
-                                tab == AppBottomTab.Profile -> AccentRed
-                                currentTab == tab -> MaterialTheme.colorScheme.primary
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = stringResource(tab.labelRes),
-                            fontSize = 12.sp
-                        )
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = AccentRed.copy(alpha = 0.12f),
-                        selectedIconColor = AccentRed,
-                        selectedTextColor = AccentRed
-                    )
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeContent(
-    state: HomeUiState,
-    onAddDevice: () -> Unit,
-    onDismissError: () -> Unit,
-    onDeviceClick: (DeviceMetadata) -> Unit
-) {
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(bottom = 72.dp)
-    ) {
-        val isTablet = maxWidth > 600.dp
-
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = if (isTablet) 32.dp else 20.dp)
+                .background(ScreenBackground)
+                .padding(padding)
         ) {
-            TopBar(onAddDevice = onAddDevice)
-
-            state.errorMessage?.let { message ->
-                ToastCard(
-                    message = message,
-                    actionLabel = stringResource(id = R.string.home_dismiss_action),
-                    onAction = onDismissError
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
+            HeaderSection(onAddDevice = onAddDevice)
             Text(
-                text = stringResource(id = R.string.home_common_devices_title),
-                style = MaterialTheme.typography.labelLarge.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF777777),
-                    fontSize = 14.sp
-                )
+                text = stringResource(id = R.string.home_management_subtitle),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF666666)
+                ),
+                modifier = Modifier.padding(horizontal = 24.dp)
             )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            val devices = state.devices
-
-            if (devices.isEmpty()) {
-                HomeDevicesEmptyState(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = true),
-                    onAddDevice = onAddDevice
-                )
+            Spacer(modifier = Modifier.height(20.dp))
+            if (state.devices.isEmpty()) {
+                EmptyDeviceState(modifier = Modifier.fillMaxSize())
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(bottom = 96.dp)
+                    modifier = Modifier
+                        .fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    itemsIndexed(
-                        items = devices,
-                        key = { _, device -> device.id }
-                    ) { index, device ->
-                        var isVisible by remember { mutableStateOf(false) }
-                        LaunchedEffect(Unit) {
-                            // Staggered reveal for a gentle entrance animation.
-                            delay(index * 60L)
-                            isVisible = true
-                        }
-                        AnimatedVisibility(
-                            visible = isVisible,
-                            enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
-                            exit = fadeOut()
-                        ) {
-                            DeviceCard(
-                                device = device,
-                                subtitle = device.macAddress
-                                    ?.takeIf { it.isNotBlank() }
-                                    ?: stringResource(id = R.string.home_device_subtitle_default),
-                                onClick = onDeviceClick
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(if (isTablet) 4.dp else 0.dp))
+                    items(
+                        items = state.devices,
+                        key = { it.id }
+                    ) { device ->
+                        DeviceCardItem(
+                            device = device,
+                            isSelected = state.selectedDeviceIds.contains(device.id),
+                            onClick = {
+                                if (state.isManagementActive) {
+                                    onDeviceToggle(device)
+                                } else {
+                                    onDeviceOpen(device)
+                                }
+                            },
+                            onLongPress = { onDeviceToggle(device) }
+                        )
+                    }
+                    item {
+                        Spacer(modifier = Modifier.height(120.dp))
                     }
                 }
             }
         }
     }
+
+    if (state.isRenameDialogVisible) {
+        RenameDeviceDialog(
+            value = state.renameInput,
+            isProcessing = state.isActionInProgress,
+            errorRes = state.renameInputError,
+            onValueChange = onRenameInputChanged,
+            onDismiss = onRenameDismiss,
+            onConfirm = onRenameConfirm
+        )
+    }
+
+    if (state.isRemoveDialogVisible) {
+        RemoveDeviceDialog(
+            isProcessing = state.isActionInProgress,
+            onDismiss = onRemoveDismiss,
+            onConfirm = onRemoveConfirm
+        )
+    }
+}
+
+enum class AppBottomTab(@StringRes val labelRes: Int, val icon: ImageVector) {
+    Home(R.string.settings_tab_home, Icons.Filled.Home),
+    Manual(R.string.settings_tab_manual, Icons.Filled.Book),
+    Devices(R.string.settings_tab_devices, Icons.Filled.Devices),
+    Profile(R.string.settings_tab_profile, Icons.Filled.Person)
 }
 
 @Composable
-private fun TopBar(onAddDevice: () -> Unit) {
+private fun HeaderSection(onAddDevice: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(horizontal = 24.dp)
+            .padding(top = 28.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = stringResource(id = R.string.home_welcome_title),
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    fontWeight = FontWeight.Bold
-                )
-            )
-            Text(
-                text = stringResource(id = R.string.home_welcome_subtitle),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                text = stringResource(id = R.string.home_management_title),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp
+                ),
+                color = Color.Black
             )
         }
         IconButton(
             onClick = onAddDevice,
             modifier = Modifier
-            .size(48.dp)
-            .background(AccentRed.copy(alpha = 0.12f), CircleShape)
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Add,
-            contentDescription = stringResource(id = R.string.home_add_device_content_desc),
-            tint = AccentRed
-        )
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = stringResource(id = R.string.home_management_add_device),
+                tint = AccentRed
+            )
+        }
     }
-}
 }
 
 @Composable
-private fun HomeDevicesEmptyState(
-    modifier: Modifier = Modifier,
-    onAddDevice: () -> Unit
+private fun DeviceCardItem(
+    device: DeviceMetadata,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-            .padding(top = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + scaleIn(initialScale = 0.95f)
     ) {
-        Surface(
-            shape = CircleShape,
-            color = AccentRed.copy(alpha = 0.08f),
-            modifier = Modifier.size(120.dp)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_massager_logo),
-                contentDescription = null,
-                modifier = Modifier.padding(28.dp)
+        Box {
+            DeviceCard(
+                device = device,
+                isSelected = isSelected,
+                onClick = onClick,
+                onLongPress = onLongPress
             )
-        }
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(
-            text = stringResource(id = R.string.home_device_empty_title),
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = stringResource(id = R.string.home_device_empty_description),
-            style = MaterialTheme.typography.bodyMedium.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = onAddDevice,
-            modifier = Modifier
-                .height(48.dp)
-        ) {
-            Text(text = stringResource(id = R.string.home_device_empty_action))
+            AnimatedVisibility(
+                visible = isSelected,
+                enter = fadeIn()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-12).dp, y = 12.dp)
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(AccentRed),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun DeviceCard(
     device: DeviceMetadata,
-    subtitle: String,
-    onClick: (DeviceMetadata) -> Unit
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit
 ) {
+    val scale = if (isSelected) 1.02f else 1f
     Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick(device) },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 3.dp,
-            pressedElevation = 6.dp
-        )
+            .scale(scale)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongPress
+            )
     ) {
         Row(
             modifier = Modifier
@@ -446,15 +328,18 @@ private fun DeviceCard(
                 .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                shape = CircleShape,
-                color = AccentRed.copy(alpha = 0.12f),
-                modifier = Modifier.size(56.dp)
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(AccentRed.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_massager_logo),
                     contentDescription = device.name,
-                    modifier = Modifier.padding(12.dp)
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(32.dp)
                 )
             }
             Spacer(modifier = Modifier.width(20.dp))
@@ -463,36 +348,17 @@ private fun DeviceCard(
             ) {
                 Text(
                     text = device.name,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Black
                     )
                 )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            val statusColor = if (device.isConnected) Color(0xFF4CAF50) else Color(0xFFB0B0B0)
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .background(statusColor, CircleShape)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = stringResource(
-                        id = if (device.isConnected) {
-                            R.string.home_device_status_online
-                        } else {
-                            R.string.home_device_status_offline
-                        }
-                    ),
-                    color = statusColor,
-                    style = MaterialTheme.typography.labelMedium
+                    text = stringResource(id = R.string.home_management_device_subtitle),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color(0xFF777777),
+                        fontSize = 13.sp
+                    )
                 )
             }
         }
@@ -500,41 +366,228 @@ private fun DeviceCard(
 }
 
 @Composable
-private fun ToastCard(
-    message: String,
-    actionLabel: String,
-    onAction: () -> Unit
+private fun ManagementBottomBar(
+    isSelectionActive: Boolean,
+    selectionCount: Int,
+    isProcessing: Boolean,
+    onRenameClick: () -> Unit,
+    onRemoveClick: () -> Unit,
+    onCancel: () -> Unit
 ) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = message,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyMedium
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = Color.White,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
             )
-            TextButton(onClick = onAction) {
-                Text(actionLabel)
+            .padding(horizontal = 24.dp, vertical = 20.dp)
+    ) {
+        if (isProcessing) {
+            Text(
+                text = stringResource(id = R.string.home_management_processing),
+                style = MaterialTheme.typography.labelMedium.copy(color = Color(0xFF666666)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Button(
+                onClick = onRenameClick,
+                enabled = selectionCount == 1 && !isProcessing,
+                colors = ButtonDefaults.buttonColors(containerColor = RenameTeal),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(id = R.string.rename))
+            }
+            Button(
+                onClick = onRemoveClick,
+                enabled = selectionCount > 0 && !isProcessing,
+                colors = ButtonDefaults.buttonColors(containerColor = AccentRed),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(id = R.string.remove_device))
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        TextButton(
+            onClick = onCancel,
+            enabled = isSelectionActive && !isProcessing,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Text(text = stringResource(id = R.string.cancel))
+        }
+    }
+}
+
+@Composable
+private fun BottomNavigationBar(
+    currentTab: AppBottomTab,
+    onTabSelected: (AppBottomTab) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AppBottomTab.values().forEach { tab ->
+            val isSelected = tab == currentTab
+            val tint = if (isSelected) AccentRed else Color(0xFF9E9E9E)
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        color = if (isSelected) AccentRed.copy(alpha = 0.08f) else Color.Transparent
+                    )
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .clickable { onTabSelected(tab) },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = tab.icon,
+                    contentDescription = stringResource(id = tab.labelRes),
+                    tint = tint
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(id = tab.labelRes),
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                        color = tint
+                    )
+                )
             }
         }
     }
 }
 
-enum class AppBottomTab(@StringRes val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Home(R.string.settings_tab_home, Icons.Filled.Home),
-    Manual(R.string.settings_tab_manual, Icons.Filled.Book),
-    Devices(R.string.settings_tab_devices, Icons.Filled.Devices),
-    Profile(R.string.settings_tab_profile, Icons.Filled.Person)
+@Composable
+private fun RenameDeviceDialog(
+    value: String,
+    isProcessing: Boolean,
+    errorRes: Int?,
+    onValueChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = stringResource(id = R.string.rename_device_title))
+        },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    enabled = !isProcessing,
+                    placeholder = {
+                        Text(text = stringResource(id = R.string.rename_placeholder))
+                    },
+                    singleLine = true,
+                    isError = errorRes != null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (errorRes != null) {
+                    Text(
+                        text = stringResource(id = errorRes),
+                        style = MaterialTheme.typography.bodySmall.copy(color = AccentRed),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = value.isNotBlank() && !isProcessing && errorRes == null
+            ) {
+                Text(text = stringResource(id = R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isProcessing
+            ) {
+                Text(text = stringResource(id = R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun RemoveDeviceDialog(
+    isProcessing: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.remove_device_confirm_title)) },
+        text = {
+            Text(text = stringResource(id = R.string.remove_device_confirm_message))
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = !isProcessing
+            ) {
+                Text(
+                    text = stringResource(id = R.string.confirm),
+                    color = AccentRed
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isProcessing
+            ) {
+                Text(text = stringResource(id = R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun EmptyDeviceState(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = stringResource(id = R.string.home_management_empty_title),
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+            textAlign = TextAlign.Center,
+            color = Color(0xFF555555)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = stringResource(id = R.string.home_management_empty_message),
+            style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF888888)),
+            textAlign = TextAlign.Center
+        )
+    }
 }

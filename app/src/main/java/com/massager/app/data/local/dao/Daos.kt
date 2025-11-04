@@ -37,6 +37,15 @@ interface DeviceDao {
 
     @Query("DELETE FROM devices")
     suspend fun clear()
+
+    @Query("SELECT * FROM devices WHERE id = :deviceId LIMIT 1")
+    suspend fun findById(deviceId: String): DeviceEntity?
+
+    @Query("UPDATE devices SET name = :name WHERE id = :deviceId")
+    suspend fun updateName(deviceId: String, name: String)
+
+    @Query("DELETE FROM devices WHERE id = :deviceId")
+    suspend fun deleteById(deviceId: String)
 }
 
 @Dao
