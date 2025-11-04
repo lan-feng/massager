@@ -1,10 +1,12 @@
 package com.massager.app.presentation.device
 
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.R
+import com.massager.app.core.logging.logTag
 import com.massager.app.data.bluetooth.BleConnectionState
 import com.massager.app.data.bluetooth.MassagerBluetoothService
 import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter
@@ -15,6 +17,7 @@ import com.massager.app.presentation.navigation.Screen
 import javax.inject.Inject
 import kotlin.math.max
 import kotlin.math.min
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +25,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val MAX_LEVEL = 19
 private const val MIN_LEVEL = 0
@@ -32,6 +36,8 @@ class DeviceControlViewModel @Inject constructor(
     private val bluetoothService: MassagerBluetoothService,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    private val tag = logTag("DeviceControlVM")
 
     private var initialStatusRequested = false
 
@@ -78,6 +84,7 @@ class DeviceControlViewModel @Inject constructor(
     fun toggleMute() {
         val target = !_uiState.value.isMuted
         viewModelScope.launch {
+            Log.d(tag, "toggleMute: issuing command for muted=$target")
             val success = sendCommand(EmsV2Command.ToggleMute(target))
             if (success) {
                 _uiState.update { it.copy(isMuted = target, message = DeviceMessage.MuteChanged(target)) }
@@ -95,8 +102,10 @@ class DeviceControlViewModel @Inject constructor(
         val newLevel = (current.level + delta).coerceIn(MIN_LEVEL, MAX_LEVEL)
         if (newLevel == current.level) return
         _uiState.update { it.copy(level = newLevel) }
+        Log.d(tag, "adjustLevel: requested delta=$delta resultingLevel=$newLevel isRunning=${current.isRunning}")
         if (current.isRunning) {
             viewModelScope.launch {
+                Log.d(tag, "adjustLevel: sending live level update level=$newLevel")
                 if (!sendCommand(EmsV2Command.SetLevel(newLevel))) {
                     _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
                 }
@@ -107,8 +116,10 @@ class DeviceControlViewModel @Inject constructor(
     fun toggleSession() {
         val current = _uiState.value
         if (current.isRunning) {
+            Log.d(tag, "toggleSession: stop requested by user")
             stopSession(userInitiated = true)
         } else {
+            Log.d(tag, "toggleSession: start requested with zone=${current.zone} mode=${current.mode} level=${current.level} timer=${current.timerMinutes}")
             startSession()
         }
     }
@@ -116,8 +127,10 @@ class DeviceControlViewModel @Inject constructor(
     fun reconnect() {
         val address = _uiState.value.deviceAddress ?: targetAddress ?: return
         viewModelScope.launch {
+            Log.i(tag, "reconnect: attempting to reconnect to $address")
             val success = bluetoothService.connect(address)
             if (!success) {
+                Log.w(tag, "reconnect: connect returned false for $address")
                 _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
             }
         }
@@ -292,28 +305,51 @@ class DeviceControlViewModel @Inject constructor(
         viewModelScope.launch {
             val started = bluetoothService.connect(address)
             if (!started) {
+                Log.w(tag, "attemptInitialConnection: connect failed for initial address=$address")
                 _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
             }
         }
     }
 
     private suspend fun sendCommand(command: EmsV2Command): Boolean {
-        if (!awaitProtocolReady()) return false
-        val success = bluetoothService.sendProtocolCommand(command)
-        if (!success) return false
+        Log.d(tag, "sendCommand: preparing to send command=$command")
+        val protocolReady = awaitProtocolReady()
+        if (!protocolReady) {
+            Log.w(tag, "sendCommand: protocol not ready for command=$command, attempting dispatch anyway")
+        }
+        val success = withContext(Dispatchers.IO) {
+            bluetoothService.sendProtocolCommand(command)
+        }
+        if (!success) {
+            Log.e(tag, "sendCommand: bluetoothService rejected command=$command")
+            return false
+        }
         delay(80)
+        Log.v(tag, "sendCommand: command queued successfully command=$command")
         return true
     }
 
     private suspend fun awaitProtocolReady(
-        attempts: Int = 20,
+        attempts: Int = 50,
         intervalMillis: Long = 100
     ): Boolean {
-        if (bluetoothService.isProtocolReady()) return true
-        repeat(attempts) {
-            delay(intervalMillis)
-            if (bluetoothService.isProtocolReady()) return true
+        if (bluetoothService.isProtocolReady()) {
+            Log.v(tag, "awaitProtocolReady: protocol already ready")
+            return true
         }
+        repeat(attempts) { index ->
+            delay(intervalMillis)
+            if (bluetoothService.isProtocolReady()) {
+                Log.v(tag, "awaitProtocolReady: protocol ready after attempt=${index + 1}")
+                return true
+            }
+        }
+        val state = bluetoothService.connectionState.value
+        Log.w(
+            tag,
+            "awaitProtocolReady: timed out after attempts=$attempts intervalMillis=$intervalMillis status=${state.status} " +
+                "isProtocolReady=${state.isProtocolReady} device=${state.deviceAddress}"
+        )
         return false
     }
 }

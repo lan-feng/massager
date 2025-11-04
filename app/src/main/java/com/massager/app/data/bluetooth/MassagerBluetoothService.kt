@@ -16,6 +16,8 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import android.util.Log
@@ -48,6 +50,9 @@ import kotlinx.coroutines.launch
 
 private const val SCAN_TIMEOUT_MS = 15_000L
 private const val SCAN_RESULT_TTL_MS = 20_000L
+private const val INITIAL_SERVICE_DISCOVERY_DELAY_MS = 200L
+private const val MAX_SERVICE_DISCOVERY_RETRIES = 3
+private const val SERVICE_DISCOVERY_RETRY_DELAY_MS = 600L
 private val TAG = logTag("MassagerBleService")
 private val CLIENT_CHARACTERISTIC_CONFIG_UUID: UUID =
     UUID.fromString("00002902-0000-1000-8000-00805F9B34FB")
@@ -120,6 +125,9 @@ class MassagerBluetoothService @Inject constructor(
     private var scanTimeoutJob: Job? = null
     private var currentGatt: BluetoothGatt? = null
     private var isScanning = false
+    private var serviceDiscoveryRetries = 0
+    private var pendingServiceRetry: Runnable? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val scanSettings: ScanSettings = ScanSettings.Builder()
         .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
@@ -178,7 +186,7 @@ class MassagerBluetoothService @Inject constructor(
                             gatt.requestMtu(adapter.preferredMtu)
                         }
                     }
-                    gatt.discoverServices() // prepare for GATT ops
+                    queueServiceDiscovery(gatt, INITIAL_SERVICE_DISCOVERY_DELAY_MS, "initial_connect")
                 }
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
@@ -197,6 +205,22 @@ class MassagerBluetoothService @Inject constructor(
                 }
                 notifyConnectionFailed(gatt.device, "Service discovery failed")
                 return
+            }
+            val services = gatt.services
+            if (services.isEmpty()) {
+                if (scheduleServiceRediscovery(gatt, "empty_service_list")) {
+                    Log.i(
+                        TAG,
+                        "onServicesDiscovered: services empty, scheduling rediscovery attempt=$serviceDiscoveryRetries"
+                    )
+                    return
+                } else {
+                    Log.w(TAG, "onServicesDiscovered: services empty after retries exhausted")
+                }
+            } else {
+                serviceDiscoveryRetries = 0
+                cancelPendingServiceRetry()
+                Log.d(TAG, "onServicesDiscovered: received ${services.size} service(s)")
             }
             val adapter = activeAdapter ?: run {
                 Log.w(TAG, "onServicesDiscovered: activeAdapter is null")
@@ -327,6 +351,8 @@ class MassagerBluetoothService @Inject constructor(
         }.getOrNull() ?: return false
 
         stopScan()
+        cancelPendingServiceRetry()
+        serviceDiscoveryRetries = 0
         val resolvedName = cachedEntry?.name ?: device.name
         _connectionState.update {
             it.copy(
@@ -396,6 +422,7 @@ class MassagerBluetoothService @Inject constructor(
         activeNotifyCharacteristicUuid = null
         currentGatt?.disconnect()
         disposeGatt()
+        cancelPendingServiceRetry()
         _connectionState.update {
             it.copy(
                 status = BleConnectionState.Status.Disconnected,
@@ -429,10 +456,16 @@ class MassagerBluetoothService @Inject constructor(
         payload: ByteArray,
         writeType: Int = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
     ): Boolean {
-        val gatt = currentGatt ?: return false
+        val gatt = currentGatt ?: run {
+            Log.w(TAG, "writeCharacteristic: no active GATT connection service=$serviceUuid characteristic=$characteristicUuid")
+            return false
+        }
         val characteristic = gatt
             .getService(serviceUuid)
-            ?.getCharacteristic(characteristicUuid) ?: return false
+            ?.getCharacteristic(characteristicUuid) ?: run {
+            Log.w(TAG, "writeCharacteristic: characteristic not found service=$serviceUuid characteristic=$characteristicUuid")
+            return false
+        }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             gatt.writeCharacteristic(characteristic, payload, writeType) == BluetoothStatusCodes.SUCCESS
         } else {
@@ -481,15 +514,35 @@ class MassagerBluetoothService @Inject constructor(
         }
 
         val resolvedService = serviceUuid ?: run {
+            val scheduled = currentGatt?.let { scheduleServiceRediscovery(it, "missing_service_uuid") } ?: false
+            if (scheduled) {
+                Log.i(TAG, "sendProtocolCommand: scheduled rediscovery due to missing service for command=$command")
+            }
             Log.w(TAG, "sendProtocolCommand: service UUID not resolved after retry, command=$command")
             return false
         }
         val resolvedCharacteristic = characteristicUuid ?: run {
+            val scheduled = currentGatt?.let { scheduleServiceRediscovery(it, "missing_characteristic_uuid") } ?: false
+            if (scheduled) {
+                Log.i(TAG, "sendProtocolCommand: scheduled rediscovery due to missing characteristic for command=$command")
+            }
             Log.w(TAG, "sendProtocolCommand: write characteristic UUID not resolved after retry, command=$command")
             return false
         }
         val payload = adapter.encode(command)
-        return writeCharacteristic(resolvedService, resolvedCharacteristic, payload, writeType)
+        val result = writeCharacteristic(resolvedService, resolvedCharacteristic, payload, writeType)
+        if (!result) {
+            Log.e(
+                TAG,
+                "sendProtocolCommand: write failed service=$resolvedService characteristic=$resolvedCharacteristic command=$command length=${payload.size}"
+            )
+        } else {
+            Log.v(
+                TAG,
+                "sendProtocolCommand: dispatched command=$command via service=$resolvedService characteristic=$resolvedCharacteristic length=${payload.size}"
+            )
+        }
+        return result
     }
 
     fun isProtocolReady(): Boolean = activeAdapter != null && activeWriteCharacteristicUuid != null
@@ -504,6 +557,7 @@ class MassagerBluetoothService @Inject constructor(
         activeWriteCharacteristicUuid = null
         activeNotifyCharacteristicUuid = null
         disposeGatt()
+        cancelPendingServiceRetry()
         _connectionState.update {
             it.copy(
                 status = if (failed) BleConnectionState.Status.Failed else BleConnectionState.Status.Disconnected,
@@ -533,6 +587,62 @@ class MassagerBluetoothService @Inject constructor(
                 } else it
             }
         }
+    }
+
+    private fun queueServiceDiscovery(
+        gatt: BluetoothGatt,
+        delayMs: Long,
+        reason: String
+    ) {
+        if (serviceDiscoveryRetries >= MAX_SERVICE_DISCOVERY_RETRIES) {
+            Log.w(
+                TAG,
+                "queueServiceDiscovery: max retries reached, skipping (reason=$reason)"
+            )
+            return
+        }
+        cancelPendingServiceRetry()
+        val retryRunnable = Runnable {
+            if (currentGatt == gatt && connectedAddress == gatt.device.address) {
+                serviceDiscoveryRetries += 1
+                val started = gatt.discoverServices()
+                Log.i(
+                    TAG,
+                    "queueServiceDiscovery: discoverServices started=$started attempt=$serviceDiscoveryRetries reason=$reason"
+                )
+                if (!started) {
+                    scheduleServiceRediscovery(gatt, "retry_after_failed_start")
+                }
+            } else {
+                Log.v(
+                    TAG,
+                    "queueServiceDiscovery: skipping, GATT changed or disconnected (reason=$reason)"
+                )
+            }
+        }
+        pendingServiceRetry = retryRunnable
+        if (delayMs <= 0) {
+            mainHandler.post(retryRunnable)
+        } else {
+            mainHandler.postDelayed(retryRunnable, delayMs)
+        }
+    }
+
+    private fun scheduleServiceRediscovery(gatt: BluetoothGatt, reason: String): Boolean {
+        if (serviceDiscoveryRetries >= MAX_SERVICE_DISCOVERY_RETRIES) {
+            Log.w(
+                TAG,
+                "scheduleServiceRediscovery: max retries ($MAX_SERVICE_DISCOVERY_RETRIES) exhausted for ${gatt.device.address}"
+            )
+            return false
+        }
+        queueServiceDiscovery(gatt, SERVICE_DISCOVERY_RETRY_DELAY_MS, reason)
+        return true
+    }
+
+    private fun cancelPendingServiceRetry() {
+        pendingServiceRetry?.let(mainHandler::removeCallbacks)
+        pendingServiceRetry = null
     }
 
     @SuppressLint("MissingPermission")
@@ -661,6 +771,45 @@ class MassagerBluetoothService @Inject constructor(
         listeners.forEach { it.onConnectionFailed(device, reason) }
     }
 
+    private data class GattEndpoint(
+        val serviceUuid: UUID,
+        val writeCharacteristic: BluetoothGattCharacteristic,
+        val notifyCharacteristic: BluetoothGattCharacteristic?
+    )
+
+    private fun BluetoothGattCharacteristic.hasWriteProperty(): Boolean {
+        val writeMask = BluetoothGattCharacteristic.PROPERTY_WRITE or
+            BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
+        return properties and writeMask != 0
+    }
+
+    private fun BluetoothGattCharacteristic.hasNotifyProperty(): Boolean {
+        val notifyMask = BluetoothGattCharacteristic.PROPERTY_NOTIFY or
+            BluetoothGattCharacteristic.PROPERTY_INDICATE
+        return properties and notifyMask != 0
+    }
+
+    private fun BluetoothGatt.findWritableEndpoint(): GattEndpoint? {
+        services.forEach { service ->
+            val writeCharacteristic = service.characteristics.firstOrNull { it.hasWriteProperty() }
+            if (writeCharacteristic != null) {
+                val notifyCharacteristic = service.characteristics.firstOrNull { it.hasNotifyProperty() }
+                Log.d(
+                    TAG,
+                    "findWritableEndpoint: candidate service=${service.uuid} write=${writeCharacteristic.uuid} notify=${notifyCharacteristic?.uuid} " +
+                        "writeProps=0x${writeCharacteristic.properties.toString(16)} notifyProps=0x${notifyCharacteristic?.properties?.toString(16)}"
+                )
+                return GattEndpoint(
+                    serviceUuid = service.uuid,
+                    writeCharacteristic = writeCharacteristic,
+                    notifyCharacteristic = notifyCharacteristic
+                )
+            }
+        }
+        Log.v(TAG, "findWritableEndpoint: no writable characteristic found across ${services.size} service(s)")
+        return null
+    }
+
     private fun BluetoothGatt.findCharacteristic(uuid: UUID): BluetoothGattCharacteristic? {
         services.forEach { service ->
             service.getCharacteristic(uuid)?.let { return it }
@@ -704,6 +853,13 @@ class MassagerBluetoothService @Inject constructor(
         enableNotifications: Boolean = false,
         updateConnectionState: Boolean = false
     ): Boolean {
+        val availableServices = gatt.services
+        if (availableServices.isEmpty()) {
+            Log.w(TAG, "resolveProtocolHandles: GATT services empty, attempting rediscovery")
+            if (scheduleServiceRediscovery(gatt, "resolve_handles_empty")) {
+                return false
+            }
+        }
         val serviceEntry = adapter.serviceUuidCandidates
             .asSequence()
             .mapNotNull { candidate ->
@@ -711,6 +867,48 @@ class MassagerBluetoothService @Inject constructor(
             }
             .firstOrNull()
             ?: run {
+                val allServiceUuids = gatt.services.map { it.uuid }
+                Log.d(
+                    TAG,
+                    "resolveProtocolHandles: adapter=${adapter.productId} discoveredServices=${allServiceUuids.joinToString()}"
+                )
+                val remappedAdapter = protocolRegistry.findAdapterByServices(allServiceUuids)
+                if (remappedAdapter != null && remappedAdapter != adapter) {
+                    Log.i(
+                        TAG,
+                        "resolveProtocolHandles: remapping adapter from ${adapter.productId} to ${remappedAdapter.productId} " +
+                            "based on GATT services=$allServiceUuids"
+                    )
+                    activeAdapter = remappedAdapter
+                    return resolveProtocolHandles(
+                        gatt = gatt,
+                        adapter = remappedAdapter,
+                        enableNotifications = enableNotifications,
+                        updateConnectionState = updateConnectionState
+                    )
+                }
+                val fallbackEndpoint = gatt.findWritableEndpoint()
+                if (fallbackEndpoint != null) {
+                    Log.i(
+                        TAG,
+                        "resolveProtocolHandles: using fallback writable endpoint service=${fallbackEndpoint.serviceUuid} " +
+                            "write=${fallbackEndpoint.writeCharacteristic.uuid} notify=${fallbackEndpoint.notifyCharacteristic?.uuid}"
+                    )
+                    activeServiceUuid = fallbackEndpoint.serviceUuid
+                    activeWriteCharacteristicUuid = fallbackEndpoint.writeCharacteristic.uuid
+                    activeNotifyCharacteristicUuid = fallbackEndpoint.notifyCharacteristic?.uuid
+                    if (enableNotifications && fallbackEndpoint.notifyCharacteristic != null) {
+                        enableNotifications(gatt, fallbackEndpoint.notifyCharacteristic)
+                    }
+                    if (updateConnectionState) {
+                        _connectionState.update { it.copy(isProtocolReady = true) }
+                    }
+                    return true
+                }
+                Log.w(
+                    TAG,
+                    "resolveProtocolHandles: no fallback endpoint located for services=${allServiceUuids.joinToString()}"
+                )
                 Log.w(
                     TAG,
                     "resolveProtocolHandles: no matching service for adapter=${adapter.productId}. Available services will be dumped."
@@ -854,6 +1052,10 @@ class MassagerBluetoothService @Inject constructor(
     }
 
     companion object {
+        /**
+         *
+         * 特殊处理逻辑
+         */
         private val TEST_FALLBACK_PAYLOAD = byteArrayOf(
             0x02,
             0x01,
