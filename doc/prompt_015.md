@@ -1,4 +1,4 @@
-Create a "Device Management" screen for the ComfyTemp app using Kotlin Jetpack Compose (or Flutter).
+Create a "Device Management" screen for the Massager app using Kotlin Jetpack Compose (or Flutter).
 
 ### 🎯 Page Purpose
 Allow users to select a device from their list and perform management actions such as **Rename** or **Remove device**.
@@ -84,7 +84,7 @@ When “Remove device” is tapped:
 ### 💡 UI Design
 - Background: #FAFAFA (light neutral)
 - Card background: #FFFFFF
-- Accent color: ComfyTemp Red (#E54335)
+- Accent color: Massager Red (#E54335)
 - Typography:
   - Header: 20sp, semi-bold.
   - Device name: 16sp, medium.

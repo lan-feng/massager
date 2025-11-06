@@ -1,10 +1,10 @@
-Create a modern "Profile" screen for the ComfyTemp app using Kotlin Jetpack Compose (or Flutter).
+Create a modern "Profile" screen for the Massager app using Kotlin Jetpack Compose (or Flutter).
 
 ### Design Goals
 - Maintain a soft, minimal wellness/health-tech aesthetic.
 - White background (#FAFAFA) with subtle gray shadows.
 - Rounded cards and calm spacing.
-- Accent color: ComfyTemp Red (#E54335).
+- Accent color: Massager Red (#E54335).
 - Smooth transitions, adaptive layout for mobile devices.
 - Use Material 3 components.
 

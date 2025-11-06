@@ -74,6 +74,7 @@ import com.massager.app.R
 import com.massager.app.domain.model.DeviceMetadata
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.collectLatest
+import com.massager.app.presentation.components.AppBottomNavigation
 
 private val ScreenBackground = Color(0xFFFAFAFA)
 private val CardBackground = Color.White
@@ -136,7 +137,7 @@ fun HomeDashboardScreen(
                         onCancel = onCancelManagement
                     )
                 }
-                BottomNavigationBar(
+                AppBottomNavigation(
                     currentTab = currentTab,
                     onTabSelected = onTabSelected
                 )
@@ -214,11 +215,19 @@ fun HomeDashboardScreen(
     }
 }
 
-enum class AppBottomTab(@StringRes val labelRes: Int, val icon: ImageVector) {
-    Home(R.string.settings_tab_home, Icons.Filled.Home),
-    Manual(R.string.settings_tab_manual, Icons.Filled.Book),
-    Devices(R.string.settings_tab_devices, Icons.Filled.Devices),
-    Profile(R.string.settings_tab_profile, Icons.Filled.Person)
+enum class AppBottomTab(
+    @StringRes val labelRes: Int,
+    val icon: ImageVector,
+    val isVisible: Boolean = true
+) {
+    Home(R.string.settings_tab_home, Icons.Filled.Home, isVisible = true),
+    Manual(R.string.settings_tab_manual, Icons.Filled.Book, isVisible = false),
+    Devices(R.string.settings_tab_devices, Icons.Filled.Devices, isVisible = false),
+    Profile(R.string.settings_tab_profile, Icons.Filled.Person, isVisible = true);
+
+    companion object {
+        val visibleTabs: List<AppBottomTab> = values().filter { it.isVisible }
+    }
 }
 
 @Composable
@@ -433,50 +442,6 @@ private fun ManagementBottomBar(
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
             Text(text = stringResource(id = R.string.cancel))
-        }
-    }
-}
-
-@Composable
-private fun BottomNavigationBar(
-    currentTab: AppBottomTab,
-    onTabSelected: (AppBottomTab) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AppBottomTab.values().forEach { tab ->
-            val isSelected = tab == currentTab
-            val tint = if (isSelected) AccentRed else Color(0xFF9E9E9E)
-            Column(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        color = if (isSelected) AccentRed.copy(alpha = 0.08f) else Color.Transparent
-                    )
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .clickable { onTabSelected(tab) },
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = tab.icon,
-                    contentDescription = stringResource(id = tab.labelRes),
-                    tint = tint
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(id = tab.labelRes),
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
-                        color = tint
-                    )
-                )
-            }
         }
     }
 }

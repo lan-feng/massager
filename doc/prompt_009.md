@@ -23,7 +23,7 @@ Home Screen Optimization
 ### Localization & Accessibility
 - All UI text uses string resources (for i18n).
 - Support both English and Simplified Chinese:
-    - “Welcome to ComfyTemp” → “欢迎使用 MASSAGER”
+    - “Welcome to Massager” → “欢迎使用 MASSAGER”
     - “Common Device” → “常用设备”
     - “Add Device” → “添加设备”
 - Ensure readable contrast and accessible touch targets.

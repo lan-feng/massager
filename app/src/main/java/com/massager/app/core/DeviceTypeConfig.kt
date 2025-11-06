@@ -5,7 +5,7 @@ object DeviceTypeConfig {
 
     private val deviceNameToType: Map<String, Int> = mapOf(
         "smartpulse" to 10,
-        "comfytemp" to 11,
+        "Massager" to 11,
         "massager" to 12
     )
 

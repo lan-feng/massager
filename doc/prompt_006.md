@@ -1,4 +1,4 @@
-Build an "Account and Security" screen for the ComfyTemp app using Kotlin (Jetpack Compose) or Flutter.
+Build an "Account and Security" screen for the Massager app using Kotlin (Jetpack Compose) or Flutter.
 
 ### Layout requirements:
 - Page title: “Account and Security”

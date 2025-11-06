@@ -1,4 +1,4 @@
-Build a "Device Control" screen for the ComfyTemp app using Kotlin (Jetpack Compose) or Flutter.
+Build a "Device Control" screen for the Massager app using Kotlin (Jetpack Compose) or Flutter.
 
 ### Screen Title:
 - "SmartPulse TENS Unit"
@@ -78,7 +78,7 @@ At the bottom:
 - Soft, minimal, health-tech look.
 - Rounded corners (16dp).
 - Shadowed card background (#FFFFFF).
-- Tabs and buttons use ComfyTemp’s brand red (#E54335).
+- Tabs and buttons use Massager’s brand red (#E54335).
 - Animated transitions between modes.
 - Responsive design (fits phones/tablets).
 - Light & dark themes supported.

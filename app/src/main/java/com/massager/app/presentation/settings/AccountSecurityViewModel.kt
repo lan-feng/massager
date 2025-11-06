@@ -3,6 +3,7 @@ package com.massager.app.presentation.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.data.local.SessionManager
+import com.massager.app.domain.usecase.profile.GetUserProfileUseCase
 import com.massager.app.domain.usecase.settings.LogoutUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -15,18 +16,22 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class AccountSecurityViewModel @Inject constructor(
     private val logoutUseCase: LogoutUseCase,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val getUserProfileUseCase: GetUserProfileUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
         AccountSecurityUiState(
-            userEmail = "lanfeng525@gmail.com",
             thirdPartyAccounts = ThirdPartyPlatform.values().map { platform ->
                 ThirdPartyAccountBinding(platform = platform, isBound = false)
             }
         )
     )
     val uiState: StateFlow<AccountSecurityUiState> = _uiState.asStateFlow()
+
+    init {
+        loadAccountEmail()
+    }
 
     fun toggleLogoutDialog(show: Boolean) {
         _uiState.update { it.copy(showLogoutDialog = show) }
@@ -47,6 +52,18 @@ class AccountSecurityViewModel @Inject constructor(
 
     fun consumeLogoutNavigation() {
         _uiState.update { it.copy(logoutCompleted = false) }
+    }
+
+    private fun loadAccountEmail() {
+        viewModelScope.launch {
+            getUserProfileUseCase()
+                .onSuccess { profile ->
+                    _uiState.update { it.copy(userEmail = profile.email) }
+                }
+                .onFailure {
+                    // Keep previous email if available; no explicit error handling required here.
+                }
+        }
     }
 }
 

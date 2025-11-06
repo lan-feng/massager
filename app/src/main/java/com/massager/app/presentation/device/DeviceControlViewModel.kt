@@ -30,6 +30,7 @@ import kotlinx.coroutines.withContext
 private const val MAX_LEVEL = 19
 private const val MIN_LEVEL = 0
 private const val DEFAULT_TIMER_MINUTES = 15
+private const val CONNECTING_OVERLAY_DURATION_MS = 3_000L
 
 @HiltViewModel
 class DeviceControlViewModel @Inject constructor(
@@ -40,6 +41,7 @@ class DeviceControlViewModel @Inject constructor(
     private val tag = logTag("DeviceControlVM")
 
     private var initialStatusRequested = false
+    private var lastConnectionError: Pair<BleConnectionState.Status, String?>? = null
 
     private val preferredName: String? =
         savedStateHandle.get<String>(Screen.DeviceControl.ARG_DEVICE_NAME)?.takeIf { it.isNotBlank() }
@@ -127,11 +129,29 @@ class DeviceControlViewModel @Inject constructor(
     fun reconnect() {
         val address = _uiState.value.deviceAddress ?: targetAddress ?: return
         viewModelScope.launch {
+            _uiState.update { it.copy(showConnectingOverlay = true, isConnecting = true) }
+            val overlayJob = launch {
+                delay(CONNECTING_OVERLAY_DURATION_MS)
+                _uiState.update { current ->
+                    current.copy(
+                        showConnectingOverlay = false,
+                        isConnecting = false
+                    )
+                }
+            }
             Log.i(tag, "reconnect: attempting to reconnect to $address")
+            bluetoothService.clearError()
             val success = bluetoothService.connect(address)
             if (!success) {
                 Log.w(tag, "reconnect: connect returned false for $address")
-                _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
+                overlayJob.cancel()
+                _uiState.update {
+                    it.copy(
+                        message = DeviceMessage.CommandFailed(),
+                        showConnectingOverlay = false,
+                        isConnecting = false
+                    )
+                }
             }
         }
     }
@@ -144,18 +164,40 @@ class DeviceControlViewModel @Inject constructor(
         viewModelScope.launch {
             bluetoothService.connectionState.collectLatest { state ->
                 val isConnected = state.status == BleConnectionState.Status.Connected
+                val isConnecting = state.status == BleConnectionState.Status.Connecting
                 _uiState.update {
+                    val resolvedName = resolveDisplayName(
+                        connectionName = state.deviceName,
+                        currentName = it.deviceName,
+                        preferred = preferredName,
+                        address = state.deviceAddress ?: it.deviceAddress ?: targetAddress
+                    )
                     it.copy(
-                        deviceName = when {
-                            !state.deviceName.isNullOrBlank() -> state.deviceName
-                            it.deviceName.isNotBlank() -> it.deviceName
-                            !preferredName.isNullOrBlank() -> preferredName
-                            else -> it.deviceName
-                        },
+                        deviceName = resolvedName,
                         deviceAddress = state.deviceAddress ?: it.deviceAddress ?: targetAddress,
                         isConnected = isConnected,
+                        isConnecting = isConnecting,
                         isProtocolReady = state.isProtocolReady
                     )
+                }
+                if (!isConnecting) {
+                    _uiState.update { current -> current.copy(showConnectingOverlay = false) }
+                }
+                if (state.errorMessage.isNullOrBlank()) {
+                    lastConnectionError = null
+                } else {
+                    val token = state.status to state.errorMessage
+                    if (lastConnectionError != token) {
+                        lastConnectionError = token
+                        _uiState.update { current ->
+                            current.copy(
+                                message = DeviceMessage.CommandFailed(
+                                    messageRes = R.string.device_command_failed,
+                                    messageText = state.errorMessage
+                                )
+                            )
+                        }
+                    }
                 }
                 if (isConnected && state.isProtocolReady) {
                     if (!initialStatusRequested) {
@@ -291,6 +333,30 @@ class DeviceControlViewModel @Inject constructor(
         }
     }
 
+    private fun resolveDisplayName(
+        connectionName: String?,
+        currentName: String,
+        preferred: String?,
+        address: String?
+    ): String {
+        val candidates = listOf(
+            connectionName,
+            currentName,
+            preferred,
+            bluetoothService.cachedDeviceName(address),
+            address
+        )
+        return candidates.firstNotNullOfOrNull { name ->
+            name?.takeIf { it.isNotBlank() && !it.isMacAddress() }
+        } ?: preferred?.takeIf { it.isNotBlank() } ?: currentName.ifBlank {
+            address?.takeUnless { it.isBlank() } ?: ""
+        }
+    }
+
+    private fun String.isMacAddress(): Boolean {
+        return matches(Regex("^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}\$"))
+    }
+
     private fun attemptInitialConnection() {
         val address = targetAddress ?: return
         val connection = bluetoothService.connectionState.value
@@ -303,6 +369,7 @@ class DeviceControlViewModel @Inject constructor(
         if (alreadyActive) return
 
         viewModelScope.launch {
+            bluetoothService.clearError()
             val started = bluetoothService.connect(address)
             if (!started) {
                 Log.w(tag, "attemptInitialConnection: connect failed for initial address=$address")
@@ -358,6 +425,7 @@ data class DeviceControlUiState(
     val deviceName: String = "",
     val deviceAddress: String? = null,
     val isConnected: Boolean = false,
+    val isConnecting: Boolean = false,
     val isProtocolReady: Boolean = false,
     val zone: BodyZone = BodyZone.SHOULDER,
     val mode: Int = 0,
@@ -367,7 +435,8 @@ data class DeviceControlUiState(
     val isRunning: Boolean = false,
     val isMuted: Boolean = false,
     val batteryPercent: Int = 0,
-    val message: DeviceMessage? = null
+    val message: DeviceMessage? = null,
+    val showConnectingOverlay: Boolean = false
 ) {
     val availableTimerOptions: List<Int> = listOf(5, 10, 15, 20, 30, 45, 60)
 }
@@ -391,5 +460,8 @@ sealed class DeviceMessage {
     object SessionStopped : DeviceMessage()
     object BatteryLow : DeviceMessage()
     data class MuteChanged(val enabled: Boolean) : DeviceMessage()
-    data class CommandFailed(@StringRes val messageRes: Int = R.string.device_command_failed) : DeviceMessage()
+    data class CommandFailed(
+        @StringRes val messageRes: Int = R.string.device_command_failed,
+        val messageText: String? = null
+    ) : DeviceMessage()
 }

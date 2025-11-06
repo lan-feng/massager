@@ -1,4 +1,4 @@
-Build an "Add Device" screen for the ComfyTemp app using Kotlin Jetpack Compose (or Flutter).
+Build an "Add Device" screen for the Massager app using Kotlin Jetpack Compose (or Flutter).
 
 ### Screen purpose:
 - Used to scan for nearby BLE (Bluetooth Low Energy) devices.
@@ -61,7 +61,7 @@ tip: Configure different device types through device names.Unified the reserved 
 
 ### UI Design Notes
 - Use minimalist white background (#FAFAFA)
-- Main accent color: ComfyTemp Red (#E54335)
+- Main accent color: Massager Red (#E54335)
 - Soft shadows and rounded edges for all elements.
 - Radar animation area should be roughly 250–300dp wide.
 - Use smooth Compose/Flutter animation APIs (infinite repeatable rotation).

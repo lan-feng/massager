@@ -9,7 +9,7 @@ Reference swagger.yaml
  Delete account use interface "/auth/v1/user/del" to delete account.
 
 ### 
-Build a "Set New Password" screen for the ComfyTemp app using Kotlin Jetpack Compose (or Flutter).
+Build a "Set New Password" screen for the Massager app using Kotlin Jetpack Compose (or Flutter).
 
 ### 🎯 Page Purpose
 Allow the user to update their account password securely.
@@ -82,7 +82,7 @@ Below input fields, display a small gray text reminder:
 ### 💡 UI Design Notes
 - Background color: #FAFAFA (light neutral)
 - Input card background: white (#FFFFFF)
-- Accent color: #E54335 (ComfyTemp Red)
+- Accent color: #E54335 (Massager Red)
 - Font: Medium weight, 16sp for labels, 14sp for placeholders.
 - Submit button text color: red (#E54335) with pressed alpha.
 - Smooth transitions between fields when focusing.

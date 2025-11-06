@@ -1,4 +1,4 @@
-Build a "Personal Information" screen for the ComfyTemp app using Kotlin (Jetpack Compose) or Flutter.
+Build a "Personal Information" screen for the Massager app using Kotlin (Jetpack Compose) or Flutter.
 
 ### Layout requirements:
 - Page title: “Personal Information”

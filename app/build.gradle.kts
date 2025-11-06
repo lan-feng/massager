@@ -4,6 +4,8 @@ plugins {
     id("org.jetbrains.kotlin.kapt")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.dagger.hilt.android")
+    id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 android {
@@ -25,15 +27,17 @@ android {
 
     buildTypes {
         getByName("debug") {
-//            buildConfigField("String", "BASE_URL", "\"http://192.168.2.110:9100/iot/api/\"")
-            buildConfigField("String", "BASE_URL", "\"http://192.168.2.133:8080/iot/api/\"")
+           buildConfigField("String", "BASE_URL", "\"http://192.168.2.110:9100/iot/api/\"")
+            // buildConfigField("String", "BASE_URL", "\"http://192.168.2.133:8080/iot/api/\"")
             buildConfigField("String", "APP_ID", "\"test-app\"")
+            buildConfigField("Boolean", "CRASHLYTICS_ENABLED", "false")
             isDebuggable = true
         }
         getByName("release") {
             buildConfigField("String", "BASE_URL", "\"https://api.yourproductionurl.com/\"")
             buildConfigField("String", "APP_ID", "\"massager-prod\"")
-            isMinifyEnabled = false
+            buildConfigField("Boolean", "CRASHLYTICS_ENABLED", "true")
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -70,6 +74,10 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2023.10.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)
+
+    implementation(platform("com.google.firebase:firebase-bom:33.4.0"))
+    implementation("com.google.firebase:firebase-crashlytics")
+    implementation("com.google.firebase:firebase-analytics")
 
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")

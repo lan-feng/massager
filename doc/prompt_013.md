@@ -1,4 +1,4 @@
-Build a "Forget Password" screen for the ComfyTemp app using Kotlin Jetpack Compose (or Flutter).
+Build a "Forget Password" screen for the Massager app using Kotlin Jetpack Compose (or Flutter).
 
 ### Page Purpose
 Allow the user to reset their account password by email verification.
@@ -73,7 +73,7 @@ Each field should use an outlined or underlined text style with clear placeholde
 
 ### 💡 UI Design
 - Background: white (#FFFFFF)
-- Accent color: ComfyTemp Red (#E54335)
+- Accent color: Massager Red (#E54335)
 - Font: sans-serif-medium, 16sp for labels, 14sp for hints.
 - Input underline color: light gray (#E0E0E0)
 - Rounded corners for buttons.

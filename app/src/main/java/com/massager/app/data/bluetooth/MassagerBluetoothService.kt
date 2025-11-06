@@ -18,6 +18,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import android.util.Log
@@ -26,6 +27,7 @@ import com.massager.app.data.bluetooth.protocol.HyAdvertisement
 import com.massager.app.data.bluetooth.protocol.ProtocolCommand
 import com.massager.app.data.bluetooth.protocol.ProtocolMessage
 import com.massager.app.data.bluetooth.protocol.ProtocolRegistry
+import com.massager.app.R
 import com.massager.app.core.logging.logTag
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
@@ -53,6 +55,7 @@ private const val SCAN_RESULT_TTL_MS = 20_000L
 private const val INITIAL_SERVICE_DISCOVERY_DELAY_MS = 200L
 private const val MAX_SERVICE_DISCOVERY_RETRIES = 3
 private const val SERVICE_DISCOVERY_RETRY_DELAY_MS = 600L
+private const val EMPTY_DECODE_LOG_THROTTLE_MS = 1_000L
 private val TAG = logTag("MassagerBleService")
 private val CLIENT_CHARACTERISTIC_CONFIG_UUID: UUID =
     UUID.fromString("00002902-0000-1000-8000-00805F9B34FB")
@@ -98,6 +101,7 @@ class MassagerBluetoothService @Inject constructor(
 ) {
 
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var lastEmptyDecodeLogAt = 0L
     private val listeners = CopyOnWriteArraySet<BleConnectionListener>()
     private val cachedDevices = mutableMapOf<String, CachedScanDevice>()
 
@@ -173,7 +177,11 @@ class MassagerBluetoothService @Inject constructor(
                     _connectionState.update {
                         it.copy(
                             status = BleConnectionState.Status.Connected,
-                            deviceName = gatt.device.name,
+                            deviceName = resolveDeviceName(
+                                device = gatt.device,
+                                cachedEntry = getCachedDevice(gatt.device.address),
+                                fallback = gatt.device.address
+                            ),
                             deviceAddress = gatt.device.address,
                             errorMessage = null,
                             isProtocolReady = false
@@ -281,7 +289,7 @@ class MassagerBluetoothService @Inject constructor(
             Log.w(TAG, "startScan: bluetooth adapter unavailable or disabled")
             _connectionState.value = BleConnectionState(
                 status = BleConnectionState.Status.BluetoothUnavailable,
-                errorMessage = "Bluetooth is disabled"
+                errorMessage = context.getString(R.string.device_error_bluetooth_disabled)
             )
             return
         }
@@ -289,7 +297,7 @@ class MassagerBluetoothService @Inject constructor(
             Log.w(TAG, "startScan: missing BLUETOOTH_SCAN permission")
             _connectionState.value = BleConnectionState(
                 status = BleConnectionState.Status.BluetoothUnavailable,
-                errorMessage = "Bluetooth scan permission not granted"
+                errorMessage = context.getString(R.string.device_error_bluetooth_scan_permission)
             )
             return
         }
@@ -297,7 +305,7 @@ class MassagerBluetoothService @Inject constructor(
             Log.w(TAG, "startScan: missing location permission")
             _connectionState.value = BleConnectionState(
                 status = BleConnectionState.Status.BluetoothUnavailable,
-                errorMessage = "Location permission not granted"
+                errorMessage = context.getString(R.string.device_error_location_permission)
             )
             return
         }
@@ -344,7 +352,36 @@ class MassagerBluetoothService @Inject constructor(
 
     @SuppressLint("MissingPermission")
     fun connect(address: String): Boolean {
-        val adapter = bluetoothAdapter ?: return false
+        val adapter = bluetoothAdapter ?: run {
+            Log.w(TAG, "connect: bluetooth adapter is null")
+            _connectionState.update {
+                it.copy(
+                    status = BleConnectionState.Status.BluetoothUnavailable,
+                    errorMessage = context.getString(R.string.device_error_bluetooth_disabled)
+                )
+            }
+            return false
+        }
+        if (!adapter.isEnabled) {
+            Log.w(TAG, "connect: bluetooth adapter disabled")
+            _connectionState.update {
+                it.copy(
+                    status = BleConnectionState.Status.BluetoothUnavailable,
+                    errorMessage = context.getString(R.string.device_error_bluetooth_disabled)
+                )
+            }
+            return false
+        }
+        if (!hasConnectPermission()) {
+            Log.w(TAG, "connect: missing BLUETOOTH_CONNECT permission for address=$address")
+            _connectionState.update {
+                it.copy(
+                    status = BleConnectionState.Status.BluetoothUnavailable,
+                    errorMessage = context.getString(R.string.device_error_bluetooth_permission)
+                )
+            }
+            return false
+        }
         val cachedEntry = getCachedDevice(address)
         val device = cachedEntry?.device ?: runCatching {
             adapter.getRemoteDevice(address)
@@ -353,7 +390,7 @@ class MassagerBluetoothService @Inject constructor(
         stopScan()
         cancelPendingServiceRetry()
         serviceDiscoveryRetries = 0
-        val resolvedName = cachedEntry?.name ?: device.name
+        val resolvedName = resolveDeviceName(device, cachedEntry, device.address)
         _connectionState.update {
             it.copy(
                 status = BleConnectionState.Status.Connecting,
@@ -386,16 +423,6 @@ class MassagerBluetoothService @Inject constructor(
         activeServiceUuid = null
         activeWriteCharacteristicUuid = null
         activeNotifyCharacteristicUuid = null
-        if (!hasConnectPermission()) {
-            Log.w(TAG, "connect: missing BLUETOOTH_CONNECT permission, aborting connection to ${device.address}")
-            _connectionState.update {
-                it.copy(
-                    status = BleConnectionState.Status.BluetoothUnavailable,
-                    errorMessage = "Bluetooth connect permission not granted"
-                )
-            }
-            return false
-        }
         connectedAddress = device.address
         currentGatt = device.connectGatt(context, false, gattCallback)
         if (currentGatt == null) {
@@ -466,6 +493,7 @@ class MassagerBluetoothService @Inject constructor(
             Log.w(TAG, "writeCharacteristic: characteristic not found service=$serviceUuid characteristic=$characteristicUuid")
             return false
         }
+        Log.d(TAG,"writeCharacteristic: payload=${payload.toDebugHexString()}")
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             gatt.writeCharacteristic(characteristic, payload, writeType) == BluetoothStatusCodes.SUCCESS
         } else {
@@ -561,7 +589,11 @@ class MassagerBluetoothService @Inject constructor(
         _connectionState.update {
             it.copy(
                 status = if (failed) BleConnectionState.Status.Failed else BleConnectionState.Status.Disconnected,
-                deviceName = device.name,
+                deviceName = resolveDeviceName(
+                    device = device,
+                    cachedEntry = getCachedDevice(device.address),
+                    fallback = device.address
+                ),
                 deviceAddress = device.address,
                 errorMessage = if (failed) "Disconnected ($status)" else null
             )
@@ -658,6 +690,11 @@ class MassagerBluetoothService @Inject constructor(
     private fun getCachedDevice(address: String): CachedScanDevice? =
         synchronized(cachedDevices) { cachedDevices[address] }
 
+    fun cachedDeviceName(address: String?): String? {
+        if (address.isNullOrBlank()) return null
+        return getCachedDevice(address)?.name?.takeIf { it.isNotBlank() }
+    }
+
     private fun handleScanResult(result: ScanResult) {
         val device = result.device ?: run {
             Log.w(TAG, "handleScanResult: null device in scan result, skipping")
@@ -685,7 +722,15 @@ class MassagerBluetoothService @Inject constructor(
             )
             return
         }
-        val displayName = buildDisplayName(device.name, advertisement)
+        val cachedDevice = getCachedDevice(device.address)
+        val displayName = buildDisplayName(
+            resolveDeviceName(
+                device = device,
+                cachedEntry = cachedDevice,
+                fallback = ""
+            ),
+            advertisement
+        )
         val rawHex = rawBytes?.toDebugHexString()
         Log.d(
             TAG,
@@ -757,10 +802,22 @@ class MassagerBluetoothService @Inject constructor(
     private fun handleProtocolPayload(payload: ByteArray) {
         if (payload.isEmpty()) return
         val adapter = activeAdapter ?: return
-        val messages = adapter.decode(payload)
-        Log.d(TAG, "handleProtocolPayload: decoded ${messages.size} message(s) from device")
-        if (messages.isEmpty()) return
-        messages.forEach { _protocolMessages.tryEmit(it) }
+        ioScope.launch {
+            val messages = adapter.decode(payload)
+            if (messages.isEmpty()) {
+                val now = SystemClock.elapsedRealtime()
+                if (now - lastEmptyDecodeLogAt >= EMPTY_DECODE_LOG_THROTTLE_MS) {
+                    lastEmptyDecodeLogAt = now
+                    Log.v(
+                        TAG,
+                        "handleProtocolPayload: no decodable messages (length=${payload.size})"
+                    )
+                }
+                return@launch
+            }
+            Log.d(TAG, "handleProtocolPayload: decoded ${messages.size} message(s) from device")
+            messages.forEach { _protocolMessages.tryEmit(it) }
+        }
     }
 
     private fun notifyDisconnected(device: BluetoothDevice) {
@@ -1049,6 +1106,19 @@ class MassagerBluetoothService @Inject constructor(
         val version = advertisement.firmwareVersion.takeUnless { it.equals("unknown", ignoreCase = true) }
         val suffix = version?.let { " v$it" }.orEmpty()
         return "EMS-${advertisement.productId}$suffix"
+    }
+
+    private fun resolveDeviceName(
+        device: BluetoothDevice?,
+        cachedEntry: CachedScanDevice? = null,
+        fallback: String? = null
+    ): String? {
+        cachedEntry?.name?.takeIf { it.isNotBlank() }?.let { return it }
+        if (device != null && hasConnectPermission()) {
+            val candidate = device.name
+            if (!candidate.isNullOrBlank()) return candidate
+        }
+        return fallback ?: cachedEntry?.address ?: device?.address
     }
 
     companion object {

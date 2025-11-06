@@ -51,9 +51,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
+import com.massager.app.presentation.components.AppBottomNavigation
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -254,40 +252,11 @@ fun SettingsScreen(
                     .padding(bottom = 88.dp)
             )
 
-            NavigationBar(
-                containerColor = Color.White,
-                tonalElevation = 4.dp,
+            AppBottomNavigation(
+                currentTab = currentTab,
+                onTabSelected = onTabSelected,
                 modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                AppBottomTab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        selected = currentTab == tab,
-                        onClick = { onTabSelected(tab) },
-                        icon = {
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = stringResource(tab.labelRes),
-                                tint = if (currentTab == tab) {
-                                    AccentRed
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = stringResource(tab.labelRes),
-                                fontSize = 12.sp
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = AccentRed.copy(alpha = 0.12f),
-                            selectedIconColor = AccentRed,
-                            selectedTextColor = AccentRed
-                        )
-                    )
-                }
-            }
+            )
         }
 
         if (showEditNameDialog) {

@@ -2,6 +2,7 @@ package com.massager.app.presentation.device
 
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.outlined.BatteryFull
 import androidx.compose.material.icons.outlined.Timer
@@ -37,6 +40,7 @@ import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -74,6 +78,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -164,7 +169,8 @@ private fun DeviceControlContent(
             }
 
             is DeviceMessage.CommandFailed -> {
-                snackbarHostState.showSnackbar(context.getString(message.messageRes))
+                val text = message.messageText ?: context.getString(message.messageRes)
+                snackbarHostState.showSnackbar(text)
             }
 
             null -> Unit
@@ -201,52 +207,94 @@ private fun DeviceControlContent(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = Color(0xFFF7F7F7)
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 20.dp, vertical = 12.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            DeviceDisplaySection(
-                state = state,
-                onReconnect = onReconnect,
-                onToggleMute = onToggleMute
-            )
-            BodyZoneTabs(
-                selectedZone = state.zone,
-                isRunning = state.isRunning,
-                onSelectZone = onSelectZone
-            )
-            ModeSelectionGrid(
-                selectedMode = state.mode,
-                isRunning = state.isRunning,
-                onSelectMode = onSelectMode
-            )
-            LevelControlSection(
-                level = state.level,
-                isConnected = state.isConnected,
-                onIncrease = {
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onIncreaseLevel()
-                },
-                onDecrease = {
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onDecreaseLevel()
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                DeviceDisplaySection(
+                    state = state,
+                    onReconnect = onReconnect,
+                    onToggleMute = onToggleMute
+                )
+                BodyZoneTabs(
+                    selectedZone = state.zone,
+                    isRunning = state.isRunning,
+                    onSelectZone = onSelectZone
+                )
+                ModeSelectionGrid(
+                    selectedMode = state.mode,
+                    isRunning = state.isRunning,
+                    onSelectMode = onSelectMode
+                )
+                LevelControlSection(
+                    level = state.level,
+                    isConnected = state.isConnected,
+                    onIncrease = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onIncreaseLevel()
+                    },
+                    onDecrease = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onDecreaseLevel()
+                    }
+                )
+                TimerActionSection(
+                    state = state,
+                    timerDropdownExpanded = timerDropdownExpanded,
+                    onToggleTimerMenu = { timerDropdownExpanded = !timerDropdownExpanded },
+                    onDismissTimerMenu = { timerDropdownExpanded = false },
+                    onSelectTimer = {
+                        timerDropdownExpanded = false
+                        onSelectTimer(it)
+                    },
+                    onToggleSession = onToggleSession
+                )
+            }
+            AnimatedVisibility(
+                visible = state.showConnectingOverlay,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .matchParentSize()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        tonalElevation = 6.dp,
+                        color = Color.White
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 24.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 3.dp
+                            )
+                            Text(
+                                text = stringResource(id = R.string.connecting),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
-            )
-            TimerActionSection(
-                state = state,
-                timerDropdownExpanded = timerDropdownExpanded,
-                onToggleTimerMenu = { timerDropdownExpanded = !timerDropdownExpanded },
-                onDismissTimerMenu = { timerDropdownExpanded = false },
-                onSelectTimer = {
-                    timerDropdownExpanded = false
-                    onSelectTimer(it)
-                },
-                onToggleSession = onToggleSession
-            )
+            }
         }
     }
 
@@ -305,18 +353,26 @@ private fun DeviceDisplaySection(
                 }
                 IconButton(
                     onClick = onReconnect,
-                    enabled = !state.isConnected,
+                    enabled = !state.isConnected && !state.isConnecting,
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
                         .background(
-                            color = if (state.isConnected) Color(0xFFE0E0E0) else Color(0xFFFFEBEE)
+                            color = when {
+                                state.isConnected -> Color(0xFFE0E0E0)
+                                state.isConnecting -> Color(0xFFFFCDD2)
+                                else -> Color(0xFFFFEBEE)
+                            }
                         )
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Add,
+                        imageVector = Icons.Filled.Refresh,
                         contentDescription = stringResource(id = R.string.device_reconnect),
-                        tint = if (state.isConnected) Color.Gray else AccentRed
+                        tint = when {
+                            state.isConnected -> Color.Gray
+                            state.isConnecting -> AccentRed.copy(alpha = 0.6f)
+                            else -> AccentRed
+                        }
                     )
                 }
             }
@@ -397,7 +453,7 @@ private fun BodyZoneTabs(
             .clip(RoundedCornerShape(24.dp))
             .background(Color.White)
             .padding(4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         BodyZone.values().forEach { zone ->
             val isSelected = zone == selectedZone
@@ -410,14 +466,23 @@ private fun BodyZoneTabs(
                 color = if (isSelected) AccentRed else Color.Transparent,
                 tonalElevation = if (isSelected) 4.dp else 0.dp
             ) {
-                Text(
-                    text = stringResource(id = zone.labelRes),
+                Box(
                     modifier = Modifier
-                        .padding(vertical = 12.dp)
-                        .align(Alignment.CenterVertically),
-                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center
-                )
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp, horizontal = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(id = zone.labelRes),
+                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.widthIn(min = 72.dp),
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip,
+                        softWrap = false
+                    )
+                }
             }
         }
     }

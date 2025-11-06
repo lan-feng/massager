@@ -1,0 +1,25 @@
+{
+  "_comment": "Download your google-services.json from the Firebase Console and replace this placeholder file.",
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "replace-with-your-project-id",
+    "firebase_url": "https://replace-with-your-project.firebaseio.com",
+    "storage_bucket": "replace-with-your-project.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:placeholder",
+        "android_client_info": {
+          "package_name": "com.massager.app"
+        }
+      },
+      "api_key": [
+        {
+          "current_key": "AIzaSy-REPLACE_ME"
+        }
+      ]
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -2,6 +2,7 @@ package com.massager.app.presentation.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -10,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.massager.app.R
 import com.massager.app.presentation.auth.AuthViewModel
 import com.massager.app.presentation.auth.LoginScreen
 import com.massager.app.presentation.auth.ForgetPasswordScreen
@@ -27,6 +29,7 @@ import com.massager.app.presentation.home.AppBottomTab
 import com.massager.app.presentation.home.HomeDashboardScreen
 import com.massager.app.presentation.home.HomeViewModel
 import com.massager.app.presentation.recovery.RecoverySelectionScreen
+import com.massager.app.presentation.settings.AboutScreen
 import com.massager.app.presentation.settings.AccountSecurityScreen
 import com.massager.app.presentation.settings.AccountSecurityViewModel
 import com.massager.app.presentation.settings.ChangePasswordScreen
@@ -35,6 +38,7 @@ import com.massager.app.presentation.settings.PersonalInformationScreen
 import com.massager.app.presentation.settings.PersonalInformationViewModel
 import com.massager.app.presentation.settings.SettingsScreen
 import com.massager.app.presentation.settings.SettingsViewModel
+import com.massager.app.presentation.settings.WebDocumentScreen
 
 @Composable
 fun MassagerNavHost(
@@ -115,21 +119,12 @@ fun MassagerNavHost(
                 onTabSelected = { tab ->
                     when (tab) {
                         AppBottomTab.Home -> Unit
-                        AppBottomTab.Manual -> {
-                            navController.navigate(Screen.Recovery.route) {
-                                launchSingleTop = true
-                            }
-                        }
-                        AppBottomTab.Devices -> {
-                            navController.navigate(Screen.DeviceScan.route) {
-                                launchSingleTop = true
-                            }
-                        }
                         AppBottomTab.Profile -> {
                             navController.navigate(Screen.Settings.route) {
                                 launchSingleTop = true
                             }
                         }
+                        else -> Unit
                     }
                 }
             )
@@ -213,7 +208,7 @@ fun MassagerNavHost(
                 onNavigateAccountSecurity = { navController.navigate(Screen.AccountSecurity.route) },
                 onNavigateHistory = { /* TODO */ },
                 onNavigateFavorites = { /* TODO */ },
-                onNavigateAbout = { /* TODO */ },
+                onNavigateAbout = { navController.navigate(Screen.About.route) },
                 onLogout = {
                     viewModel.logout()
                     navController.navigate(Screen.Login.route) {
@@ -288,6 +283,27 @@ fun MassagerNavHost(
                     authViewModel.clearAuthenticationFlag()
                 },
                 onForgotPassword = { navController.navigate(Screen.ForgetPassword.route) }
+            )
+        }
+        composable(Screen.About.route) {
+            AboutScreen(
+                onBack = { navController.popBackStack() },
+                onOpenUserAgreement = { navController.navigate(Screen.UserAgreement.route) },
+                onOpenPrivacyPolicy = { navController.navigate(Screen.PrivacyPolicy.route) }
+            )
+        }
+        composable(Screen.UserAgreement.route) {
+            WebDocumentScreen(
+                title = stringResource(R.string.user_agreement),
+                url = stringResource(R.string.user_agreement_url),
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.PrivacyPolicy.route) {
+            WebDocumentScreen(
+                title = stringResource(R.string.privacy_policy),
+                url = stringResource(R.string.privacy_policy_url),
+                onBack = { navController.popBackStack() }
             )
         }
         composable(Screen.DeleteAccount.route) {
