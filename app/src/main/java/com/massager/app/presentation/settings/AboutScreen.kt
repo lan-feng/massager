@@ -59,10 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.massager.app.R
-
-private val AccentRed = Color(0xFFE54335)
-private val AccentDarkRed = Color(0xFFD22020)
-private val BackgroundColor = Color(0xFFFAFAFA)
+import com.massager.app.presentation.theme.massagerExtendedColors
 
 @kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -92,7 +89,7 @@ fun AboutScreen(
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Medium,
-                            color = Color(0xFF222222)
+                            color = MaterialTheme.massagerExtendedColors.textPrimary
                         )
                     )
                 },
@@ -101,22 +98,23 @@ fun AboutScreen(
                         Icon(
                             imageVector = Icons.Filled.ArrowBack,
                             contentDescription = null,
-                            tint = Color(0xFF222222)
+                            tint = MaterialTheme.massagerExtendedColors.textPrimary
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White,
-                    navigationIconContentColor = Color(0xFF222222)
+                    containerColor = MaterialTheme.massagerExtendedColors.surfaceBright,
+                    navigationIconContentColor = MaterialTheme.massagerExtendedColors.textPrimary,
+                    titleContentColor = MaterialTheme.massagerExtendedColors.textPrimary
                 )
             )
         },
-        containerColor = BackgroundColor
+        containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BackgroundColor)
+                .background(MaterialTheme.massagerExtendedColors.surfaceSubtle)
                 .padding(paddingValues)
                 .padding(horizontal = 20.dp)
         ) {
@@ -136,14 +134,17 @@ fun AboutScreen(
                         .semantics { contentDescription = logoContentDescription }
                         .background(
                             Brush.linearGradient(
-                                colors = listOf(AccentRed, AccentDarkRed)
+                                colors = listOf(
+                                    MaterialTheme.massagerExtendedColors.danger,
+                                    MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.8f)
+                                )
                             )
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "M",
-                        color = Color.White,
+                        color = MaterialTheme.massagerExtendedColors.textOnAccent,
                         fontSize = 42.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.align(Alignment.Center),
@@ -153,7 +154,7 @@ fun AboutScreen(
                 Text(
                     text = stringResource(R.string.version_label),
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF777777),
+                        color = MaterialTheme.massagerExtendedColors.textMuted,
                         fontSize = 14.sp
                     )
                 )
@@ -165,7 +166,7 @@ fun AboutScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 shadowElevation = 2.dp,
-                color = Color.White
+                color = MaterialTheme.massagerExtendedColors.surfaceBright
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     InfoListItem(
@@ -176,17 +177,17 @@ fun AboutScreen(
                             Icon(
                                 imageVector = Icons.Filled.ChevronRight,
                                 contentDescription = null,
-                                tint = Color(0xFFBBBBBB)
+                                tint = MaterialTheme.massagerExtendedColors.iconMuted
                             )
                         }
                     )
-                    Divider(color = Color(0xFFF0F0F0), thickness = 1.dp)
+                    Divider(color = MaterialTheme.massagerExtendedColors.divider, thickness = 1.dp)
                     InfoListItem(
                         title = stringResource(R.string.user_agreement),
                         leadingIcon = Icons.Outlined.Article,
                         onClick = onOpenUserAgreement
                     )
-                    Divider(color = Color(0xFFF0F0F0), thickness = 1.dp)
+                    Divider(color = MaterialTheme.massagerExtendedColors.divider, thickness = 1.dp)
                     InfoListItem(
                         title = stringResource(R.string.privacy_policy),
                         leadingIcon = Icons.Outlined.Policy,
@@ -203,7 +204,7 @@ fun AboutScreen(
                     .padding(bottom = 24.dp),
                 text = stringResource(R.string.copyright),
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = Color(0xFFAAAAAA),
+                    color = MaterialTheme.massagerExtendedColors.textMuted,
                     fontSize = 12.sp
                 ),
                 lineHeight = 16.sp,
@@ -223,7 +224,7 @@ private fun InfoListItem(
         Icon(
             imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
-            tint = Color(0xFFBBBBBB)
+            tint = MaterialTheme.massagerExtendedColors.iconMuted
         )
     },
     enabled: Boolean = true
@@ -251,13 +252,13 @@ private fun InfoListItem(
             Icon(
                 imageVector = leadingIcon,
                 contentDescription = null,
-                tint = AccentRed
+                tint = MaterialTheme.massagerExtendedColors.danger
             )
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontSize = 16.sp,
-                    color = Color(0xFF222222)
+                    color = MaterialTheme.massagerExtendedColors.textPrimary
                 )
             )
         }

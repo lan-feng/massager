@@ -65,6 +65,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.rememberAsyncImagePainter
 import com.massager.app.R
+import com.massager.app.presentation.theme.massagerExtendedColors
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -138,12 +139,12 @@ private fun PersonalInformationContent(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF8F8F8),
+                    containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
-        containerColor = Color(0xFFF8F8F8)
+        containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle
     ) { padding ->
         if (state.isLoading) {
             LinearProgressIndicator(
@@ -249,7 +250,7 @@ private fun ProfileListCard(
             .fillMaxWidth()
             .shadow(4.dp, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.surfaceBright)
     ) {
         Column(content = content)
     }

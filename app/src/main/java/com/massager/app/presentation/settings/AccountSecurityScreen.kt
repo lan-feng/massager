@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.massager.app.R
+import com.massager.app.presentation.theme.massagerExtendedColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,7 +76,7 @@ fun AccountSecurityScreen(
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(0xFFF8F8F8)
+        color = MaterialTheme.massagerExtendedColors.surfaceSubtle
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopAppBar(
@@ -89,7 +90,7 @@ fun AccountSecurityScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF8F8F8),
+                    containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )

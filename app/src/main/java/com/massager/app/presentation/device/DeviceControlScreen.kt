@@ -84,9 +84,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
 import androidx.compose.material3.SnackbarHostState
+import com.massager.app.presentation.theme.massagerExtendedColors
 
-private val AccentRed = Color(0xFFE54335)
-private val RenameTeal = Color(0xFF16A085)
 
 @Composable
 fun DeviceControlScreen(
@@ -200,12 +199,12 @@ private fun DeviceControlContent(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF7F7F7)
+                    containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle
                 )
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = Color(0xFFF7F7F7)
+        containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -268,13 +267,13 @@ private fun DeviceControlContent(
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .background(Color.Black.copy(alpha = 0.35f)),
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         tonalElevation = 6.dp,
-                        color = Color.White
+                        color = MaterialTheme.massagerExtendedColors.surfaceBright
                     ) {
                         Row(
                             modifier = Modifier
@@ -321,7 +320,7 @@ private fun DeviceDisplaySection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.surfaceBright)
     ) {
         Column(
             modifier = Modifier
@@ -348,7 +347,11 @@ private fun DeviceDisplaySection(
                             }
                         ),
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (state.isConnected) Color(0xFF4CAF50) else AccentRed
+                        color = if (state.isConnected) {
+                            MaterialTheme.massagerExtendedColors.success
+                        } else {
+                            MaterialTheme.massagerExtendedColors.danger
+                        }
                     )
                 }
                 IconButton(
@@ -359,9 +362,9 @@ private fun DeviceDisplaySection(
                         .clip(CircleShape)
                         .background(
                             color = when {
-                                state.isConnected -> Color(0xFFE0E0E0)
-                                state.isConnecting -> Color(0xFFFFCDD2)
-                                else -> Color(0xFFFFEBEE)
+                                state.isConnected -> MaterialTheme.massagerExtendedColors.surfaceStrong
+                                state.isConnecting -> MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.15f)
+                                else -> MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.08f)
                             }
                         )
                 ) {
@@ -369,9 +372,9 @@ private fun DeviceDisplaySection(
                         imageVector = Icons.Filled.Refresh,
                         contentDescription = stringResource(id = R.string.device_reconnect),
                         tint = when {
-                            state.isConnected -> Color.Gray
-                            state.isConnecting -> AccentRed.copy(alpha = 0.6f)
-                            else -> AccentRed
+                            state.isConnected -> MaterialTheme.massagerExtendedColors.iconMuted
+                            state.isConnecting -> MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.6f)
+                            else -> MaterialTheme.massagerExtendedColors.danger
                         }
                     )
                 }
@@ -382,11 +385,11 @@ private fun DeviceDisplaySection(
                     .height(140.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Surface(
-                    modifier = Modifier.size(160.dp),
-                    shape = CircleShape,
-                    color = Color(0xFFF2F2F2)
-                ) {
+        Surface(
+            modifier = Modifier.size(160.dp),
+            shape = CircleShape,
+            color = MaterialTheme.massagerExtendedColors.surfaceSubtle
+        ) {
                     Image(
                         painter = painterResource(id = R.drawable.ic_massager_logo),
                         contentDescription = null,
@@ -399,7 +402,7 @@ private fun DeviceDisplaySection(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .clip(CircleShape)
-                        .background(Color.White)
+                        .background(MaterialTheme.massagerExtendedColors.surfaceBright)
                 ) {
                     Icon(
                         imageVector = if (state.isMuted) Icons.Outlined.VolumeOff else Icons.Outlined.VolumeUp,
@@ -408,7 +411,7 @@ private fun DeviceDisplaySection(
                         } else {
                             stringResource(id = R.string.device_mute_enabled)
                         },
-                        tint = AccentRed
+                        tint = MaterialTheme.massagerExtendedColors.danger
                     )
                 }
             }
@@ -423,7 +426,7 @@ private fun BatteryStatusRow(batteryPercent: Int) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFF9F9F9))
+            .background(MaterialTheme.massagerExtendedColors.surfaceBright)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -431,7 +434,11 @@ private fun BatteryStatusRow(batteryPercent: Int) {
         Icon(
             imageVector = Icons.Outlined.BatteryFull,
             contentDescription = null,
-            tint = if (batteryPercent > 20) Color(0xFF4CAF50) else Color(0xFFE53935)
+            tint = if (batteryPercent > 20) {
+                MaterialTheme.massagerExtendedColors.success
+            } else {
+                MaterialTheme.massagerExtendedColors.danger
+            }
         )
         Text(
             text = stringResource(id = R.string.device_battery_label, batteryPercent),
@@ -451,7 +458,7 @@ private fun BodyZoneTabs(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(Color.White)
+            .background(MaterialTheme.massagerExtendedColors.surfaceBright)
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -463,7 +470,7 @@ private fun BodyZoneTabs(
                     .padding(horizontal = 4.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .clickable(enabled = !isRunning) { onSelectZone(zone) },
-                color = if (isSelected) AccentRed else Color.Transparent,
+                color = if (isSelected) MaterialTheme.massagerExtendedColors.danger else Color.Transparent,
                 tonalElevation = if (isSelected) 4.dp else 0.dp
             ) {
                 Box(
@@ -474,7 +481,11 @@ private fun BodyZoneTabs(
                 ) {
                     Text(
                         text = stringResource(id = zone.labelRes),
-                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                        color = if (isSelected) {
+                            MaterialTheme.massagerExtendedColors.textOnAccent
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
                         textAlign = TextAlign.Center,
                         modifier = Modifier.widthIn(min = 72.dp),
                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
@@ -498,7 +509,7 @@ private fun ModeSelectionGrid(
         modifier = Modifier
             .fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        color = Color.White,
+        color = MaterialTheme.massagerExtendedColors.surfaceBright,
         tonalElevation = 2.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -521,8 +532,16 @@ private fun ModeSelectionGrid(
                             enabled = !isRunning,
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) AccentRed else Color(0xFFF4F4F4),
-                                contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                containerColor = if (isSelected) {
+                                    MaterialTheme.massagerExtendedColors.danger
+                                } else {
+                                    MaterialTheme.massagerExtendedColors.surfaceSubtle
+                                },
+                                contentColor = if (isSelected) {
+                                    MaterialTheme.massagerExtendedColors.textOnAccent
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
                             ),
                             modifier = Modifier
                                 .weight(1f)
@@ -558,7 +577,7 @@ private fun LevelControlSection(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        color = Color.White
+        color = MaterialTheme.massagerExtendedColors.surfaceBright
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -588,7 +607,7 @@ private fun LevelControlSection(
                         text = value.toString(),
                         style = MaterialTheme.typography.displayLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFE54335)
+                            color = MaterialTheme.massagerExtendedColors.danger
                         )
                     )
                 }
@@ -614,14 +633,22 @@ private fun ControlCircularButton(
         modifier = Modifier
             .size(56.dp)
             .background(
-                color = if (enabled) Color(0xFFFFF0EF) else Color(0xFFE0E0E0),
+                color = if (enabled) {
+                    MaterialTheme.massagerExtendedColors.accentSoft
+                } else {
+                    MaterialTheme.massagerExtendedColors.surfaceStrong
+                },
                 shape = CircleShape
             )
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (enabled) Color(0xFFE54335) else Color.Gray
+            tint = if (enabled) {
+                MaterialTheme.massagerExtendedColors.danger
+            } else {
+                MaterialTheme.massagerExtendedColors.iconMuted
+            }
         )
     }
 }
@@ -643,7 +670,7 @@ private fun TimerActionSection(
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color.White)
+                .background(MaterialTheme.massagerExtendedColors.surfaceBright)
                 .clickable(enabled = !state.isRunning, onClick = onToggleTimerMenu)
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
@@ -651,7 +678,11 @@ private fun TimerActionSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Outlined.Timer, contentDescription = null, tint = Color(0xFFE54335))
+                Icon(
+                    imageVector = Icons.Outlined.Timer,
+                    contentDescription = null,
+                    tint = MaterialTheme.massagerExtendedColors.danger
+                )
                 Text(
                     text = when {
                         state.isRunning && state.remainingSeconds > 0 -> formatDuration(state.remainingSeconds)
@@ -692,8 +723,12 @@ private fun TimerActionSection(
                 .height(64.dp),
             shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (state.isRunning) AccentRed else RenameTeal,
-                contentColor = Color.White
+                containerColor = if (state.isRunning) {
+                    MaterialTheme.massagerExtendedColors.danger
+                } else {
+                    MaterialTheme.massagerExtendedColors.success
+                },
+                contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
             )
         ) {
             Text(

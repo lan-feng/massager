@@ -84,10 +84,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.massager.app.R
+import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-private val AccentRed = Color(0xFFE53935)
 
 @Composable
 fun LoginScreen(
@@ -292,8 +291,9 @@ fun LoginScreen(
                     enabled = !state.isLoading,
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentRed,
-                        disabledContainerColor = AccentRed.copy(alpha = 0.4f)
+                        containerColor = MaterialTheme.massagerExtendedColors.danger,
+                        disabledContainerColor = MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.4f),
+                        contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
                     ),
                     elevation = ButtonDefaults.buttonElevation(
                         defaultElevation = 6.dp,
@@ -641,8 +641,9 @@ fun RegisterScreen(
                     enabled = canSubmit,
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentRed,
-                        disabledContainerColor = AccentRed.copy(alpha = 0.4f)
+                        containerColor = MaterialTheme.massagerExtendedColors.danger,
+                        disabledContainerColor = MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.4f),
+                        contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
                     )
                 ) {
                     if (state.isLoading) {
@@ -691,11 +692,11 @@ fun ForgetPasswordScreen(
     onConsumeSnackbar: () -> Unit,
     onPasswordResetSuccess: () -> Unit
 ) {
-    val accentRed = Color(0xFFE54335)
-    val accentDarkRed = Color(0xFFD22020)
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val accent = MaterialTheme.massagerExtendedColors.danger
+    val accentDim = MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.85f)
 
     var email by remember { mutableStateOf("") }
     var verificationCode by remember { mutableStateOf("") }
@@ -796,7 +797,7 @@ fun ForgetPasswordScreen(
                             .size(96.dp)
                             .clip(CircleShape)
                             .background(
-                                brush = Brush.linearGradient(listOf(accentRed, accentDarkRed))
+                                brush = Brush.linearGradient(listOf(accent, accentDim))
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -859,7 +860,7 @@ fun ForgetPasswordScreen(
                             Text(
                                 text = getCodeText,
                                 color = if (sendCodeEnabled) {
-                                    accentRed
+                                    accent
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 }
@@ -915,7 +916,7 @@ fun ForgetPasswordScreen(
 
             Text(
                 text = stringResource(R.string.password_rule),
-                style = MaterialTheme.typography.bodySmall.copy(color = accentRed),
+                style = MaterialTheme.typography.bodySmall.copy(color = accent),
                 textAlign = TextAlign.Start,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -927,7 +928,11 @@ fun ForgetPasswordScreen(
                     .fillMaxWidth()
                     .padding(top = 8.dp),
                 shape = RoundedCornerShape(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = accentRed),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accent,
+                    disabledContainerColor = accent.copy(alpha = 0.4f),
+                    contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
+                ),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
                 if (state.isResetting) {
@@ -956,7 +961,7 @@ private fun AuthLogo() {
     Surface(
         modifier = Modifier.size(96.dp),
         shape = CircleShape,
-        color = AccentRed
+        color = MaterialTheme.massagerExtendedColors.danger
     ) {
         Image(
             painter = painterResource(id = R.drawable.ic_massager_logo),

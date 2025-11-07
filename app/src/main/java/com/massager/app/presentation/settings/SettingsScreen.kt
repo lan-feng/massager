@@ -91,12 +91,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.massager.app.presentation.home.AppBottomTab
+import com.massager.app.presentation.theme.massagerExtendedColors
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-private val AccentRed = Color(0xFFE54335)
-private val BackgroundColor = Color(0xFFFAFAFA)
 
 @Composable
 fun SettingsScreen(
@@ -161,7 +160,7 @@ fun SettingsScreen(
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = BackgroundColor
+        color = MaterialTheme.massagerExtendedColors.surfaceSubtle
     ) {
         Box {
             if (state.isLoading) {
@@ -307,7 +306,10 @@ private fun HeaderSection(
             .clip(RoundedCornerShape(32.dp))
             .background(
                 brush = Brush.linearGradient(
-                    colors = listOf(Color.White, Color(0xFFF0F2F5))
+                    colors = listOf(
+                        MaterialTheme.massagerExtendedColors.surfaceBright,
+                        MaterialTheme.massagerExtendedColors.surfaceSubtle
+                    )
                 )
             )
     ) {
@@ -323,20 +325,20 @@ private fun HeaderSection(
                 Surface(
                     modifier = Modifier.size(48.dp),
                     shape = CircleShape,
-                    color = AccentRed.copy(alpha = 0.12f)
+                    color = MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.12f)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Filled.ChatBubble,
                             contentDescription = stringResource(R.string.settings_header_greeting),
-                            tint = AccentRed
+                            tint = MaterialTheme.massagerExtendedColors.danger
                         )
                     }
                 }
                 Text(
                     text = stringResource(R.string.settings_header_greeting),
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF555555)
+                        color = MaterialTheme.massagerExtendedColors.textSecondary
                     )
                 )
             }
@@ -365,7 +367,7 @@ private fun HeaderSection(
                     Surface(
                         shape = CircleShape,
                         shadowElevation = 12.dp,
-                        color = Color.White,
+                        color = MaterialTheme.massagerExtendedColors.surfaceBright,
                         modifier = Modifier.size(86.dp)
                     ) {
                         val imageModifier = Modifier
@@ -454,7 +456,7 @@ private fun SettingsGroup(
         modifier = Modifier
             .padding(horizontal = 20.dp, vertical = 8.dp),
         shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.surfaceBright),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(
@@ -480,7 +482,9 @@ private fun SettingsGroup(
                         .clickable(
                             enabled = hasNavigation,
                             interactionSource = interaction,
-                            indication = if (hasNavigation) rememberRipple(color = AccentRed.copy(alpha = 0.16f)) else null
+                            indication = if (hasNavigation) {
+                                rememberRipple(color = MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.16f))
+                            } else null
                         ) { item.onClick?.invoke() }
                         .padding(vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -489,7 +493,7 @@ private fun SettingsGroup(
                     Icon(
                         imageVector = item.icon,
                         contentDescription = item.title,
-                        tint = AccentRed
+                        tint = MaterialTheme.massagerExtendedColors.danger
                     )
                     Text(
                         text = item.title,
@@ -537,9 +541,9 @@ private fun TemperatureToggle(
             checked = unit == TemperatureUnit.Fahrenheit,
             onCheckedChange = { onToggle() },
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = AccentRed,
-                uncheckedThumbColor = Color.White,
+                checkedThumbColor = MaterialTheme.massagerExtendedColors.textOnAccent,
+                checkedTrackColor = MaterialTheme.massagerExtendedColors.danger,
+                uncheckedThumbColor = MaterialTheme.massagerExtendedColors.surfaceBright,
                 uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
             )
         )

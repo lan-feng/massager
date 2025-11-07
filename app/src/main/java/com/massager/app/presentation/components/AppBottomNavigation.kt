@@ -8,12 +8,10 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.massager.app.presentation.home.AppBottomTab
-
-private val AccentRed = Color(0xFFE54335)
+import com.massager.app.presentation.theme.massagerExtendedColors
 
 @Composable
 fun AppBottomNavigation(
@@ -21,9 +19,10 @@ fun AppBottomNavigation(
     onTabSelected: (AppBottomTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val accent = MaterialTheme.massagerExtendedColors.danger
     NavigationBar(
         modifier = modifier.fillMaxWidth(),
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 4.dp
     ) {
         AppBottomTab.visibleTabs.forEach { tab ->
@@ -40,9 +39,9 @@ fun AppBottomNavigation(
                     Text(text = stringResource(id = tab.labelRes))
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    indicatorColor = AccentRed.copy(alpha = 0.12f),
-                    selectedIconColor = AccentRed,
-                    selectedTextColor = AccentRed,
+                    indicatorColor = accent.copy(alpha = 0.12f),
+                    selectedIconColor = accent,
+                    selectedTextColor = accent,
                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )

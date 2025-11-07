@@ -71,6 +71,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
+import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -171,7 +172,7 @@ fun AddDeviceScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .background(Color(0xFFFAFAFA))
+                .background(MaterialTheme.massagerExtendedColors.surfaceSubtle)
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -181,7 +182,7 @@ fun AddDeviceScreen(
             Text(
                 text = stringResource(id = R.string.searching_devices),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF888888),
+                color = MaterialTheme.massagerExtendedColors.textMuted,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -249,12 +250,12 @@ fun AddDeviceScreen(
                 shape = RoundedCornerShape(12.dp),
                 border = androidx.compose.foundation.BorderStroke(
                     width = 1.dp,
-                    color = Color(0xFFA3C1FF)
+                    color = MaterialTheme.colorScheme.primaryContainer
                 )
             ) {
                 Text(
                     text = stringResource(id = R.string.add_manually),
-                    color = Color(0xFF4B7BE5),
+                    color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.titleMedium
                 )
             }
@@ -283,6 +284,12 @@ private fun RadarAnimation(isScanning: Boolean) {
         ),
         label = "radar_pulse"
     )
+    val primary = MaterialTheme.colorScheme.primary
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val radialColors = remember(primary, primaryContainer) {
+        listOf(primaryContainer, primary.copy(alpha = 0.85f))
+    }
+    val pulseStrokeColor = MaterialTheme.massagerExtendedColors.surfaceBright
 
     Box(
         modifier = Modifier
@@ -292,18 +299,18 @@ private fun RadarAnimation(isScanning: Boolean) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val radius = size.minDimension / 2
             val gradient = Brush.radialGradient(
-                colors = listOf(Color(0xFFDDE7FF), Color(0xFFA3C1FF)),
+                colors = radialColors,
                 center = center,
                 radius = radius
             )
             drawCircle(brush = gradient, radius = radius)
             drawCircle(
-                color = Color.White.copy(alpha = 0.35f),
+                color = pulseStrokeColor.copy(alpha = 0.35f),
                 radius = radius * pulse,
                 style = Stroke(width = 6f)
             )
             drawArc(
-                color = Color(0xFF4B7BE5).copy(alpha = if (isScanning) 0.35f else 0.15f),
+                color = primary.copy(alpha = if (isScanning) 0.35f else 0.15f),
                 startAngle = sweepAngle,
                 sweepAngle = 60f,
                 useCenter = true
@@ -312,13 +319,13 @@ private fun RadarAnimation(isScanning: Boolean) {
         Box(
             modifier = Modifier
                 .size(92.dp)
-                .background(Color.White, shape = CircleShape),
+                .background(MaterialTheme.massagerExtendedColors.surfaceBright, shape = CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Filled.Bluetooth,
                 contentDescription = null,
-                tint = Color(0xFF4B7BE5),
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(40.dp)
             )
         }
@@ -362,7 +369,7 @@ private fun DeviceCardItem(
                 } else {
                     stringResource(id = R.string.add_device_tap_to_connect)
                 },
-                style = MaterialTheme.typography.labelMedium.copy(color = Color(0xFF4B7BE5))
+                style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.primary)
             )
             Text(
                 text = stringResource(id = R.string.add_device_signal_strength, device.signalStrength),
@@ -387,13 +394,13 @@ private fun AddDeviceEmptyState(
         Box(
             modifier = Modifier
                 .size(120.dp)
-                .background(Color(0xFFDDE7FF), shape = CircleShape),
+                .background(MaterialTheme.colorScheme.primaryContainer, shape = CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Filled.Bluetooth,
                 contentDescription = null,
-                tint = Color(0xFF4B7BE5),
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(48.dp)
             )
         }

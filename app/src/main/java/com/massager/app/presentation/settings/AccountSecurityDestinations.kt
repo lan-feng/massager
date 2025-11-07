@@ -52,9 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
+import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlinx.coroutines.launch
-
-private val AccentRed = Color(0xFFE54335)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,12 +112,16 @@ fun ChangePasswordScreen(
                     ) {
                         Text(
                             text = stringResource(id = R.string.submit_action),
-                            color = if (uiState.isFormValid && !uiState.isSubmitting) AccentRed else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (uiState.isFormValid && !uiState.isSubmitting) {
+                                MaterialTheme.massagerExtendedColors.danger
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFFAFAFA),
+                    containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
@@ -128,7 +131,7 @@ fun ChangePasswordScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .background(Color(0xFFFAFAFA))
+                .background(MaterialTheme.massagerExtendedColors.surfaceSubtle)
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
@@ -211,7 +214,7 @@ fun ChangePasswordScreen(
             ) {
                 Text(
                     text = stringResource(id = R.string.forgot_password_action),
-                    color = AccentRed,
+                    color = MaterialTheme.massagerExtendedColors.danger,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -227,7 +230,7 @@ fun DeleteAccountConfirmScreen(
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(0xFFF8F8F8)
+        color = MaterialTheme.massagerExtendedColors.surfaceSubtle
     ) {
         Column {
             TopAppBar(
@@ -238,7 +241,7 @@ fun DeleteAccountConfirmScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF8F8F8),
+                    containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )

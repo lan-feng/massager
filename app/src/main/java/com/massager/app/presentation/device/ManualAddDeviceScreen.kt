@@ -187,15 +187,15 @@ fun ManualAddDeviceScreen(
                 enabled = !uiState.isSubmitting,
                 shape = MaterialTheme.shapes.medium,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFA3C1FF),
-                    contentColor = Color(0xFF4B7BE5)
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.primary
                 )
             ) {
                 if (uiState.isSubmitting) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,
-                        color = Color(0xFF4B7BE5)
+                        color = MaterialTheme.colorScheme.primary
                     )
                 } else {
                     Text(

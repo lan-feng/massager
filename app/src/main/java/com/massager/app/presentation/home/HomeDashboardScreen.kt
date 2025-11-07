@@ -72,14 +72,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.massager.app.R
 import com.massager.app.domain.model.DeviceMetadata
+import com.massager.app.presentation.components.AppBottomNavigation
+import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.collectLatest
-import com.massager.app.presentation.components.AppBottomNavigation
-
-private val ScreenBackground = Color(0xFFFAFAFA)
-private val CardBackground = Color.White
-private val AccentRed = Color(0xFFE54335)
-private val RenameTeal = Color(0xFF16A085)
 
 @Composable
 fun HomeDashboardScreen(
@@ -124,7 +120,7 @@ fun HomeDashboardScreen(
     }
 
     Scaffold(
-        containerColor = ScreenBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             Column {
                 AnimatedVisibility(visible = state.isManagementActive) {
@@ -147,7 +143,7 @@ fun HomeDashboardScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(ScreenBackground)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
         ) {
             HeaderSection(onAddDevice = onAddDevice)
@@ -156,7 +152,7 @@ fun HomeDashboardScreen(
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF666666)
+                    color = MaterialTheme.massagerExtendedColors.textSecondary
                 ),
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
@@ -244,9 +240,9 @@ private fun HeaderSection(onAddDevice: () -> Unit) {
                 text = stringResource(id = R.string.home_management_title),
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 20.sp
-                ),
-                color = Color.Black
+                    fontSize = 20.sp,
+                    color = MaterialTheme.massagerExtendedColors.textPrimary
+                )
             )
         }
         IconButton(
@@ -254,12 +250,12 @@ private fun HeaderSection(onAddDevice: () -> Unit) {
             modifier = Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .background(Color.White)
+                .background(MaterialTheme.massagerExtendedColors.surfaceBright)
         ) {
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = stringResource(id = R.string.home_management_add_device),
-                tint = AccentRed
+                tint = MaterialTheme.massagerExtendedColors.danger
             )
         }
     }
@@ -295,7 +291,7 @@ private fun DeviceCardItem(
                         .offset(x = (-12).dp, y = 12.dp)
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(AccentRed),
+                        .background(MaterialTheme.massagerExtendedColors.danger),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -321,7 +317,7 @@ private fun DeviceCard(
     val scale = if (isSelected) 1.02f else 1f
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.surfaceBright),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -341,7 +337,7 @@ private fun DeviceCard(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(AccentRed.copy(alpha = 0.12f)),
+                    .background(MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
@@ -359,13 +355,13 @@ private fun DeviceCard(
                     text = device.name,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Medium,
-                        color = Color.Black
+                        color = MaterialTheme.massagerExtendedColors.textPrimary
                     )
                 )
                 Text(
                     text = stringResource(id = R.string.home_management_device_subtitle),
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = Color(0xFF777777),
+                        color = MaterialTheme.massagerExtendedColors.textMuted,
                         fontSize = 13.sp
                     )
                 )
@@ -387,7 +383,7 @@ private fun ManagementBottomBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                color = Color.White,
+                color = MaterialTheme.massagerExtendedColors.surfaceBright,
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
             )
             .padding(horizontal = 24.dp, vertical = 20.dp)
@@ -395,7 +391,7 @@ private fun ManagementBottomBar(
         if (isProcessing) {
             Text(
                 text = stringResource(id = R.string.home_management_processing),
-                style = MaterialTheme.typography.labelMedium.copy(color = Color(0xFF666666)),
+                style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.massagerExtendedColors.textSecondary),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
@@ -409,7 +405,10 @@ private fun ManagementBottomBar(
             Button(
                 onClick = onRenameClick,
                 enabled = selectionCount == 1 && !isProcessing,
-                colors = ButtonDefaults.buttonColors(containerColor = RenameTeal),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.massagerExtendedColors.success,
+                    contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
+                ),
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(
@@ -423,7 +422,10 @@ private fun ManagementBottomBar(
             Button(
                 onClick = onRemoveClick,
                 enabled = selectionCount > 0 && !isProcessing,
-                colors = ButtonDefaults.buttonColors(containerColor = AccentRed),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.massagerExtendedColors.danger,
+                    contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
+                ),
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(
@@ -476,7 +478,7 @@ private fun RenameDeviceDialog(
                 if (errorRes != null) {
                     Text(
                         text = stringResource(id = errorRes),
-                        style = MaterialTheme.typography.bodySmall.copy(color = AccentRed),
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.massagerExtendedColors.danger),
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -520,7 +522,7 @@ private fun RemoveDeviceDialog(
             ) {
                 Text(
                     text = stringResource(id = R.string.confirm),
-                    color = AccentRed
+                    color = MaterialTheme.massagerExtendedColors.danger
                 )
             }
         },
@@ -546,12 +548,12 @@ private fun EmptyDeviceState(modifier: Modifier = Modifier) {
             text = stringResource(id = R.string.home_management_empty_title),
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
             textAlign = TextAlign.Center,
-            color = Color(0xFF555555)
+            color = MaterialTheme.massagerExtendedColors.textSecondary
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = stringResource(id = R.string.home_management_empty_message),
-            style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF888888)),
+            style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.massagerExtendedColors.textMuted),
             textAlign = TextAlign.Center
         )
     }
