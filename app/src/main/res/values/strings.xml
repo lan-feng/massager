@@ -84,6 +84,7 @@
     <string name="device_info_message">SmartPulse adapts stimulation presets based on the selected zone. Keep pads attached firmly before starting.</string>
     <string name="device_add_placeholder">Add channel</string>
     <string name="device_battery_label">Battery %1$d%%</string>
+    <string name="device_battery_unknown">Battery --%</string>
     <string name="device_mute">Mute</string>
     <string name="device_unmute">Unmute</string>
     <string name="device_mute_enabled">Device muted</string>

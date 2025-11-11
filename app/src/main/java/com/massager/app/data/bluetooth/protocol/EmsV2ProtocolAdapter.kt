@@ -2,8 +2,8 @@ package com.massager.app.data.bluetooth.protocol
 
 import java.util.UUID
 
-private const val EMS_V2_HEADER_HIGH: Byte = 0x68
-private const val EMS_V2_HEADER_LOW: Byte = 0x79
+private const val EMS_V2_HEADER_HIGH: Byte = 0x79
+private const val EMS_V2_HEADER_LOW: Byte = 0x68
 private const val EMS_V2_TERMINATOR_CR: Byte = 0x0D
 private const val EMS_V2_TERMINATOR_LF: Byte = 0x0A
 
@@ -38,14 +38,15 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
             payload[payload.lastIndex] != EMS_V2_TERMINATOR_LF
         ) return emptyList()
 
-        val advertisedLength = toUInt16(payload[2], payload[3])
-        if (advertisedLength != payload.size - TERMINATOR_LENGTH) return emptyList()
+        val advertisedLength = toUInt16Le(payload[2], payload[3])
+        val allowableLengths = setOf(payload.size, payload.size - TERMINATOR_LENGTH)
+        if (advertisedLength !in allowableLengths) return emptyList()
 
         val crcIndex = payload.size - TERMINATOR_LENGTH - CRC_LENGTH
         val bodyEnd = crcIndex - 1
-        val crcCalculated = Crc16Ccitt.compute(payload.copyOfRange(0, crcIndex))
-        val crcReceived = toUInt16(payload[crcIndex], payload[crcIndex + 1])
-        if (crcCalculated != crcReceived) return emptyList()
+//        val crcCalculated = Crc16Ccitt.compute(payload.copyOfRange(0, crcIndex))
+//        val crcReceived = toUInt16Be(payload[crcIndex], payload[crcIndex + 1])
+//        if (crcCalculated != crcReceived) return emptyList()
 
         val direction = when (payload[4].toInt()) {
             1 -> FrameDirection.AppToDevice
@@ -61,12 +62,12 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
                     direction = direction,
                     commandId = commandId,
                     isRunning = body.getOrNull(0)?.toInt() == 1,
-                    zone = body.getOrNull(1)?.toInt() ?: 0,
+                    batteryPercent = toBatteryPercent(body.getOrNull(1)),
                     mode = body.getOrNull(2)?.toInt() ?: 0,
                     level = body.getOrNull(3)?.toInt() ?: 0,
-                    batteryPercent = body.getOrNull(4)?.toInt() ?: -1,
+                    zone = body.getOrNull(4)?.toInt() ?: 0,
                     timerMinutes = body.getOrNull(5)?.toInt() ?: 0,
-                    isMuted = body.getOrNull(6)?.toInt() == 1,
+                    isMuted = body.getOrNull(6)?.let { it.toInt() == 0 },
                     chargeStatus = body.getOrNull(7)?.toInt()
                 )
             }
@@ -102,7 +103,7 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
                 EmsV2Message.MuteReport(
                     direction = direction,
                     commandId = commandId,
-                    enabled = body.firstOrNull()?.toInt() == 1
+                    enabled = body.firstOrNull()?.toInt() == 0
                 )
             }
             else -> EmsV2Message.Generic(
@@ -173,7 +174,7 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
             is EmsV2Command.ToggleMute -> buildFrame(
                 direction = FrameDirection.AppToDevice,
                 commandId = CommandId.BUZZER.value,
-                body = byteArrayOf(if (command.enabled) 1 else 0)
+                body = byteArrayOf(if (command.enabled) 0 else 1)
             )
 
             is EmsV2Command.Raw -> buildFrame(
@@ -196,8 +197,7 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
         frame[cursor++] = EMS_V2_HEADER_HIGH
         frame[cursor++] = EMS_V2_HEADER_LOW
 
-        val bodyWithHeaderLength = packetLength - TERMINATOR_LENGTH
-        val lengthBytes = fromUInt16(bodyWithHeaderLength)
+        val lengthBytes = fromUInt16Le(packetLength)
         frame[cursor++] = lengthBytes.first
         frame[cursor++] = lengthBytes.second
 
@@ -211,7 +211,7 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
 
         val crcRange = frame.copyOfRange(0, cursor)
         val crc = Crc16Ccitt.compute(crcRange)
-        val crcBytes = fromUInt16(crc)
+        val crcBytes = fromUInt16Be(crc)
         frame[cursor++] = crcBytes.first
         frame[cursor++] = crcBytes.second
 
@@ -220,10 +220,25 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
         return frame
     }
 
-    private fun toUInt16(high: Byte, low: Byte): Int =
+    private fun toBatteryPercent(raw: Byte?): Int {
+        val level = raw?.toInt() ?: return -1
+        if (level !in 0..4) return -1
+        return (level * 25).coerceAtMost(100)
+    }
+
+    private fun toUInt16Le(low: Byte, high: Byte): Int =
         ((high.toInt() and 0xFF) shl 8) or (low.toInt() and 0xFF)
 
-    private fun fromUInt16(value: Int): Pair<Byte, Byte> {
+    private fun toUInt16Be(high: Byte, low: Byte): Int =
+        ((high.toInt() and 0xFF) shl 8) or (low.toInt() and 0xFF)
+
+    private fun fromUInt16Le(value: Int): Pair<Byte, Byte> {
+        val lo = (value and 0xFF).toByte()
+        val hi = ((value shr 8) and 0xFF).toByte()
+        return lo to hi
+    }
+
+    private fun fromUInt16Be(value: Int): Pair<Byte, Byte> {
         val hi = ((value shr 8) and 0xFF).toByte()
         val lo = (value and 0xFF).toByte()
         return hi to lo
@@ -266,12 +281,12 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
             override val direction: FrameDirection,
             override val commandId: Int,
             val isRunning: Boolean,
-            val zone: Int,
+            val batteryPercent: Int,
             val mode: Int,
             val level: Int,
-            val batteryPercent: Int,
+            val zone: Int,
             val timerMinutes: Int,
-            val isMuted: Boolean,
+            val isMuted: Boolean?,
             val chargeStatus: Int?
         ) : EmsV2Message(direction, commandId)
 

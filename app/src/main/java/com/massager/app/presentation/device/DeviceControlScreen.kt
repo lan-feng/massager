@@ -225,12 +225,11 @@ private fun DeviceControlContent(
                 )
                 BodyZoneTabs(
                     selectedZone = state.zone,
-                    isRunning = state.isRunning,
                     onSelectZone = onSelectZone
                 )
                 ModeSelectionGrid(
                     selectedMode = state.mode,
-                    isRunning = state.isRunning,
+                    isEnabled = state.isProtocolReady && state.isConnected,
                     onSelectMode = onSelectMode
                 )
                 LevelControlSection(
@@ -404,12 +403,13 @@ private fun DeviceDisplaySection(
                         .clip(CircleShape)
                         .background(MaterialTheme.massagerExtendedColors.surfaceBright)
                 ) {
+                    val isMuted = state.isMuted
                     Icon(
-                        imageVector = if (state.isMuted) Icons.Outlined.VolumeOff else Icons.Outlined.VolumeUp,
-                        contentDescription = if (state.isMuted) {
-                            stringResource(id = R.string.device_mute_disabled)
-                        } else {
+                        imageVector = if (isMuted) Icons.Outlined.VolumeUp else Icons.Outlined.VolumeOff,
+                        contentDescription = if (isMuted) {
                             stringResource(id = R.string.device_mute_enabled)
+                        } else {
+                            stringResource(id = R.string.device_mute_disabled)
                         },
                         tint = MaterialTheme.massagerExtendedColors.danger
                     )
@@ -422,6 +422,12 @@ private fun DeviceDisplaySection(
 
 @Composable
 private fun BatteryStatusRow(batteryPercent: Int) {
+    val isUnknown = batteryPercent < 0
+    val displayText = if (isUnknown) {
+        stringResource(id = R.string.device_battery_unknown)
+    } else {
+        stringResource(id = R.string.device_battery_label, batteryPercent)
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -434,14 +440,14 @@ private fun BatteryStatusRow(batteryPercent: Int) {
         Icon(
             imageVector = Icons.Outlined.BatteryFull,
             contentDescription = null,
-            tint = if (batteryPercent > 20) {
-                MaterialTheme.massagerExtendedColors.success
-            } else {
-                MaterialTheme.massagerExtendedColors.danger
+            tint = when {
+                isUnknown -> MaterialTheme.massagerExtendedColors.iconMuted
+                batteryPercent > 20 -> MaterialTheme.massagerExtendedColors.success
+                else -> MaterialTheme.massagerExtendedColors.danger
             }
         )
         Text(
-            text = stringResource(id = R.string.device_battery_label, batteryPercent),
+            text = displayText,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold
         )
@@ -451,7 +457,6 @@ private fun BatteryStatusRow(batteryPercent: Int) {
 @Composable
 private fun BodyZoneTabs(
     selectedZone: BodyZone,
-    isRunning: Boolean,
     onSelectZone: (BodyZone) -> Unit
 ) {
     Row(
@@ -469,7 +474,7 @@ private fun BodyZoneTabs(
                     .weight(1f)
                     .padding(horizontal = 4.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .clickable(enabled = !isRunning) { onSelectZone(zone) },
+                    .clickable { onSelectZone(zone) },
                 color = if (isSelected) MaterialTheme.massagerExtendedColors.danger else Color.Transparent,
                 tonalElevation = if (isSelected) 4.dp else 0.dp
             ) {
@@ -502,7 +507,7 @@ private fun BodyZoneTabs(
 @Composable
 private fun ModeSelectionGrid(
     selectedMode: Int,
-    isRunning: Boolean,
+    isEnabled: Boolean,
     onSelectMode: (Int) -> Unit
 ) {
     Surface(
@@ -529,7 +534,7 @@ private fun ModeSelectionGrid(
                         val isSelected = mode == selectedMode
                         Button(
                             onClick = { onSelectMode(mode) },
-                            enabled = !isRunning,
+                            enabled = isEnabled,
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (isSelected) {
@@ -721,6 +726,7 @@ private fun TimerActionSection(
             modifier = Modifier
                 .weight(1f)
                 .height(64.dp),
+            enabled = state.isProtocolReady && state.isConnected,
             shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (state.isRunning) {

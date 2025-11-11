@@ -42,6 +42,7 @@ class DeviceControlViewModel @Inject constructor(
 
     private var initialStatusRequested = false
     private var lastConnectionError: Pair<BleConnectionState.Status, String?>? = null
+    private var awaitingStopAck = false
 
     private val preferredName: String? =
         savedStateHandle.get<String>(Screen.DeviceControl.ARG_DEVICE_NAME)?.takeIf { it.isNotBlank() }
@@ -66,15 +67,29 @@ class DeviceControlViewModel @Inject constructor(
 
     fun selectZone(zone: BodyZone) {
         val current = _uiState.value
-        if (current.isRunning) return
+        if (current.zone == zone) return
         _uiState.update { it.copy(zone = zone) }
+        if (current.isRunning) {
+            viewModelScope.launch {
+                if (!sendCommand(EmsV2Command.SetBodyZone(zone.index))) {
+                    _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
+                }
+            }
+        }
     }
 
     fun selectMode(mode: Int) {
         val sanitized = mode.coerceIn(0, 7)
         val current = _uiState.value
-        if (current.isRunning) return
+        if (current.mode == sanitized) return
         _uiState.update { it.copy(mode = sanitized) }
+        if (current.isRunning) {
+            viewModelScope.launch {
+                if (!sendCommand(EmsV2Command.SetMode(sanitized))) {
+                    _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
+                }
+            }
+        }
     }
 
     fun selectTimer(minutes: Int) {
@@ -240,8 +255,21 @@ class DeviceControlViewModel @Inject constructor(
     }
 
     private fun handleHeartbeat(message: EmsV2ProtocolAdapter.EmsV2Message.Heartbeat) {
+        Log.d(tag,"handleHeartbeat: massage received=$message")
+        if (awaitingStopAck && message.isRunning) {
+            Log.v(tag, "handleHeartbeat: awaiting stop ack, ignoring running heartbeat")
+            return
+        }
+        if (awaitingStopAck && !message.isRunning) {
+            awaitingStopAck = false
+        }
         _uiState.update { state ->
-            val battery = message.batteryPercent.coerceIn(0, 100)
+            val previousBattery = state.batteryPercent
+            val reportedBattery = message.batteryPercent
+            val battery = when {
+                reportedBattery < 0 -> previousBattery
+                else -> reportedBattery.coerceIn(0, 100)
+            }
             val zone = BodyZone.fromIndex(message.zone)
             val mode = message.mode.coerceIn(0, 7)
             val level = message.level.coerceIn(MIN_LEVEL, MAX_LEVEL)
@@ -252,20 +280,26 @@ class DeviceControlViewModel @Inject constructor(
                 minutes * 60
             }
             val becameIdle = state.isRunning && !message.isRunning
+            val shouldUpdateControls = state.isRunning || message.isRunning || becameIdle
             val messageUpdate = when {
-                battery <= 15 -> DeviceMessage.BatteryLow
+                battery in 0..25 && (previousBattery > 25 || previousBattery < 0) -> DeviceMessage.BatteryLow
                 becameIdle -> DeviceMessage.SessionStopped
                 else -> null
             }
             state.copy(
                 isRunning = message.isRunning,
-                zone = zone,
-                mode = mode,
-                level = level,
-                timerMinutes = minutes.takeIf { !message.isRunning } ?: state.timerMinutes,
-                remainingSeconds = if (message.isRunning) remainingSeconds else 0,
+                zone = if (shouldUpdateControls) zone else state.zone,
+                mode = if (shouldUpdateControls) mode else state.mode,
+                level = if (shouldUpdateControls) level else state.level,
+                timerMinutes = if (shouldUpdateControls) minutes else state.timerMinutes,
+                remainingSeconds = when {
+                    message.isRunning -> remainingSeconds
+                    becameIdle -> 0
+                    state.remainingSeconds > 0 -> max(state.remainingSeconds - 1, 0)
+                    else -> state.remainingSeconds
+                },
                 batteryPercent = battery,
-                isMuted = message.isMuted,
+                isMuted = message.isMuted ?: state.isMuted,
                 message = messageUpdate ?: state.message
             )
         }
@@ -275,6 +309,11 @@ class DeviceControlViewModel @Inject constructor(
         val current = _uiState.value
         if (!current.isConnected) {
             _uiState.update { it.copy(message = DeviceMessage.CommandFailed(R.string.device_status_disconnected)) }
+            return
+        }
+        if (!current.isProtocolReady) {
+            Log.w(tag, "startSession: protocol not ready, skipping start")
+            _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
             return
         }
         val timerMinutes = current.timerMinutes.takeIf { it > 0 } ?: DEFAULT_TIMER_MINUTES
@@ -305,6 +344,7 @@ class DeviceControlViewModel @Inject constructor(
                         message = DeviceMessage.SessionStarted(level = level, mode = current.mode)
                     )
                 }
+                awaitingStopAck = false
             } else {
                 _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
             }
@@ -323,6 +363,9 @@ class DeviceControlViewModel @Inject constructor(
                     remainingSeconds = 0,
                     message = DeviceMessage.SessionStopped.takeIf { success } ?: DeviceMessage.CommandFailed()
                 )
+            }
+            if (success) {
+                awaitingStopAck = true
             }
         }
     }
@@ -434,7 +477,7 @@ data class DeviceControlUiState(
     val remainingSeconds: Int = 0,
     val isRunning: Boolean = false,
     val isMuted: Boolean = false,
-    val batteryPercent: Int = 0,
+    val batteryPercent: Int = -1,
     val message: DeviceMessage? = null,
     val showConnectingOverlay: Boolean = false
 ) {

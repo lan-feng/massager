@@ -3,25 +3,25 @@ package com.massager.app.data.bluetooth.protocol
 /**
  * Representation of the `'hy'` advertisement emitted by JL6328 based EMS devices.
  *
- * The payload layout is: `0x68 0x79 <productId> <fwVersion bytes...>`
+ * The payload layout is: `0x79 0x68 <productId> <fwVersion bytes...>`
  */
 data class HyAdvertisement(
     val productId: Int,
     val firmwareVersion: String
 ) {
     companion object {
-        private const val HEADER_H: Byte = 0x68
-        private const val HEADER_Y: Byte = 0x79
+        private const val HEADER_FIRST: Byte = 0x79
+        private const val HEADER_SECOND: Byte = 0x68
 
         /**
          * Attempts to parse the given [payload] into a [HyAdvertisement].
          */
         fun parse(payload: ByteArray?): HyAdvertisement? {
-            if (payload != null && payload.contentEquals(TEST_FALLBACK_PAYLOAD)) {
+            if (payload != null && payload.contentEquals(TEST_FALLBACK_PAYLOAD2)) {
                 return HyAdvertisement(productId = 1, firmwareVersion = "1")
             }
             if (payload == null || payload.size < 3) return null
-            if (payload[0] != HEADER_H || payload[1] != HEADER_Y) return null
+            if (payload[0] != HEADER_FIRST || payload[1] != HEADER_SECOND) return null
             val productRaw = payload[2]
             val productId = when (val numeric = productRaw.toInt() and 0xFF) {
                 in '0'.code..'9'.code -> numeric - '0'.code
@@ -66,6 +66,18 @@ data class HyAdvertisement(
             0x42,
             0x4C,
             0x45
+        )
+
+        private val TEST_FALLBACK_PAYLOAD2 = byteArrayOf(
+            0x08,
+            0x09,
+            0x42,
+            0x4C.toByte(),
+            0x45,
+            0x5F.toByte(),
+            0x45,
+            0x4D.toByte(),
+            0x53
         )
     }
 }

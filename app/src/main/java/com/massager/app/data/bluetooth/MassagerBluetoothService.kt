@@ -41,6 +41,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -55,7 +56,9 @@ private const val SCAN_RESULT_TTL_MS = 20_000L
 private const val INITIAL_SERVICE_DISCOVERY_DELAY_MS = 200L
 private const val MAX_SERVICE_DISCOVERY_RETRIES = 3
 private const val SERVICE_DISCOVERY_RETRY_DELAY_MS = 600L
+private const val CONNECTION_PRIORITY_RESET_DELAY_MS = 7_000L
 private const val EMPTY_DECODE_LOG_THROTTLE_MS = 1_000L
+private const val INITIAL_MTU_TIMEOUT_MS = 2_000L
 private val TAG = logTag("MassagerBleService")
 private val CLIENT_CHARACTERISTIC_CONFIG_UUID: UUID =
     UUID.fromString("00002902-0000-1000-8000-00805F9B34FB")
@@ -131,7 +134,16 @@ class MassagerBluetoothService @Inject constructor(
     private var isScanning = false
     private var serviceDiscoveryRetries = 0
     private var pendingServiceRetry: Runnable? = null
+    private var pendingPriorityReset: Runnable? = null
+    private var pendingMtuTimeout: Runnable? = null
+    private var awaitingInitialMtu = false
+    private var pendingNotifyEnableCharacteristicUuid: UUID? = null
+    private val writeQueue = ArrayDeque<PendingWrite>()
+    private var activeWrite: PendingWrite? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val protocolBufferLock = Any()
+    private var pendingProtocolBuffer = ByteArray(0)
 
     private val scanSettings: ScanSettings = ScanSettings.Builder()
         .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
@@ -189,12 +201,26 @@ class MassagerBluetoothService @Inject constructor(
                     }
                     notifyConnected(gatt.device)
                     emitDeviceSnapshot()
-                    activeAdapter?.let { adapter ->
+                    boostConnectionPriority(gatt)
+                    val mtuRequested = activeAdapter?.let { adapter ->
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            gatt.requestMtu(adapter.preferredMtu)
+                            val requested = gatt.requestMtu(adapter.preferredMtu)
+                            awaitingInitialMtu = requested
+                            if (requested) {
+                                pendingMtuTimeout?.let(mainHandler::removeCallbacks)
+                                val timeoutRunnable = Runnable { handleInitialMtuTimeout(gatt) }
+                                pendingMtuTimeout = timeoutRunnable
+                                mainHandler.postDelayed(timeoutRunnable, INITIAL_MTU_TIMEOUT_MS)
+                            }
+                            requested
+                        } else {
+                            false
                         }
+                    } ?: false
+                    if (!mtuRequested) {
+                        awaitingInitialMtu = false
+                        queueServiceDiscovery(gatt, INITIAL_SERVICE_DISCOVERY_DELAY_MS, "initial_connect_no_mtu")
                     }
-                    queueServiceDiscovery(gatt, INITIAL_SERVICE_DISCOVERY_DELAY_MS, "initial_connect")
                 }
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
@@ -239,6 +265,62 @@ class MassagerBluetoothService @Inject constructor(
                     TAG,
                     "onServicesDiscovered: unable to resolve protocol handles for ${gatt.device.address}"
                 )
+            }
+        }
+
+        override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+            super.onMtuChanged(gatt, mtu, status)
+            Log.d(TAG, "onMtuChanged: device=${gatt.device.address} mtu=$mtu status=$status")
+            if (!awaitingInitialMtu) return
+            awaitingInitialMtu = false
+            pendingMtuTimeout?.let(mainHandler::removeCallbacks)
+            pendingMtuTimeout = null
+            val reason = if (status == BluetoothGatt.GATT_SUCCESS) {
+                "initial_connect_mtu_ready"
+            } else {
+                "initial_connect_mtu_failed"
+            }
+            queueServiceDiscovery(gatt, INITIAL_SERVICE_DISCOVERY_DELAY_MS, reason)
+        }
+
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt,
+            descriptor: BluetoothGattDescriptor,
+            status: Int
+        ) {
+            if (descriptor.uuid == CLIENT_CHARACTERISTIC_CONFIG_UUID &&
+                pendingNotifyEnableCharacteristicUuid == descriptor.characteristic.uuid
+            ) {
+                pendingNotifyEnableCharacteristicUuid = null
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    _connectionState.update { it.copy(isProtocolReady = true) }
+                } else {
+                    Log.w(TAG, "onDescriptorWrite: CCC write failed status=$status")
+                    _connectionState.update { it.copy(isProtocolReady = false) }
+                }
+            }
+        }
+
+        override fun onCharacteristicWrite(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int
+        ) {
+            val completed = synchronized(writeQueue) {
+                if (activeWrite != null && activeWrite?.characteristic == characteristic) {
+                    activeWrite
+                } else {
+                    null
+                }
+            }
+            completed?.completion?.complete(status == BluetoothGatt.GATT_SUCCESS)
+            if (completed != null) {
+                synchronized(writeQueue) {
+                    if (activeWrite === completed) {
+                        activeWrite = null
+                    }
+                }
+                advanceWriteQueue()
             }
         }
 
@@ -424,7 +506,11 @@ class MassagerBluetoothService @Inject constructor(
         activeWriteCharacteristicUuid = null
         activeNotifyCharacteristicUuid = null
         connectedAddress = device.address
-        currentGatt = device.connectGatt(context, false, gattCallback)
+        currentGatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        } else {
+            device.connectGatt(context, false, gattCallback)
+        }
         if (currentGatt == null) {
             _connectionState.update {
                 it.copy(
@@ -447,6 +533,11 @@ class MassagerBluetoothService @Inject constructor(
         activeServiceUuid = null
         activeWriteCharacteristicUuid = null
         activeNotifyCharacteristicUuid = null
+        awaitingInitialMtu = false
+        pendingMtuTimeout?.let(mainHandler::removeCallbacks)
+        pendingMtuTimeout = null
+        pendingNotifyEnableCharacteristicUuid = null
+        failPendingWrites()
         currentGatt?.disconnect()
         disposeGatt()
         cancelPendingServiceRetry()
@@ -477,7 +568,7 @@ class MassagerBluetoothService @Inject constructor(
     }
 
     @SuppressLint("MissingPermission")
-    fun writeCharacteristic(
+    suspend fun writeCharacteristic(
         serviceUuid: UUID,
         characteristicUuid: UUID,
         payload: ByteArray,
@@ -493,29 +584,88 @@ class MassagerBluetoothService @Inject constructor(
             Log.w(TAG, "writeCharacteristic: characteristic not found service=$serviceUuid characteristic=$characteristicUuid")
             return false
         }
-        Log.d(TAG,"writeCharacteristic: payload=${payload.toDebugHexString()}")
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            gatt.writeCharacteristic(characteristic, payload, writeType) == BluetoothStatusCodes.SUCCESS
-        } else {
-            characteristic.value = payload
-            characteristic.writeType = writeType
-            @Suppress("DEPRECATION")
-            gatt.writeCharacteristic(characteristic)
+        val request = PendingWrite(
+            gatt = gatt,
+            characteristic = characteristic,
+            payload = payload.copyOf(),
+            writeType = writeType,
+            completion = CompletableDeferred()
+        )
+        enqueueWrite(request)
+        return request.completion.await()
+    }
+
+    private fun enqueueWrite(request: PendingWrite) {
+        val shouldStart = synchronized(writeQueue) {
+            if (activeWrite == null) {
+                activeWrite = request
+                true
+            } else {
+                writeQueue.addLast(request)
+                false
+            }
+        }
+        if (shouldStart) {
+            performWrite(request)
+        } else if (!currentGattMatches(request.gatt)) {
+            synchronized(writeQueue) { writeQueue.remove(request) }
+            request.completion.complete(false)
         }
     }
 
-    private fun sendProtocolCommand(
-        serviceUuid: UUID,
-        characteristicUuid: UUID,
-        command: ProtocolCommand,
-        writeType: Int = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-    ): Boolean {
-        val adapter = activeAdapter ?: return false
-        val payload = adapter.encode(command)
-        return writeCharacteristic(serviceUuid, characteristicUuid, payload, writeType)
+    private fun currentGattMatches(gatt: BluetoothGatt): Boolean = currentGatt == gatt
+
+    @SuppressLint("MissingPermission")
+    private fun performWrite(request: PendingWrite) {
+        if (!currentGattMatches(request.gatt)) {
+            request.completion.complete(false)
+            advanceWriteQueue()
+            return
+        }
+        val characteristic = request.characteristic
+        val payload = request.payload
+        Log.d(TAG, "writeCharacteristic: payload=${payload.toDebugHexString()}")
+        val success = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            request.gatt.writeCharacteristic(characteristic, payload, request.writeType) == BluetoothStatusCodes.SUCCESS
+        } else {
+            characteristic.value = payload
+            characteristic.writeType = request.writeType
+            @Suppress("DEPRECATION")
+            request.gatt.writeCharacteristic(characteristic)
+        }
+        if (!success) {
+            request.completion.complete(false)
+            advanceWriteQueue()
+        }
     }
 
-    fun sendProtocolCommand(
+    private fun advanceWriteQueue() {
+        val next = synchronized(writeQueue) {
+            if (writeQueue.isNotEmpty()) {
+                writeQueue.removeFirst().also { activeWrite = it }
+            } else {
+                activeWrite = null
+                null
+            }
+        }
+        if (next != null) {
+            performWrite(next)
+        }
+    }
+
+    private fun failPendingWrites() {
+        val pending = mutableListOf<PendingWrite>()
+        synchronized(writeQueue) {
+            activeWrite?.let { pending.add(it) }
+            activeWrite = null
+            while (writeQueue.isNotEmpty()) {
+                pending.add(writeQueue.removeFirst())
+            }
+        }
+        pending.forEach { it.completion.complete(false) }
+    }
+
+    suspend fun sendProtocolCommand(
         command: ProtocolCommand,
         writeType: Int = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
     ): Boolean {
@@ -584,8 +734,14 @@ class MassagerBluetoothService @Inject constructor(
         activeServiceUuid = null
         activeWriteCharacteristicUuid = null
         activeNotifyCharacteristicUuid = null
+        awaitingInitialMtu = false
+        pendingMtuTimeout?.let(mainHandler::removeCallbacks)
+        pendingMtuTimeout = null
+        pendingNotifyEnableCharacteristicUuid = null
+        failPendingWrites()
         disposeGatt()
         cancelPendingServiceRetry()
+        clearPriorityBoost()
         _connectionState.update {
             it.copy(
                 status = if (failed) BleConnectionState.Status.Failed else BleConnectionState.Status.Disconnected,
@@ -677,6 +833,36 @@ class MassagerBluetoothService @Inject constructor(
         pendingServiceRetry = null
     }
 
+    private fun boostConnectionPriority(gatt: BluetoothGatt) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return
+        runCatching {
+            gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+        }
+        pendingPriorityReset?.let(mainHandler::removeCallbacks)
+        val resetRunnable = Runnable {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                runCatching {
+                    gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_BALANCED)
+                }
+            }
+            pendingPriorityReset = null
+        }
+        pendingPriorityReset = resetRunnable
+        mainHandler.postDelayed(resetRunnable, CONNECTION_PRIORITY_RESET_DELAY_MS)
+    }
+
+    private fun clearPriorityBoost() {
+        pendingPriorityReset?.let(mainHandler::removeCallbacks)
+        pendingPriorityReset = null
+    }
+
+    private fun handleInitialMtuTimeout(gatt: BluetoothGatt) {
+        if (!awaitingInitialMtu) return
+        awaitingInitialMtu = false
+        pendingMtuTimeout = null
+        queueServiceDiscovery(gatt, INITIAL_SERVICE_DISCOVERY_DELAY_MS, "initial_connect_timeout")
+    }
+
     @SuppressLint("MissingPermission")
     private fun BluetoothLeScanner.stopSafeScan(callback: ScanCallback) = runCatching {
         stopScan(callback)
@@ -758,7 +944,7 @@ class MassagerBluetoothService @Inject constructor(
             Log.v(TAG, "extractHyPayload: raw bytes are null")
             return null
         }
-        if (bytes.contentEquals(TEST_FALLBACK_PAYLOAD)) {
+        if (bytes.contentEquals(TEST_FALLBACK_PAYLOAD2)) {
             Log.v(TAG, "extractHyPayload: matched test fallback payload")
             return bytes
         }
@@ -767,7 +953,7 @@ class MassagerBluetoothService @Inject constructor(
             return null
         }
         for (index in 0..bytes.size - 3) {
-            if (bytes[index] == 0x68.toByte() && bytes[index + 1] == 0x79.toByte()) {
+            if (bytes[index] == 0x79.toByte() && bytes[index + 1] == 0x68.toByte()) {
                 Log.v(TAG, "extractHyPayload: found header at index=$index length=${bytes.size}")
                 return bytes.copyOfRange(index, bytes.size)
             }
@@ -802,22 +988,79 @@ class MassagerBluetoothService @Inject constructor(
     private fun handleProtocolPayload(payload: ByteArray) {
         if (payload.isEmpty()) return
         val adapter = activeAdapter ?: return
-        ioScope.launch {
-            val messages = adapter.decode(payload)
-            if (messages.isEmpty()) {
-                val now = SystemClock.elapsedRealtime()
-                if (now - lastEmptyDecodeLogAt >= EMPTY_DECODE_LOG_THROTTLE_MS) {
-                    lastEmptyDecodeLogAt = now
-                    Log.v(
-                        TAG,
-                        "handleProtocolPayload: no decodable messages (length=${payload.size})"
-                    )
+        val frames = mutableListOf<ByteArray>()
+        synchronized(protocolBufferLock) {
+        pendingProtocolBuffer = pendingProtocolBuffer + payload
+            while (true) {
+                val extraction = extractFrame(pendingProtocolBuffer) ?: break
+                if (extraction.frame != null) {
+                    frames += extraction.frame
                 }
-                return@launch
+                pendingProtocolBuffer = if (extraction.consumed >= pendingProtocolBuffer.size) {
+                    ByteArray(0)
+                } else {
+                    pendingProtocolBuffer.copyOfRange(extraction.consumed, pendingProtocolBuffer.size)
+                }
             }
-            Log.d(TAG, "handleProtocolPayload: decoded ${messages.size} message(s) from device")
-            messages.forEach { _protocolMessages.tryEmit(it) }
+            if (pendingProtocolBuffer.size > 256) {
+                Log.w(TAG, "handleProtocolPayload: clearing oversized buffer size=${pendingProtocolBuffer.size}")
+                pendingProtocolBuffer = ByteArray(0)
+            }
         }
+        if (frames.isEmpty()) {
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastEmptyDecodeLogAt >= EMPTY_DECODE_LOG_THROTTLE_MS) {
+                lastEmptyDecodeLogAt = now
+                Log.v(TAG, "handleProtocolPayload: awaiting complete frame (buffer=${pendingProtocolBuffer.size})")
+            }
+            return
+        }
+        frames.forEach { frame ->
+            ioScope.launch {
+                val messages = adapter.decode(frame)
+                if (messages.isEmpty()) {
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastEmptyDecodeLogAt >= EMPTY_DECODE_LOG_THROTTLE_MS) {
+                        lastEmptyDecodeLogAt = now
+                        Log.v(TAG, "handleProtocolPayload: no decodable messages (length=${frame.size})")
+                    }
+                    return@launch
+                }
+                Log.d(TAG, "handleProtocolPayload: decoded ${messages.size} message(s) from device")
+                messages.forEach { _protocolMessages.tryEmit(it) }
+            }
+        }
+    }
+
+    private data class FrameExtraction(val frame: ByteArray?, val consumed: Int)
+
+    private fun extractFrame(buffer: ByteArray): FrameExtraction? {
+        if (buffer.isEmpty()) return null
+        val headerIndex = buffer.indexOfFirstHeader()
+        if (headerIndex == -1) {
+            return FrameExtraction(frame = null, consumed = buffer.size)
+        }
+        if (headerIndex > 0) {
+            return FrameExtraction(frame = null, consumed = headerIndex)
+        }
+        if (buffer.size < 4) return null
+        val length = (buffer[2].toInt() and 0xFF) or ((buffer[3].toInt() and 0xFF) shl 8)
+        if (length <= 0 || length > 512) {
+            return FrameExtraction(frame = null, consumed = 2)
+        }
+        val totalLength = length
+        if (buffer.size < totalLength) return null
+        val frame = buffer.copyOfRange(0, totalLength)
+        return FrameExtraction(frame = frame, consumed = totalLength)
+    }
+
+    private fun ByteArray.indexOfFirstHeader(): Int {
+        for (i in indices) {
+            if (this[i] == 0x79.toByte() && i + 1 < size && this[i + 1] == 0x68.toByte()) {
+                return i
+            }
+        }
+        return -1
     }
 
     private fun notifyDisconnected(device: BluetoothDevice) {
@@ -878,11 +1121,11 @@ class MassagerBluetoothService @Inject constructor(
     private fun enableNotifications(
         gatt: BluetoothGatt,
         characteristic: BluetoothGattCharacteristic
-    ) {
+    ): Boolean {
         val enabled = gatt.setCharacteristicNotification(characteristic, true)
         if (!enabled) {
             Log.w(TAG, "enableNotifications: failed to enable notification for ${characteristic.uuid}")
-            return
+            return false
         }
         val descriptor = characteristic.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_UUID)
         if (descriptor != null) {
@@ -896,12 +1139,16 @@ class MassagerBluetoothService @Inject constructor(
                 @Suppress("DEPRECATION")
                 gatt.writeDescriptor(descriptor)
             }
-            if (!writeSuccess) {
+            if (writeSuccess) {
+                pendingNotifyEnableCharacteristicUuid = characteristic.uuid
+                return false
+            } else {
                 Log.w(TAG, "enableNotifications: failed to write CCC descriptor for ${characteristic.uuid}")
             }
         } else {
             Log.v(TAG, "enableNotifications: CCC descriptor missing for ${characteristic.uuid}")
         }
+        return true
     }
 
     private fun resolveProtocolHandles(
@@ -954,10 +1201,12 @@ class MassagerBluetoothService @Inject constructor(
                     activeServiceUuid = fallbackEndpoint.serviceUuid
                     activeWriteCharacteristicUuid = fallbackEndpoint.writeCharacteristic.uuid
                     activeNotifyCharacteristicUuid = fallbackEndpoint.notifyCharacteristic?.uuid
-                    if (enableNotifications && fallbackEndpoint.notifyCharacteristic != null) {
+                    val notifyReady = if (enableNotifications && fallbackEndpoint.notifyCharacteristic != null) {
                         enableNotifications(gatt, fallbackEndpoint.notifyCharacteristic)
+                    } else {
+                        true
                     }
-                    if (updateConnectionState) {
+                    if (updateConnectionState && notifyReady) {
                         _connectionState.update { it.copy(isProtocolReady = true) }
                     }
                     return true
@@ -1007,11 +1256,13 @@ class MassagerBluetoothService @Inject constructor(
         activeWriteCharacteristicUuid = writeCharacteristic.uuid
         activeNotifyCharacteristicUuid = notifyCharacteristic?.uuid
 
-        if (enableNotifications && notifyCharacteristic != null) {
+        val notificationsReady = if (enableNotifications && notifyCharacteristic != null) {
             enableNotifications(gatt, notifyCharacteristic)
+        } else {
+            true
         }
 
-        if (updateConnectionState) {
+        if (updateConnectionState && notificationsReady) {
             _connectionState.update { it.copy(isProtocolReady = true) }
         }
 
@@ -1042,6 +1293,14 @@ class MassagerBluetoothService @Inject constructor(
         val lastSeen: Long,
         val productId: Int?,
         val firmwareVersion: String?
+    )
+
+    private data class PendingWrite(
+        val gatt: BluetoothGatt,
+        val characteristic: BluetoothGattCharacteristic,
+        val payload: ByteArray,
+        val writeType: Int,
+        val completion: CompletableDeferred<Boolean>
     )
 
     private fun hasScanPermission(): Boolean {
@@ -1141,6 +1400,17 @@ class MassagerBluetoothService @Inject constructor(
             0x42,
             0x4C,
             0x45
+        )
+        private val TEST_FALLBACK_PAYLOAD2 = byteArrayOf(
+            0x08,
+            0x09,
+            0x42,
+            0x4C.toByte(),
+            0x45,
+            0x5F.toByte(),
+            0x45,
+            0x4D.toByte(),
+            0x53
         )
     }
 }
