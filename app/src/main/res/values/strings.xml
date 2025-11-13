@@ -113,6 +113,7 @@
     <string name="device_stop">STOP</string>
     <string name="device_session_started">Device started at Level %1$d, Mode %2$s</string>
     <string name="device_session_stopped">Session stopped</string>
+    <string name="device_remote_level_changed">Device level changed on hardware: %1$d</string>
     <string name="device_battery_low">Battery low</string>
     <string name="device_help_close">Got it</string>
     <string name="device_status_connected">Connected</string>

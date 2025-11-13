@@ -67,7 +67,8 @@ class MassagerRepository @Inject constructor(
     suspend fun bindDevice(
         deviceSerial: String,
         displayName: String,
-        firmwareVersion: String? = null
+        firmwareVersion: String? = null,
+        uniqueId: String? = null
     ): Result<DeviceMetadata> = withContext(ioDispatcher) {
         runCatching {
             val type = DeviceTypeConfig.resolveTypeForName(displayName)
@@ -76,7 +77,8 @@ class MassagerRepository @Inject constructor(
                     deviceSerial = deviceSerial,
                     deviceType = type,
                     nameAlias = displayName.takeIf { it.isNotBlank() },
-                    firmwareVersion = firmwareVersion
+                    firmwareVersion = firmwareVersion,
+                    uniqueId = uniqueId
                 )
             )
             if (response.success.not()) {

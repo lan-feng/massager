@@ -2,8 +2,8 @@ package com.massager.app.data.bluetooth.protocol
 
 import java.util.UUID
 
-private const val EMS_V2_HEADER_HIGH: Byte = 0x79
-private const val EMS_V2_HEADER_LOW: Byte = 0x68
+private const val EMS_V2_HEADER_FIRST: Byte = 0x68
+private const val EMS_V2_HEADER_SECOND: Byte = 0x79
 private const val EMS_V2_TERMINATOR_CR: Byte = 0x0D
 private const val EMS_V2_TERMINATOR_LF: Byte = 0x0A
 
@@ -33,17 +33,25 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
 
     override fun decode(payload: ByteArray): List<ProtocolMessage> {
         if (payload.size < MIN_FRAME_SIZE) return emptyList()
-        if (payload[0] != EMS_V2_HEADER_HIGH || payload[1] != EMS_V2_HEADER_LOW) return emptyList()
+        if (payload[0] != EMS_V2_HEADER_FIRST || payload[1] != EMS_V2_HEADER_SECOND) return emptyList()
         if (payload[payload.lastIndex - 1] != EMS_V2_TERMINATOR_CR ||
             payload[payload.lastIndex] != EMS_V2_TERMINATOR_LF
         ) return emptyList()
 
-        val advertisedLength = toUInt16Le(payload[2], payload[3])
+        val advertisedLength = toUInt16Be(payload[2], payload[3])
         val allowableLengths = setOf(payload.size, payload.size - TERMINATOR_LENGTH)
-        if (advertisedLength !in allowableLengths) return emptyList()
+
+        /**
+         * TODO:EMS报文长度有问题，后面正常了放开校验
+         */
+//        if (advertisedLength !in allowableLengths) return emptyList()
 
         val crcIndex = payload.size - TERMINATOR_LENGTH - CRC_LENGTH
         val bodyEnd = crcIndex - 1
+
+        /**
+         * TODO:EMS报文还没做CRC,后面放开
+         */
 //        val crcCalculated = Crc16Ccitt.compute(payload.copyOfRange(0, crcIndex))
 //        val crcReceived = toUInt16Be(payload[crcIndex], payload[crcIndex + 1])
 //        if (crcCalculated != crcReceived) return emptyList()
@@ -194,10 +202,10 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
             body.size + CRC_LENGTH + TERMINATOR_LENGTH
         val frame = ByteArray(packetLength)
         var cursor = 0
-        frame[cursor++] = EMS_V2_HEADER_HIGH
-        frame[cursor++] = EMS_V2_HEADER_LOW
+        frame[cursor++] = EMS_V2_HEADER_FIRST
+        frame[cursor++] = EMS_V2_HEADER_SECOND
 
-        val lengthBytes = fromUInt16Le(packetLength)
+        val lengthBytes = fromUInt16Be(packetLength)
         frame[cursor++] = lengthBytes.first
         frame[cursor++] = lengthBytes.second
 
@@ -226,17 +234,8 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
         return (level * 25).coerceAtMost(100)
     }
 
-    private fun toUInt16Le(low: Byte, high: Byte): Int =
-        ((high.toInt() and 0xFF) shl 8) or (low.toInt() and 0xFF)
-
     private fun toUInt16Be(high: Byte, low: Byte): Int =
         ((high.toInt() and 0xFF) shl 8) or (low.toInt() and 0xFF)
-
-    private fun fromUInt16Le(value: Int): Pair<Byte, Byte> {
-        val lo = (value and 0xFF).toByte()
-        val hi = ((value shr 8) and 0xFF).toByte()
-        return lo to hi
-    }
 
     private fun fromUInt16Be(value: Int): Pair<Byte, Byte> {
         val hi = ((value shr 8) and 0xFF).toByte()

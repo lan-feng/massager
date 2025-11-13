@@ -10,12 +10,14 @@ class BindDeviceUseCase @Inject constructor(
     suspend operator fun invoke(
         serial: String,
         displayName: String,
-        firmwareVersion: String? = null
+        firmwareVersion: String? = null,
+        uniqueId: String? = null
     ): Result<DeviceMetadata> {
         return repository.bindDevice(
             deviceSerial = serial,
             displayName = displayName,
-            firmwareVersion = firmwareVersion
+            firmwareVersion = firmwareVersion,
+            uniqueId = uniqueId
         )
     }
 }

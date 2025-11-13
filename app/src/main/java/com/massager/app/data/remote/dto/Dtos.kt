@@ -65,7 +65,8 @@ data class DeviceBindRequest(
     @SerialName("deviceSerial") val deviceSerial: String,
     @SerialName("deviceType") val deviceType: Int,
     @SerialName("nameAlias") val nameAlias: String? = null,
-    @SerialName("firmwareVersion") val firmwareVersion: String? = null
+    @SerialName("firmwareVersion") val firmwareVersion: String? = null,
+    @SerialName("uniqueId") val uniqueId: String? = null
 )
 
 @Serializable

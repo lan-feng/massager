@@ -157,6 +157,11 @@ private fun DeviceControlContent(
                     context.getString(R.string.device_battery_low)
                 )
             }
+            is DeviceMessage.RemoteLevelChanged -> {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.device_remote_level_changed, message.level)
+                )
+            }
 
             is DeviceMessage.MuteChanged -> {
                 val resId = if (message.enabled) {

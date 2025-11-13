@@ -59,6 +59,12 @@ private const val SERVICE_DISCOVERY_RETRY_DELAY_MS = 600L
 private const val CONNECTION_PRIORITY_RESET_DELAY_MS = 7_000L
 private const val EMPTY_DECODE_LOG_THROTTLE_MS = 1_000L
 private const val INITIAL_MTU_TIMEOUT_MS = 2_000L
+private const val HY_PAYLOAD_LENGTH = 7
+private const val HY_HEADER_FIRST: Byte = 0x68
+private const val HY_HEADER_SECOND: Byte = 0x79
+private const val EMS_HEADER_LENGTH = 2
+private const val EMS_LENGTH_FIELD = 2
+private const val EMS_TERMINATOR_LENGTH = 2
 private val TAG = logTag("MassagerBleService")
 private val CLIENT_CHARACTERISTIC_CONFIG_UUID: UUID =
     UUID.fromString("00002902-0000-1000-8000-00805F9B34FB")
@@ -69,7 +75,8 @@ data class BleScanResult(
     val rssi: Int,
     val isConnected: Boolean,
     val productId: Int? = null,
-    val firmwareVersion: String? = null
+    val firmwareVersion: String? = null,
+    val uniqueId: String? = null
 )
 
 data class BleConnectionState(
@@ -930,7 +937,8 @@ class MassagerBluetoothService @Inject constructor(
             rssi = result.rssi,
             lastSeen = System.currentTimeMillis(),
             productId = advertisement.productId,
-            firmwareVersion = advertisement.firmwareVersion
+            firmwareVersion = advertisement.firmwareVersion,
+            uniqueId = advertisement.uniqueId
         )
         synchronized(cachedDevices) {
             cachedDevices[cached.address] = cached
@@ -952,10 +960,14 @@ class MassagerBluetoothService @Inject constructor(
             Log.v(TAG, "extractHyPayload: raw bytes too short length=${bytes.size}")
             return null
         }
-        for (index in 0..bytes.size - 3) {
-            if (bytes[index] == 0x79.toByte() && bytes[index + 1] == 0x68.toByte()) {
-                Log.v(TAG, "extractHyPayload: found header at index=$index length=${bytes.size}")
-                return bytes.copyOfRange(index, bytes.size)
+        for (index in 0..bytes.size - 2) {
+            if (bytes[index] == HY_HEADER_FIRST && bytes[index + 1] == HY_HEADER_SECOND) {
+                val endExclusive = min(bytes.size, index + HY_PAYLOAD_LENGTH)
+                Log.v(
+                    TAG,
+                    "extractHyPayload: found header at index=$index payloadLength=${endExclusive - index}"
+                )
+                return bytes.copyOfRange(index, endExclusive)
             }
         }
         Log.v(TAG, "extractHyPayload: HY header not found in raw bytes length=${bytes.size}")
@@ -973,7 +985,8 @@ class MassagerBluetoothService @Inject constructor(
                         rssi = it.rssi,
                         isConnected = connectedAddress == it.address,
                         productId = it.productId,
-                        firmwareVersion = it.firmwareVersion
+                        firmwareVersion = it.firmwareVersion,
+                        uniqueId = it.uniqueId
                     )
                 }
         }
@@ -1018,6 +1031,7 @@ class MassagerBluetoothService @Inject constructor(
         frames.forEach { frame ->
             ioScope.launch {
                 val messages = adapter.decode(frame)
+                Log.d(TAG, "handleProtocolPayload: frame=${frame.toDebugHexString()} messages =${messages.toString()}")
                 if (messages.isEmpty()) {
                     val now = SystemClock.elapsedRealtime()
                     if (now - lastEmptyDecodeLogAt >= EMPTY_DECODE_LOG_THROTTLE_MS) {
@@ -1044,11 +1058,13 @@ class MassagerBluetoothService @Inject constructor(
             return FrameExtraction(frame = null, consumed = headerIndex)
         }
         if (buffer.size < 4) return null
-        val length = (buffer[2].toInt() and 0xFF) or ((buffer[3].toInt() and 0xFF) shl 8)
-        if (length <= 0 || length > 512) {
-            return FrameExtraction(frame = null, consumed = 2)
+
+        val terminatorIndex = buffer.indexOfTerminator(startIndex = EMS_HEADER_LENGTH + EMS_LENGTH_FIELD)
+        if (terminatorIndex == -1) {
+            return null
         }
-        val totalLength = length
+
+        val totalLength = terminatorIndex + EMS_TERMINATOR_LENGTH
         if (buffer.size < totalLength) return null
         val frame = buffer.copyOfRange(0, totalLength)
         return FrameExtraction(frame = frame, consumed = totalLength)
@@ -1056,7 +1072,18 @@ class MassagerBluetoothService @Inject constructor(
 
     private fun ByteArray.indexOfFirstHeader(): Int {
         for (i in indices) {
-            if (this[i] == 0x79.toByte() && i + 1 < size && this[i + 1] == 0x68.toByte()) {
+            if (this[i] == 0x68.toByte() && i + 1 < size && this[i + 1] == 0x79.toByte()) {
+                return i
+            }
+        }
+        return -1
+    }
+
+    private fun ByteArray.indexOfTerminator(startIndex: Int): Int {
+        if (size < 2) return -1
+        val start = startIndex.coerceAtLeast(0)
+        for (i in start until size - 1) {
+            if (this[i] == 0x0D.toByte() && this[i + 1] == 0x0A.toByte()) {
                 return i
             }
         }
@@ -1292,7 +1319,8 @@ class MassagerBluetoothService @Inject constructor(
         val rssi: Int,
         val lastSeen: Long,
         val productId: Int?,
-        val firmwareVersion: String?
+        val firmwareVersion: String?,
+        val uniqueId: String?
     )
 
     private data class PendingWrite(

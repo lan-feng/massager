@@ -10,6 +10,7 @@ import com.massager.app.core.logging.logTag
 import com.massager.app.data.bluetooth.BleConnectionState
 import com.massager.app.data.bluetooth.MassagerBluetoothService
 import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter
+import com.massager.app.data.bluetooth.protocol.FrameDirection
 import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter.EmsV2Command
 import com.massager.app.data.bluetooth.protocol.ProtocolMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -235,7 +236,19 @@ class DeviceControlViewModel @Inject constructor(
                         _uiState.update { it.copy(mode = message.mode.coerceIn(0, 7)) }
                     }
                     is EmsV2ProtocolAdapter.EmsV2Message.LevelReport -> {
-                        _uiState.update { it.copy(level = message.level.coerceIn(MIN_LEVEL, MAX_LEVEL)) }
+                        _uiState.update { state ->
+                            val newLevel = message.level.coerceIn(MIN_LEVEL, MAX_LEVEL)
+                            val shouldAnnounce =
+                                message.direction == FrameDirection.DeviceToApp && newLevel != state.level
+                            state.copy(
+                                level = newLevel,
+                                message = when {
+                                    shouldAnnounce && state.message == null ->
+                                        DeviceMessage.RemoteLevelChanged(newLevel)
+                                    else -> state.message
+                                }
+                            )
+                        }
                     }
                     is EmsV2ProtocolAdapter.EmsV2Message.ZoneReport -> {
                         _uiState.update { it.copy(zone = BodyZone.fromIndex(message.zone)) }
@@ -355,7 +368,7 @@ class DeviceControlViewModel @Inject constructor(
         val current = _uiState.value
         if (!current.isRunning && !userInitiated) return
         viewModelScope.launch {
-            val success = sendCommand(EmsV2Command.StopProgram)
+            val success = sendCommand(EmsV2Command.SetLevel(0))
             _uiState.update {
                 it.copy(
                     isRunning = false,
@@ -422,20 +435,20 @@ class DeviceControlViewModel @Inject constructor(
     }
 
     private suspend fun sendCommand(command: EmsV2Command): Boolean {
-        Log.d(tag, "sendCommand: preparing to send command=$command")
+        Log.d(tag, "sendCommand: preparing to send command=${command.toString()}")
         val protocolReady = awaitProtocolReady()
         if (!protocolReady) {
-            Log.w(tag, "sendCommand: protocol not ready for command=$command, attempting dispatch anyway")
+            Log.w(tag, "sendCommand: protocol not ready for command=${command.toString()}, attempting dispatch anyway")
         }
         val success = withContext(Dispatchers.IO) {
             bluetoothService.sendProtocolCommand(command)
         }
         if (!success) {
-            Log.e(tag, "sendCommand: bluetoothService rejected command=$command")
+            Log.e(tag, "sendCommand: bluetoothService rejected command=${command.toString()}")
             return false
         }
         delay(80)
-        Log.v(tag, "sendCommand: command queued successfully command=$command")
+        Log.v(tag, "sendCommand: command queued successfully command=${command.toString()}")
         return true
     }
 
@@ -503,6 +516,7 @@ sealed class DeviceMessage {
     object SessionStopped : DeviceMessage()
     object BatteryLow : DeviceMessage()
     data class MuteChanged(val enabled: Boolean) : DeviceMessage()
+    data class RemoteLevelChanged(val level: Int) : DeviceMessage()
     data class CommandFailed(
         @StringRes val messageRes: Int = R.string.device_command_failed,
         val messageText: String? = null

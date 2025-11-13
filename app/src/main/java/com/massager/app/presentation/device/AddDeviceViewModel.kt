@@ -30,7 +30,8 @@ data class NearbyDevice(
     val signalStrength: Int,
     val isConnected: Boolean,
     val productId: Int? = null,
-    val firmwareVersion: String? = null
+    val firmwareVersion: String? = null,
+    val uniqueId: String? = null
 )
 
 data class AddDeviceUiState(
@@ -138,7 +139,8 @@ class AddDeviceViewModel @Inject constructor(
             val result = bindDeviceUseCase(
                 serial = device.macAddress,
                 displayName = device.name,
-                firmwareVersion = device.firmwareVersion
+                firmwareVersion = device.firmwareVersion,
+                uniqueId = device.uniqueId
             )
             result.onSuccess {
                 Log.d(TAG, "connectToDevice: bind succeeded for ${device.macAddress}")
@@ -208,7 +210,8 @@ class AddDeviceViewModel @Inject constructor(
                         signalStrength = result.rssi,
                         isConnected = result.isConnected,
                         productId = result.productId,
-                        firmwareVersion = result.firmwareVersion
+                        firmwareVersion = result.firmwareVersion,
+                        uniqueId = result.uniqueId
                     )
                 }
                 Triple(mappedDevices, state.status, state.errorMessage)
