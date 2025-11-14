@@ -12,6 +12,12 @@ import java.util.UUID
 interface BleProtocolAdapter {
 
     /**
+     * Unique identifier for this protocol implementation.
+     */
+    val protocolKey: String
+        get() = this::class.java.simpleName
+
+    /**
      * Unique numeric identifier that matches the productId carried in the `hy` advertisement.
      */
     val productId: Int

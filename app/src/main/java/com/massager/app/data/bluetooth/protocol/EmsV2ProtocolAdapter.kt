@@ -14,6 +14,9 @@ private const val EMS_V2_TERMINATOR_LF: Byte = 0x0A
  */
 class EmsV2ProtocolAdapter : BleProtocolAdapter {
 
+    override val protocolKey: String
+        get() = PROTOCOL_KEY
+
     override val productId: Int = 1
 
     override val serviceUuidCandidates: List<UUID> = listOf(
@@ -244,6 +247,7 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
     }
 
     companion object {
+        const val PROTOCOL_KEY = "ems_v2"
         private const val HEADER_LENGTH = 2
         private const val LENGTH_FIELD = 2
         private const val DIRECTION_LENGTH = 1

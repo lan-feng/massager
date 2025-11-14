@@ -10,23 +10,23 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothStatusCodes
-import android.bluetooth.le.BluetoothLeScanner
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanResult
-import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.massager.app.data.bluetooth.protocol.BleProtocolAdapter
-import com.massager.app.data.bluetooth.protocol.HyAdvertisement
+import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter
 import com.massager.app.data.bluetooth.protocol.ProtocolCommand
 import com.massager.app.data.bluetooth.protocol.ProtocolMessage
 import com.massager.app.data.bluetooth.protocol.ProtocolRegistry
+import com.massager.app.data.bluetooth.scan.BleScanCoordinator
+import com.massager.app.data.bluetooth.scan.BleScanCoordinator.CachedScanDevice
+import com.massager.app.data.bluetooth.session.EmsFrameExtractor
+import com.massager.app.data.bluetooth.session.ProtocolPayloadBuffer
 import com.massager.app.R
 import com.massager.app.core.logging.logTag
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -37,10 +37,8 @@ import javax.inject.Singleton
 import kotlin.math.min
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,20 +49,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-private const val SCAN_TIMEOUT_MS = 15_000L
-private const val SCAN_RESULT_TTL_MS = 20_000L
 private const val INITIAL_SERVICE_DISCOVERY_DELAY_MS = 200L
 private const val MAX_SERVICE_DISCOVERY_RETRIES = 3
 private const val SERVICE_DISCOVERY_RETRY_DELAY_MS = 600L
 private const val CONNECTION_PRIORITY_RESET_DELAY_MS = 7_000L
 private const val EMPTY_DECODE_LOG_THROTTLE_MS = 1_000L
 private const val INITIAL_MTU_TIMEOUT_MS = 2_000L
-private const val HY_PAYLOAD_LENGTH = 7
-private const val HY_HEADER_FIRST: Byte = 0x68
-private const val HY_HEADER_SECOND: Byte = 0x79
-private const val EMS_HEADER_LENGTH = 2
-private const val EMS_LENGTH_FIELD = 2
-private const val EMS_TERMINATOR_LENGTH = 2
 private val TAG = logTag("MassagerBleService")
 private val CLIENT_CHARACTERISTIC_CONFIG_UUID: UUID =
     UUID.fromString("00002902-0000-1000-8000-00805F9B34FB")
@@ -107,22 +97,47 @@ interface BleConnectionListener {
 class MassagerBluetoothService @Inject constructor(
     @ApplicationContext private val context: Context,
     private val bluetoothAdapter: BluetoothAdapter?,
-    private val protocolRegistry: ProtocolRegistry
+    private val protocolRegistry: ProtocolRegistry,
+    private val scanCoordinator: BleScanCoordinator
 ) {
 
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastEmptyDecodeLogAt = 0L
     private val listeners = CopyOnWriteArraySet<BleConnectionListener>()
-    private val cachedDevices = mutableMapOf<String, CachedScanDevice>()
+    private var payloadBuffer: ProtocolPayloadBuffer = ProtocolPayloadBuffer(EmsFrameExtractor())
 
-    private val _scanResults = MutableStateFlow<List<BleScanResult>>(emptyList())
-    val scanResults: StateFlow<List<BleScanResult>> = _scanResults.asStateFlow()
+    private val scanFailureListener = object : BleScanCoordinator.ScanFailureListener {
+        override fun onScanFailure(errorCode: Int) {
+            _connectionState.update {
+                it.copy(
+                    status = BleConnectionState.Status.Failed,
+                    errorMessage = "Scan failed ($errorCode)",
+                    isProtocolReady = false
+                )
+            }
+        }
+    }
+
+    val scanResults: StateFlow<List<BleScanResult>> = scanCoordinator.scanResults
 
     private val _connectionState = MutableStateFlow(BleConnectionState())
     val connectionState: StateFlow<BleConnectionState> = _connectionState.asStateFlow()
 
     private val _protocolMessages = MutableSharedFlow<ProtocolMessage>(extraBufferCapacity = 32)
     val protocolMessages: SharedFlow<ProtocolMessage> = _protocolMessages.asSharedFlow()
+
+    init {
+        scanCoordinator.addFailureListener(scanFailureListener)
+    }
+
+    private fun resetPayloadBuffer(adapter: BleProtocolAdapter?) {
+        payloadBuffer = ProtocolPayloadBuffer(
+            when (adapter?.protocolKey) {
+                EmsV2ProtocolAdapter.PROTOCOL_KEY -> EmsFrameExtractor()
+                else -> EmsFrameExtractor()
+            }
+        )
+    }
 
     @Volatile
     private var connectedAddress: String? = null
@@ -136,9 +151,7 @@ class MassagerBluetoothService @Inject constructor(
     @Volatile
     private var activeNotifyCharacteristicUuid: UUID? = null
 
-    private var scanTimeoutJob: Job? = null
     private var currentGatt: BluetoothGatt? = null
-    private var isScanning = false
     private var serviceDiscoveryRetries = 0
     private var pendingServiceRetry: Runnable? = null
     private var pendingPriorityReset: Runnable? = null
@@ -148,44 +161,6 @@ class MassagerBluetoothService @Inject constructor(
     private val writeQueue = ArrayDeque<PendingWrite>()
     private var activeWrite: PendingWrite? = null
     private val mainHandler = Handler(Looper.getMainLooper())
-
-    private val protocolBufferLock = Any()
-    private var pendingProtocolBuffer = ByteArray(0)
-
-    private val scanSettings: ScanSettings = ScanSettings.Builder()
-        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-        .apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
-                setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                setLegacy(false)
-            }
-        }
-        .build()
-
-    private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            handleScanResult(result)
-        }
-
-        override fun onBatchScanResults(results: MutableList<ScanResult>) {
-            results.forEach(::handleScanResult)
-        }
-
-        override fun onScanFailed(errorCode: Int) {
-            _connectionState.update {
-                it.copy(
-                    status = BleConnectionState.Status.Failed,
-                    errorMessage = "Scan failed ($errorCode)",
-                    isProtocolReady = false
-                )
-            }
-            stopScan()
-        }
-    }
 
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
@@ -198,7 +173,7 @@ class MassagerBluetoothService @Inject constructor(
                             status = BleConnectionState.Status.Connected,
                             deviceName = resolveDeviceName(
                                 device = gatt.device,
-                                cachedEntry = getCachedDevice(gatt.device.address),
+                                cachedEntry = scanCoordinator.getCachedDevice(gatt.device.address),
                                 fallback = gatt.device.address
                             ),
                             deviceAddress = gatt.device.address,
@@ -207,7 +182,6 @@ class MassagerBluetoothService @Inject constructor(
                         )
                     }
                     notifyConnected(gatt.device)
-                    emitDeviceSnapshot()
                     boostConnectionPriority(gatt)
                     val mtuRequested = activeAdapter?.let { adapter ->
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -372,64 +346,43 @@ class MassagerBluetoothService @Inject constructor(
 
     @SuppressLint("MissingPermission")
     fun startScan() {
-        if (isScanning) return
-        val adapter = bluetoothAdapter
-        if (adapter == null || adapter.isEnabled.not()) {
-            Log.w(TAG, "startScan: bluetooth adapter unavailable or disabled")
-            _connectionState.value = BleConnectionState(
-                status = BleConnectionState.Status.BluetoothUnavailable,
-                errorMessage = context.getString(R.string.device_error_bluetooth_disabled)
-            )
-            return
+        when (val result = scanCoordinator.startScan()) {
+            is BleScanCoordinator.ScanStartResult.Started -> {
+                _connectionState.update {
+                    it.copy(
+                        status = BleConnectionState.Status.Scanning,
+                        errorMessage = null,
+                        isProtocolReady = false
+                    )
+                }
+            }
+            is BleScanCoordinator.ScanStartResult.Error -> {
+                _connectionState.value = BleConnectionState(
+                    status = result.status,
+                    errorMessage = result.message
+                )
+            }
         }
-        if (!hasScanPermission()) {
-            Log.w(TAG, "startScan: missing BLUETOOTH_SCAN permission")
-            _connectionState.value = BleConnectionState(
-                status = BleConnectionState.Status.BluetoothUnavailable,
-                errorMessage = context.getString(R.string.device_error_bluetooth_scan_permission)
-            )
-            return
-        }
-        if (!hasLocationPermission()) {
-            Log.w(TAG, "startScan: missing location permission")
-            _connectionState.value = BleConnectionState(
-                status = BleConnectionState.Status.BluetoothUnavailable,
-                errorMessage = context.getString(R.string.device_error_location_permission)
-            )
-            return
-        }
-        val scanner = adapter.bluetoothLeScanner ?: run {
-            Log.w(TAG, "startScan: bluetoothLeScanner is null")
-            return
-        }
-        Log.d(TAG, "startScan: initiating BLE scan with settings=$scanSettings")
-        isScanning = true
-        synchronized(cachedDevices) { cachedDevices.clear() }
-        emitDeviceSnapshot()
-        _connectionState.update {
-            it.copy(
-                status = BleConnectionState.Status.Scanning,
-                errorMessage = null,
-                isProtocolReady = false
-            )
-        }
-        scanner.startScan(null, scanSettings, scanCallback)
-        scheduleScanTimeout(scanner)
     }
 
     fun restartScan() {
         Log.d(TAG, "restartScan: restarting BLE scan")
-        stopScan()
-        startScan()
+        when (scanCoordinator.restartScan()) {
+            is BleScanCoordinator.ScanStartResult.Started -> _connectionState.update {
+                it.copy(
+                    status = BleConnectionState.Status.Scanning,
+                    errorMessage = null,
+                    isProtocolReady = false
+                )
+            }
+            is BleScanCoordinator.ScanStartResult.Error -> startScan()
+        }
     }
 
     @SuppressLint("MissingPermission")
     fun stopScan() {
-        if (!isScanning) return
         Log.d(TAG, "stopScan: stopping BLE scan")
-        bluetoothAdapter?.bluetoothLeScanner?.stopSafeScan(scanCallback)
-        isScanning = false
-        scanTimeoutJob?.cancel()
+        scanCoordinator.stopScan()
         _connectionState.update {
             if (it.status == BleConnectionState.Status.Scanning) {
                 it.copy(status = BleConnectionState.Status.Idle, isProtocolReady = false)
@@ -471,7 +424,7 @@ class MassagerBluetoothService @Inject constructor(
             }
             return false
         }
-        val cachedEntry = getCachedDevice(address)
+        val cachedEntry = scanCoordinator.getCachedDevice(address)
         val device = cachedEntry?.device ?: runCatching {
             adapter.getRemoteDevice(address)
         }.getOrNull() ?: return false
@@ -509,10 +462,12 @@ class MassagerBluetoothService @Inject constructor(
             return false
         }
         activeAdapter = resolvedAdapter
+        resetPayloadBuffer(resolvedAdapter)
         activeServiceUuid = null
         activeWriteCharacteristicUuid = null
         activeNotifyCharacteristicUuid = null
         connectedAddress = device.address
+        scanCoordinator.updateConnectedAddress(connectedAddress)
         currentGatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
         } else {
@@ -526,10 +481,12 @@ class MassagerBluetoothService @Inject constructor(
                 )
             }
             connectedAddress = null
+            activeAdapter = null
+            resetPayloadBuffer(null)
+            scanCoordinator.updateConnectedAddress(null)
             notifyConnectionFailed(device, "Unable to connect")
             return false
         }
-        emitDeviceSnapshot()
         return true
     }
 
@@ -537,6 +494,7 @@ class MassagerBluetoothService @Inject constructor(
     fun disconnect() {
         connectedAddress = null
         activeAdapter = null
+        resetPayloadBuffer(null)
         activeServiceUuid = null
         activeWriteCharacteristicUuid = null
         activeNotifyCharacteristicUuid = null
@@ -555,13 +513,14 @@ class MassagerBluetoothService @Inject constructor(
                 deviceName = null
             )
         }
-        emitDeviceSnapshot()
+        scanCoordinator.updateConnectedAddress(null)
     }
 
     fun shutdown() {
         stopScan()
         disconnect()
         ioScope.cancel()
+        scanCoordinator.removeFailureListener(scanFailureListener)
     }
 
     @SuppressLint("MissingPermission")
@@ -732,12 +691,16 @@ class MassagerBluetoothService @Inject constructor(
 
     fun isProtocolReady(): Boolean = activeAdapter != null && activeWriteCharacteristicUuid != null
 
+    fun activeProtocolKey(): String? = activeAdapter?.protocolKey
+
     private fun handleDisconnection(device: BluetoothDevice, status: Int) {
         val failed = status != BluetoothGatt.GATT_SUCCESS
         if (connectedAddress == device.address) {
             connectedAddress = null
+            scanCoordinator.updateConnectedAddress(null)
         }
         activeAdapter = null
+        resetPayloadBuffer(null)
         activeServiceUuid = null
         activeWriteCharacteristicUuid = null
         activeNotifyCharacteristicUuid = null
@@ -754,7 +717,7 @@ class MassagerBluetoothService @Inject constructor(
                 status = if (failed) BleConnectionState.Status.Failed else BleConnectionState.Status.Disconnected,
                 deviceName = resolveDeviceName(
                     device = device,
-                    cachedEntry = getCachedDevice(device.address),
+                    cachedEntry = scanCoordinator.getCachedDevice(device.address),
                     fallback = device.address
                 ),
                 deviceAddress = device.address,
@@ -765,22 +728,6 @@ class MassagerBluetoothService @Inject constructor(
             notifyConnectionFailed(device, "Disconnected ($status)")
         } else {
             notifyDisconnected(device)
-        }
-        emitDeviceSnapshot()
-    }
-
-    private fun scheduleScanTimeout(scanner: BluetoothLeScanner) {
-        scanTimeoutJob?.cancel()
-        scanTimeoutJob = ioScope.launch {
-            delay(SCAN_TIMEOUT_MS)
-            scanner.stopSafeScan(scanCallback)
-            isScanning = false
-            Log.d(TAG, "scheduleScanTimeout: scan timed out after $SCAN_TIMEOUT_MS ms")
-            _connectionState.update {
-                if (it.status == BleConnectionState.Status.Scanning) {
-                    it.copy(status = BleConnectionState.Status.Idle)
-                } else it
-            }
         }
     }
 
@@ -870,224 +817,17 @@ class MassagerBluetoothService @Inject constructor(
         queueServiceDiscovery(gatt, INITIAL_SERVICE_DISCOVERY_DELAY_MS, "initial_connect_timeout")
     }
 
-    @SuppressLint("MissingPermission")
-    private fun BluetoothLeScanner.stopSafeScan(callback: ScanCallback) = runCatching {
-        stopScan(callback)
-    }
-
     private fun disposeGatt() {
         currentGatt?.close()
         currentGatt = null
     }
 
-    private fun getCachedDevice(address: String): CachedScanDevice? =
-        synchronized(cachedDevices) { cachedDevices[address] }
-
     fun cachedDeviceName(address: String?): String? {
-        if (address.isNullOrBlank()) return null
-        return getCachedDevice(address)?.name?.takeIf { it.isNotBlank() }
-    }
-
-    private fun handleScanResult(result: ScanResult) {
-        val device = result.device ?: run {
-            Log.w(TAG, "handleScanResult: null device in scan result, skipping")
-            return
-        }
-        val scanRecord = result.scanRecord ?: run {
-            Log.v(TAG, "handleScanResult: missing scanRecord for ${device.address}, skipping")
-            return
-        }
-        val rawBytes = scanRecord.bytes
-        val advertisementPayload = extractHyPayload(rawBytes)
-        val advertisement = HyAdvertisement.parse(advertisementPayload)
-        if (advertisement == null) {
-            Log.v(
-                TAG,
-                "handleScanResult: advertisement payload did not match EMS header (address=${device.address}), {rawBytes=${rawBytes.toDebugHexString()}}"
-            )
-            return
-        }
-        val adapter = protocolRegistry.findAdapter(advertisement.productId)
-        if (adapter == null) {
-            Log.v(
-                TAG,
-                "handleScanResult: no adapter registered for productId=${advertisement.productId}, ignoring device ${device.address}"
-            )
-            return
-        }
-        val cachedDevice = getCachedDevice(device.address)
-        val displayName = buildDisplayName(
-            resolveDeviceName(
-                device = device,
-                cachedEntry = cachedDevice,
-                fallback = ""
-            ),
-            advertisement
-        )
-        val rawHex = rawBytes?.toDebugHexString()
-        Log.d(
-            TAG,
-            "handleScanResult: device=${device.address}, name=$displayName, rssi=${result.rssi}, " +
-                "advertisement=$advertisement, raw=$rawHex"
-        )
-        val cached = CachedScanDevice(
-            device = device,
-            name = displayName,
-            address = device.address,
-            rssi = result.rssi,
-            lastSeen = System.currentTimeMillis(),
-            productId = advertisement.productId,
-            firmwareVersion = advertisement.firmwareVersion,
-            uniqueId = advertisement.uniqueId
-        )
-        synchronized(cachedDevices) {
-            cachedDevices[cached.address] = cached
-            pruneStaleScanResultsLocked()
-        }
-        emitDeviceSnapshot()
-    }
-
-    private fun extractHyPayload(bytes: ByteArray?): ByteArray? {
-        if (bytes == null) {
-            Log.v(TAG, "extractHyPayload: raw bytes are null")
-            return null
-        }
-        if (bytes.contentEquals(TEST_FALLBACK_PAYLOAD2)) {
-            Log.v(TAG, "extractHyPayload: matched test fallback payload")
-            return bytes
-        }
-        if (bytes.size < 3) {
-            Log.v(TAG, "extractHyPayload: raw bytes too short length=${bytes.size}")
-            return null
-        }
-        for (index in 0..bytes.size - 2) {
-            if (bytes[index] == HY_HEADER_FIRST && bytes[index + 1] == HY_HEADER_SECOND) {
-                val endExclusive = min(bytes.size, index + HY_PAYLOAD_LENGTH)
-                Log.v(
-                    TAG,
-                    "extractHyPayload: found header at index=$index payloadLength=${endExclusive - index}"
-                )
-                return bytes.copyOfRange(index, endExclusive)
-            }
-        }
-        Log.v(TAG, "extractHyPayload: HY header not found in raw bytes length=${bytes.size}")
-        return null
-    }
-
-    private fun emitDeviceSnapshot() {
-        val snapshot = synchronized(cachedDevices) {
-            cachedDevices.values
-                .sortedByDescending { it.rssi }
-                .map {
-                    BleScanResult(
-                        name = it.name.ifBlank { it.address },
-                        address = it.address,
-                        rssi = it.rssi,
-                        isConnected = connectedAddress == it.address,
-                        productId = it.productId,
-                        firmwareVersion = it.firmwareVersion,
-                        uniqueId = it.uniqueId
-                    )
-                }
-        }
-        Log.d(TAG, "emitDeviceSnapshot: publishing ${snapshot.size} device(s)")
-        _scanResults.value = snapshot
+        return scanCoordinator.cachedDeviceName(address)
     }
 
     private fun notifyConnected(device: BluetoothDevice) {
         listeners.forEach { it.onConnected(device) }
-    }
-
-    private fun handleProtocolPayload(payload: ByteArray) {
-        if (payload.isEmpty()) return
-        val adapter = activeAdapter ?: return
-        val frames = mutableListOf<ByteArray>()
-        synchronized(protocolBufferLock) {
-        pendingProtocolBuffer = pendingProtocolBuffer + payload
-            while (true) {
-                val extraction = extractFrame(pendingProtocolBuffer) ?: break
-                if (extraction.frame != null) {
-                    frames += extraction.frame
-                }
-                pendingProtocolBuffer = if (extraction.consumed >= pendingProtocolBuffer.size) {
-                    ByteArray(0)
-                } else {
-                    pendingProtocolBuffer.copyOfRange(extraction.consumed, pendingProtocolBuffer.size)
-                }
-            }
-            if (pendingProtocolBuffer.size > 256) {
-                Log.w(TAG, "handleProtocolPayload: clearing oversized buffer size=${pendingProtocolBuffer.size}")
-                pendingProtocolBuffer = ByteArray(0)
-            }
-        }
-        if (frames.isEmpty()) {
-            val now = SystemClock.elapsedRealtime()
-            if (now - lastEmptyDecodeLogAt >= EMPTY_DECODE_LOG_THROTTLE_MS) {
-                lastEmptyDecodeLogAt = now
-                Log.v(TAG, "handleProtocolPayload: awaiting complete frame (buffer=${pendingProtocolBuffer.size})")
-            }
-            return
-        }
-        frames.forEach { frame ->
-            ioScope.launch {
-                val messages = adapter.decode(frame)
-                Log.d(TAG, "handleProtocolPayload: frame=${frame.toDebugHexString()} messages =${messages.toString()}")
-                if (messages.isEmpty()) {
-                    val now = SystemClock.elapsedRealtime()
-                    if (now - lastEmptyDecodeLogAt >= EMPTY_DECODE_LOG_THROTTLE_MS) {
-                        lastEmptyDecodeLogAt = now
-                        Log.v(TAG, "handleProtocolPayload: no decodable messages (length=${frame.size})")
-                    }
-                    return@launch
-                }
-                Log.d(TAG, "handleProtocolPayload: decoded ${messages.size} message(s) from device")
-                messages.forEach { _protocolMessages.tryEmit(it) }
-            }
-        }
-    }
-
-    private data class FrameExtraction(val frame: ByteArray?, val consumed: Int)
-
-    private fun extractFrame(buffer: ByteArray): FrameExtraction? {
-        if (buffer.isEmpty()) return null
-        val headerIndex = buffer.indexOfFirstHeader()
-        if (headerIndex == -1) {
-            return FrameExtraction(frame = null, consumed = buffer.size)
-        }
-        if (headerIndex > 0) {
-            return FrameExtraction(frame = null, consumed = headerIndex)
-        }
-        if (buffer.size < 4) return null
-
-        val terminatorIndex = buffer.indexOfTerminator(startIndex = EMS_HEADER_LENGTH + EMS_LENGTH_FIELD)
-        if (terminatorIndex == -1) {
-            return null
-        }
-
-        val totalLength = terminatorIndex + EMS_TERMINATOR_LENGTH
-        if (buffer.size < totalLength) return null
-        val frame = buffer.copyOfRange(0, totalLength)
-        return FrameExtraction(frame = frame, consumed = totalLength)
-    }
-
-    private fun ByteArray.indexOfFirstHeader(): Int {
-        for (i in indices) {
-            if (this[i] == 0x68.toByte() && i + 1 < size && this[i + 1] == 0x79.toByte()) {
-                return i
-            }
-        }
-        return -1
-    }
-
-    private fun ByteArray.indexOfTerminator(startIndex: Int): Int {
-        if (size < 2) return -1
-        val start = startIndex.coerceAtLeast(0)
-        for (i in start until size - 1) {
-            if (this[i] == 0x0D.toByte() && this[i + 1] == 0x0A.toByte()) {
-                return i
-            }
-        }
-        return -1
     }
 
     private fun notifyDisconnected(device: BluetoothDevice) {
@@ -1098,11 +838,34 @@ class MassagerBluetoothService @Inject constructor(
         listeners.forEach { it.onConnectionFailed(device, reason) }
     }
 
-    private data class GattEndpoint(
-        val serviceUuid: UUID,
-        val writeCharacteristic: BluetoothGattCharacteristic,
-        val notifyCharacteristic: BluetoothGattCharacteristic?
-    )
+    private fun handleProtocolPayload(payload: ByteArray) {
+        if (payload.isEmpty()) return
+        val adapter = activeAdapter ?: return
+        val frames = payloadBuffer.append(payload)
+        if (frames.isEmpty()) {
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastEmptyDecodeLogAt >= EMPTY_DECODE_LOG_THROTTLE_MS) {
+                lastEmptyDecodeLogAt = now
+                Log.v(TAG, "handleProtocolPayload: buffered payload length=${payload.size}")
+            }
+            return
+        }
+        frames.forEach { frame ->
+            ioScope.launch {
+                val messages = adapter.decode(frame)
+                if (messages.isEmpty()) {
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastEmptyDecodeLogAt >= EMPTY_DECODE_LOG_THROTTLE_MS) {
+                        lastEmptyDecodeLogAt = now
+                        Log.v(TAG, "handleProtocolPayload: no decodable messages (length=${frame.size})")
+                    }
+                    return@launch
+                }
+                Log.d(TAG, "handleProtocolPayload: decoded ${messages.toString()} message(s)")
+                messages.forEach { _protocolMessages.tryEmit(it) }
+            }
+        }
+    }
 
     private fun BluetoothGattCharacteristic.hasWriteProperty(): Boolean {
         val writeMask = BluetoothGattCharacteristic.PROPERTY_WRITE or
@@ -1312,17 +1075,6 @@ class MassagerBluetoothService @Inject constructor(
         }
     }
 
-    private data class CachedScanDevice(
-        val device: BluetoothDevice,
-        val name: String,
-        val address: String,
-        val rssi: Int,
-        val lastSeen: Long,
-        val productId: Int?,
-        val firmwareVersion: String?,
-        val uniqueId: String?
-    )
-
     private data class PendingWrite(
         val gatt: BluetoothGatt,
         val characteristic: BluetoothGattCharacteristic,
@@ -1331,47 +1083,12 @@ class MassagerBluetoothService @Inject constructor(
         val completion: CompletableDeferred<Boolean>
     )
 
-    private fun hasScanPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.BLUETOOTH_SCAN
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
-    }
-
     private fun hasConnectPermission(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         return ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.BLUETOOTH_CONNECT
         ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun hasLocationPermission(): Boolean {
-        val fineGranted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        val coarseGranted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        return fineGranted || coarseGranted
-    }
-
-    private fun pruneStaleScanResultsLocked() {
-        val threshold = System.currentTimeMillis() - SCAN_RESULT_TTL_MS
-        val iterator = cachedDevices.iterator()
-        while (iterator.hasNext()) {
-            val entry = iterator.next()
-            if (entry.value.lastSeen < threshold) {
-                Log.v(TAG, "pruneStaleScanResultsLocked: removing stale device ${entry.key}")
-                iterator.remove()
-            }
-        }
     }
 
     private fun ByteArray.toDebugHexString(limit: Int = 32): String {
@@ -1387,13 +1104,6 @@ class MassagerBluetoothService @Inject constructor(
         return builder.toString()
     }
 
-    private fun buildDisplayName(rawName: String?, advertisement: HyAdvertisement): String {
-        val sanitized = rawName?.takeIf { it.isNotBlank() }
-        if (!sanitized.isNullOrBlank()) return sanitized
-        val version = advertisement.firmwareVersion.takeUnless { it.equals("unknown", ignoreCase = true) }
-        val suffix = version?.let { " v$it" }.orEmpty()
-        return "EMS-${advertisement.productId}$suffix"
-    }
 
     private fun resolveDeviceName(
         device: BluetoothDevice?,
@@ -1408,37 +1118,12 @@ class MassagerBluetoothService @Inject constructor(
         return fallback ?: cachedEntry?.address ?: device?.address
     }
 
-    companion object {
-        /**
-         *
-         * 特殊处理逻辑
-         */
-        private val TEST_FALLBACK_PAYLOAD = byteArrayOf(
-            0x02,
-            0x01,
-            0x06,
-            0x03,
-            0x03,
-            0xE0.toByte(),
-            0xFF.toByte(),
-            0x06,
-            0x09,
-            0x58,
-            0x4C,
-            0x42,
-            0x4C,
-            0x45
-        )
-        private val TEST_FALLBACK_PAYLOAD2 = byteArrayOf(
-            0x08,
-            0x09,
-            0x42,
-            0x4C.toByte(),
-            0x45,
-            0x5F.toByte(),
-            0x45,
-            0x4D.toByte(),
-            0x53
-        )
-    }
+    private data class GattEndpoint(
+        val serviceUuid: UUID,
+        val writeCharacteristic: BluetoothGattCharacteristic,
+        val notifyCharacteristic: BluetoothGattCharacteristic?
+    )
+
 }
+
+

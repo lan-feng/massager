@@ -17,6 +17,7 @@ data class HyAdvertisement(
         private const val HEADER_SECOND: Byte = 0x79
         private const val UNIQUE_ID_START = 4
         private const val UNIQUE_ID_LENGTH = 4
+        const val MIN_PAYLOAD_LENGTH = UNIQUE_ID_START + UNIQUE_ID_LENGTH
 
         /**
          * Attempts to parse the given [payload] into a [HyAdvertisement].

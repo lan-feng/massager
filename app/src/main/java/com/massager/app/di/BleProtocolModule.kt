@@ -1,5 +1,7 @@
 package com.massager.app.di
 
+import com.massager.app.data.bluetooth.advertisement.AdvertisementDecoder
+import com.massager.app.data.bluetooth.advertisement.HyAdvertisementDecoder
 import com.massager.app.data.bluetooth.protocol.BleProtocolAdapter
 import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter
 import dagger.Module
@@ -15,4 +17,8 @@ object BleProtocolModule {
     @Provides
     @IntoSet
     fun provideEmsV2ProtocolAdapter(): BleProtocolAdapter = EmsV2ProtocolAdapter()
+
+    @Provides
+    @IntoSet
+    fun provideHyAdvertisementDecoder(): AdvertisementDecoder = HyAdvertisementDecoder()
 }

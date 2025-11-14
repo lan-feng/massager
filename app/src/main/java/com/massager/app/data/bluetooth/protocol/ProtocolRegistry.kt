@@ -1,5 +1,6 @@
 package com.massager.app.data.bluetooth.protocol
 
+import com.massager.app.data.bluetooth.advertisement.ProtocolAdvertisement
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,6 +29,12 @@ class ProtocolRegistry @Inject constructor(
      * @return The adapter registered for the id or `null` when we do not support the product yet.
      */
     fun findAdapter(productId: Int?): BleProtocolAdapter? = productId?.let(mappedAdapters::get)
+
+    fun resolveAdapter(advertisement: ProtocolAdvertisement?): BleProtocolAdapter? {
+        val productAdapter = advertisement?.productId?.let(mappedAdapters::get)
+        if (productAdapter != null) return productAdapter
+        return adapterList.firstOrNull()
+    }
 
     /**
      * Attempts to resolve an adapter by inspecting the connected device's exposed GATT services.

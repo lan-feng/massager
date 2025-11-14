@@ -1,7 +1,7 @@
 package com.massager.app.data.repository
 
 import androidx.room.withTransaction
-import com.massager.app.core.DeviceTypeConfig
+import com.massager.app.core.DeviceCatalog
 import com.massager.app.data.local.MassagerDatabase
 import com.massager.app.data.local.entity.DeviceEntity
 import com.massager.app.data.local.entity.MeasurementEntity
@@ -27,6 +27,7 @@ import javax.inject.Singleton
 class MassagerRepository @Inject constructor(
     private val api: MassagerApiService,
     private val database: MassagerDatabase,
+    private val deviceCatalog: DeviceCatalog,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
 
@@ -42,10 +43,10 @@ class MassagerRepository @Inject constructor(
         }
 
     suspend fun refreshDevices(
-        deviceTypes: List<Int> = DeviceTypeConfig.RESERVED_DEVICE_TYPES
+        deviceTypes: List<Int> = deviceCatalog.reservedDeviceTypes
     ): Result<List<DeviceMetadata>> = withContext(ioDispatcher) {
         runCatching {
-            val typesToRequest = deviceTypes.ifEmpty { DeviceTypeConfig.RESERVED_DEVICE_TYPES }
+            val typesToRequest = deviceTypes.ifEmpty { deviceCatalog.reservedDeviceTypes }
             val response = api.fetchDevicesByType(typesToRequest.joinToString(","))
             if (response.success.not()) {
                 throw IllegalStateException(response.message ?: "Failed to load devices")
@@ -67,11 +68,12 @@ class MassagerRepository @Inject constructor(
     suspend fun bindDevice(
         deviceSerial: String,
         displayName: String,
+        productId: Int? = null,
         firmwareVersion: String? = null,
         uniqueId: String? = null
     ): Result<DeviceMetadata> = withContext(ioDispatcher) {
         runCatching {
-            val type = DeviceTypeConfig.resolveTypeForName(displayName)
+            val type = deviceCatalog.resolveType(productId, displayName)
             val response = api.bindDevice(
                 DeviceBindRequest(
                     deviceSerial = deviceSerial,

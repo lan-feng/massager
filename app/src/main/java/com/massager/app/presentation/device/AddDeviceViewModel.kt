@@ -139,6 +139,7 @@ class AddDeviceViewModel @Inject constructor(
             val result = bindDeviceUseCase(
                 serial = device.macAddress,
                 displayName = device.name,
+                productId = device.productId,
                 firmwareVersion = device.firmwareVersion,
                 uniqueId = device.uniqueId
             )

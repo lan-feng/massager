@@ -9,15 +9,16 @@ import com.massager.app.R
 import com.massager.app.core.logging.logTag
 import com.massager.app.data.bluetooth.BleConnectionState
 import com.massager.app.data.bluetooth.MassagerBluetoothService
-import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter
-import com.massager.app.data.bluetooth.protocol.FrameDirection
-import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter.EmsV2Command
 import com.massager.app.data.bluetooth.protocol.ProtocolMessage
+import com.massager.app.domain.device.DeviceSession
+import com.massager.app.domain.device.DeviceSessionRegistry
+import com.massager.app.domain.device.DeviceTelemetry
+import com.massager.app.domain.device.DeviceTelemetryMapper
+import com.massager.app.domain.device.DeviceTelemetryMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.massager.app.presentation.navigation.Screen
 import javax.inject.Inject
 import kotlin.math.max
-import kotlin.math.min
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,7 +37,9 @@ private const val CONNECTING_OVERLAY_DURATION_MS = 3_000L
 @HiltViewModel
 class DeviceControlViewModel @Inject constructor(
     private val bluetoothService: MassagerBluetoothService,
-    savedStateHandle: SavedStateHandle
+    savedStateHandle: SavedStateHandle,
+    private val sessionRegistry: DeviceSessionRegistry,
+    private val telemetryMappers: Set<@JvmSuppressWildcards DeviceTelemetryMapper>
 ) : ViewModel() {
 
     private val tag = logTag("DeviceControlVM")
@@ -66,13 +69,31 @@ class DeviceControlViewModel @Inject constructor(
         attemptInitialConnection()
     }
 
+    private fun currentSession(): DeviceSession? =
+        sessionRegistry.sessionFor(bluetoothService.activeProtocolKey())
+
+    private suspend fun withSession(block: suspend (DeviceSession) -> Boolean): Boolean =
+        withContext(Dispatchers.IO) {
+            val session = currentSession() ?: return@withContext false
+            block(session)
+        }
+
+    private fun mapTelemetry(message: ProtocolMessage): DeviceTelemetry? {
+        telemetryMappers.forEach { mapper ->
+            if (mapper.supports(message)) {
+                return mapper.map(message)
+            }
+        }
+        return null
+    }
+
     fun selectZone(zone: BodyZone) {
         val current = _uiState.value
         if (current.zone == zone) return
         _uiState.update { it.copy(zone = zone) }
         if (current.isRunning) {
             viewModelScope.launch {
-                if (!sendCommand(EmsV2Command.SetBodyZone(zone.index))) {
+                if (!withSession { session -> session.selectZone(zone.index) }) {
                     _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
                 }
             }
@@ -86,7 +107,7 @@ class DeviceControlViewModel @Inject constructor(
         _uiState.update { it.copy(mode = sanitized) }
         if (current.isRunning) {
             viewModelScope.launch {
-                if (!sendCommand(EmsV2Command.SetMode(sanitized))) {
+                if (!withSession { session -> session.selectMode(sanitized) }) {
                     _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
                 }
             }
@@ -103,7 +124,7 @@ class DeviceControlViewModel @Inject constructor(
         val target = !_uiState.value.isMuted
         viewModelScope.launch {
             Log.d(tag, "toggleMute: issuing command for muted=$target")
-            val success = sendCommand(EmsV2Command.ToggleMute(target))
+            val success = withSession { session -> session.toggleMute(target) }
             if (success) {
                 _uiState.update { it.copy(isMuted = target, message = DeviceMessage.MuteChanged(target)) }
             } else {
@@ -124,7 +145,7 @@ class DeviceControlViewModel @Inject constructor(
         if (current.isRunning) {
             viewModelScope.launch {
                 Log.d(tag, "adjustLevel: sending live level update level=$newLevel")
-                if (!sendCommand(EmsV2Command.SetLevel(newLevel))) {
+                if (!withSession { session -> session.selectLevel(newLevel) }) {
                     _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
                 }
             }
@@ -230,91 +251,80 @@ class DeviceControlViewModel @Inject constructor(
     private fun observeProtocolMessages() {
         viewModelScope.launch {
             bluetoothService.protocolMessages.collectLatest { message ->
-                when (message) {
-                    is EmsV2ProtocolAdapter.EmsV2Message.Heartbeat -> handleHeartbeat(message)
-                    is EmsV2ProtocolAdapter.EmsV2Message.ModeReport -> {
-                        _uiState.update { it.copy(mode = message.mode.coerceIn(0, 7)) }
-                    }
-                    is EmsV2ProtocolAdapter.EmsV2Message.LevelReport -> {
-                        _uiState.update { state ->
-                            val newLevel = message.level.coerceIn(MIN_LEVEL, MAX_LEVEL)
-                            val shouldAnnounce =
-                                message.direction == FrameDirection.DeviceToApp && newLevel != state.level
-                            state.copy(
-                                level = newLevel,
-                                message = when {
-                                    shouldAnnounce && state.message == null ->
-                                        DeviceMessage.RemoteLevelChanged(newLevel)
-                                    else -> state.message
-                                }
-                            )
-                        }
-                    }
-                    is EmsV2ProtocolAdapter.EmsV2Message.ZoneReport -> {
-                        _uiState.update { it.copy(zone = BodyZone.fromIndex(message.zone)) }
-                    }
-                    is EmsV2ProtocolAdapter.EmsV2Message.TimerReport -> {
-                        _uiState.update {
-                            it.copy(
-                                timerMinutes = message.minutes.coerceAtLeast(0),
-                                remainingSeconds = message.minutes.coerceAtLeast(0) * 60
-                            )
-                        }
-                    }
-                    else -> Unit
-                }
+                val telemetry = mapTelemetry(message) ?: return@collectLatest
+                applyTelemetry(telemetry)
             }
         }
     }
 
-    private fun handleHeartbeat(message: EmsV2ProtocolAdapter.EmsV2Message.Heartbeat) {
-        Log.d(tag,"handleHeartbeat: massage received=$message")
-        if (awaitingStopAck && message.isRunning) {
-            Log.v(tag, "handleHeartbeat: awaiting stop ack, ignoring running heartbeat")
+    private fun applyTelemetry(telemetry: DeviceTelemetry) {
+        if (awaitingStopAck && telemetry.isRunning == true) {
+            Log.v(tag, "applyTelemetry: awaiting stop ack, ignoring running telemetry")
             return
         }
-        if (awaitingStopAck && !message.isRunning) {
+        if (awaitingStopAck && telemetry.isRunning == false) {
             awaitingStopAck = false
         }
         _uiState.update { state ->
-            val previousBattery = state.batteryPercent
-            val reportedBattery = message.batteryPercent
-            val battery = when {
-                reportedBattery < 0 -> previousBattery
-                else -> reportedBattery.coerceIn(0, 100)
+            var next = state
+            telemetry.isRunning?.let { next = next.copy(isRunning = it) }
+
+            val shouldUpdateControls = next.isRunning || telemetry.isRunning == true
+            if (shouldUpdateControls) {
+                telemetry.zone?.let { next = next.copy(zone = BodyZone.fromIndex(it)) }
+                telemetry.mode?.let { next = next.copy(mode = it.coerceIn(0, 7)) }
+                telemetry.level?.let { level ->
+                    next = next.copy(level = level.coerceIn(MIN_LEVEL, MAX_LEVEL))
+                }
+                telemetry.timerMinutes?.let { minutes ->
+                    next = next.copy(timerMinutes = minutes.coerceAtLeast(0))
+                }
+                telemetry.remainingSeconds?.let { seconds ->
+                    next = next.copy(remainingSeconds = seconds.coerceAtLeast(0))
+                }
+            } else if (telemetry.isRunning == false) {
+                next = next.copy(remainingSeconds = 0)
             }
-            val zone = BodyZone.fromIndex(message.zone)
-            val mode = message.mode.coerceIn(0, 7)
-            val level = message.level.coerceIn(MIN_LEVEL, MAX_LEVEL)
-            val minutes = message.timerMinutes.coerceAtLeast(0)
-            val remainingSeconds = if (minutes == 0 && !message.isRunning) {
-                0
-            } else {
-                minutes * 60
+
+            val batteryPercent = telemetry.batteryPercent
+                ?.takeIf { it >= 0 }
+                ?.coerceIn(0, 100)
+            var pendingMessage: DeviceMessage? = null
+            if (batteryPercent != null) {
+                val shouldNotifyBattery =
+                    batteryPercent in 0..25 && (state.batteryPercent > 25 || state.batteryPercent < 0)
+                next = next.copy(batteryPercent = batteryPercent)
+                if (shouldNotifyBattery) {
+                    pendingMessage = DeviceMessage.BatteryLow
+                }
             }
-            val becameIdle = state.isRunning && !message.isRunning
-            val shouldUpdateControls = state.isRunning || message.isRunning || becameIdle
-            val messageUpdate = when {
-                battery in 0..25 && (previousBattery > 25 || previousBattery < 0) -> DeviceMessage.BatteryLow
-                becameIdle -> DeviceMessage.SessionStopped
-                else -> null
+
+            telemetry.isMuted?.let { muted ->
+                next = next.copy(isMuted = muted)
             }
-            state.copy(
-                isRunning = message.isRunning,
-                zone = if (shouldUpdateControls) zone else state.zone,
-                mode = if (shouldUpdateControls) mode else state.mode,
-                level = if (shouldUpdateControls) level else state.level,
-                timerMinutes = if (shouldUpdateControls) minutes else state.timerMinutes,
-                remainingSeconds = when {
-                    message.isRunning -> remainingSeconds
-                    becameIdle -> 0
-                    state.remainingSeconds > 0 -> max(state.remainingSeconds - 1, 0)
-                    else -> state.remainingSeconds
-                },
-                batteryPercent = battery,
-                isMuted = message.isMuted ?: state.isMuted,
-                message = messageUpdate ?: state.message
-            )
+
+            val mappedMessage = when (val teleMessage = telemetry.message) {
+                DeviceTelemetryMessage.BatteryLow -> null // handled above
+                DeviceTelemetryMessage.SessionStopped -> DeviceMessage.SessionStopped
+                is DeviceTelemetryMessage.RemoteLevelChanged -> {
+                    if (shouldUpdateControls) {
+                        DeviceMessage.RemoteLevelChanged(teleMessage.level)
+                    } else {
+                        null
+                    }
+                }
+                null -> null
+            }
+
+            val messageToShow = pendingMessage ?: mappedMessage
+            if (messageToShow != null) {
+                val canApply =
+                    state.message == null || messageToShow !is DeviceMessage.RemoteLevelChanged
+                if (canApply) {
+                    next = next.copy(message = messageToShow)
+                }
+            }
+            next
         }
     }
 
@@ -334,19 +344,18 @@ class DeviceControlViewModel @Inject constructor(
         val level = max(current.level, 1)
 
         viewModelScope.launch {
-            val commands = listOf(
-                EmsV2Command.SetBodyZone(zoneIndex),
-                EmsV2Command.SetMode(current.mode),
-                EmsV2Command.SetLevel(level),
-                EmsV2Command.SetTimer(timerMinutes),
-                EmsV2Command.RunProgram(
-                    zone = zoneIndex,
-                    mode = current.mode,
-                    level = level,
-                    timerMinutes = timerMinutes
-                )
-            )
-            val success = commands.all { sendCommand(it) }
+            val success = withSession { session ->
+                session.selectZone(zoneIndex) &&
+                    session.selectMode(current.mode) &&
+                    session.selectLevel(level) &&
+                    session.selectTimer(timerMinutes) &&
+                    session.runProgram(
+                        zone = zoneIndex,
+                        mode = current.mode,
+                        level = level,
+                        timerMinutes = timerMinutes
+                    )
+            }
             if (success) {
                 _uiState.update {
                     it.copy(
@@ -368,13 +377,13 @@ class DeviceControlViewModel @Inject constructor(
         val current = _uiState.value
         if (!current.isRunning && !userInitiated) return
         viewModelScope.launch {
-            val success = sendCommand(EmsV2Command.SetLevel(0))
+            val success = withSession { session -> session.stopProgram() }
             _uiState.update {
                 it.copy(
                     isRunning = false,
                     level = 0,
                     remainingSeconds = 0,
-                    message = DeviceMessage.SessionStopped.takeIf { success } ?: DeviceMessage.CommandFailed()
+                    message = if (success) DeviceMessage.SessionStopped else DeviceMessage.CommandFailed()
                 )
             }
             if (success) {
@@ -385,7 +394,7 @@ class DeviceControlViewModel @Inject constructor(
 
     private fun requestStatus() {
         viewModelScope.launch {
-            sendCommand(EmsV2Command.ReadStatus)
+            withSession { session -> session.requestStatus() }
         }
     }
 
@@ -434,47 +443,6 @@ class DeviceControlViewModel @Inject constructor(
         }
     }
 
-    private suspend fun sendCommand(command: EmsV2Command): Boolean {
-        Log.d(tag, "sendCommand: preparing to send command=${command.toString()}")
-        val protocolReady = awaitProtocolReady()
-        if (!protocolReady) {
-            Log.w(tag, "sendCommand: protocol not ready for command=${command.toString()}, attempting dispatch anyway")
-        }
-        val success = withContext(Dispatchers.IO) {
-            bluetoothService.sendProtocolCommand(command)
-        }
-        if (!success) {
-            Log.e(tag, "sendCommand: bluetoothService rejected command=${command.toString()}")
-            return false
-        }
-        delay(80)
-        Log.v(tag, "sendCommand: command queued successfully command=${command.toString()}")
-        return true
-    }
-
-    private suspend fun awaitProtocolReady(
-        attempts: Int = 50,
-        intervalMillis: Long = 100
-    ): Boolean {
-        if (bluetoothService.isProtocolReady()) {
-            Log.v(tag, "awaitProtocolReady: protocol already ready")
-            return true
-        }
-        repeat(attempts) { index ->
-            delay(intervalMillis)
-            if (bluetoothService.isProtocolReady()) {
-                Log.v(tag, "awaitProtocolReady: protocol ready after attempt=${index + 1}")
-                return true
-            }
-        }
-        val state = bluetoothService.connectionState.value
-        Log.w(
-            tag,
-            "awaitProtocolReady: timed out after attempts=$attempts intervalMillis=$intervalMillis status=${state.status} " +
-                "isProtocolReady=${state.isProtocolReady} device=${state.deviceAddress}"
-        )
-        return false
-    }
 }
 
 data class DeviceControlUiState(

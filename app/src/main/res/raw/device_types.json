@@ -1,0 +1,25 @@
+[
+  {
+    "typeId": 10,
+    "productIds": [],
+    "nameKeywords": [
+      "smartpulse"
+    ]
+  },
+  {
+    "typeId": 11,
+    "productIds": [],
+    "nameKeywords": [
+      "Massager"
+    ]
+  },
+  {
+    "typeId": 12,
+    "productIds": [
+      1
+    ],
+    "nameKeywords": [
+      "massager"
+    ]
+  }
+]
