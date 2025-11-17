@@ -185,7 +185,17 @@ class MassagerBluetoothService @Inject constructor(
                     boostConnectionPriority(gatt)
                     val mtuRequested = activeAdapter?.let { adapter ->
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            val requested = gatt.requestMtu(adapter.preferredMtu)
+                            val requested = if (hasConnectPermission()) {
+                                try {
+                                    gatt.requestMtu(adapter.preferredMtu)
+                                } catch (securityException: SecurityException) {
+                                    Log.w(TAG, "onConnectionStateChange: requestMtu denied", securityException)
+                                    false
+                                }
+                            } else {
+                                Log.w(TAG, "onConnectionStateChange: missing BLUETOOTH_CONNECT permission for requestMtu")
+                                false
+                            }
                             awaitingInitialMtu = requested
                             if (requested) {
                                 pendingMtuTimeout?.let(mainHandler::removeCallbacks)
@@ -747,7 +757,17 @@ class MassagerBluetoothService @Inject constructor(
         val retryRunnable = Runnable {
             if (currentGatt == gatt && connectedAddress == gatt.device.address) {
                 serviceDiscoveryRetries += 1
-                val started = gatt.discoverServices()
+                val started = if (hasConnectPermission()) {
+                    try {
+                        gatt.discoverServices()
+                    } catch (securityException: SecurityException) {
+                        Log.w(TAG, "queueServiceDiscovery: discoverServices denied", securityException)
+                        false
+                    }
+                } else {
+                    Log.w(TAG, "queueServiceDiscovery: missing BLUETOOTH_CONNECT permission")
+                    false
+                }
                 Log.i(
                     TAG,
                     "queueServiceDiscovery: discoverServices started=$started attempt=$serviceDiscoveryRetries reason=$reason"
@@ -789,14 +809,26 @@ class MassagerBluetoothService @Inject constructor(
 
     private fun boostConnectionPriority(gatt: BluetoothGatt) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return
-        runCatching {
-            gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+        if (hasConnectPermission()) {
+            try {
+                gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+            } catch (securityException: SecurityException) {
+                Log.w(TAG, "boostConnectionPriority: high priority request denied", securityException)
+            }
+        } else {
+            Log.w(TAG, "boostConnectionPriority: missing BLUETOOTH_CONNECT permission")
         }
         pendingPriorityReset?.let(mainHandler::removeCallbacks)
         val resetRunnable = Runnable {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                runCatching {
-                    gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_BALANCED)
+                if (hasConnectPermission()) {
+                    try {
+                        gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_BALANCED)
+                    } catch (securityException: SecurityException) {
+                        Log.w(TAG, "boostConnectionPriority: reset priority denied", securityException)
+                    }
+                } else {
+                    Log.w(TAG, "boostConnectionPriority: missing permission for reset")
                 }
             }
             pendingPriorityReset = null
@@ -818,8 +850,18 @@ class MassagerBluetoothService @Inject constructor(
     }
 
     private fun disposeGatt() {
-        currentGatt?.close()
+        val gatt = currentGatt
         currentGatt = null
+        if (gatt == null) return
+        if (!hasConnectPermission()) {
+            Log.w(TAG, "disposeGatt: missing BLUETOOTH_CONNECT permission")
+            return
+        }
+        try {
+            gatt.close()
+        } catch (securityException: SecurityException) {
+            Log.w(TAG, "disposeGatt: failed to close GATT", securityException)
+        }
     }
 
     fun cachedDeviceName(address: String?): String? {
@@ -850,8 +892,8 @@ class MassagerBluetoothService @Inject constructor(
             }
             return
         }
-        frames.forEach { frame ->
-            ioScope.launch {
+        ioScope.launch {
+            frames.forEach { frame ->
                 val messages = adapter.decode(frame)
                 if (messages.isEmpty()) {
                     val now = SystemClock.elapsedRealtime()
@@ -859,7 +901,7 @@ class MassagerBluetoothService @Inject constructor(
                         lastEmptyDecodeLogAt = now
                         Log.v(TAG, "handleProtocolPayload: no decodable messages (length=${frame.size})")
                     }
-                    return@launch
+                    return@forEach
                 }
                 Log.d(TAG, "handleProtocolPayload: decoded ${messages.toString()} message(s)")
                 messages.forEach { _protocolMessages.tryEmit(it) }
@@ -1112,7 +1154,12 @@ class MassagerBluetoothService @Inject constructor(
     ): String? {
         cachedEntry?.name?.takeIf { it.isNotBlank() }?.let { return it }
         if (device != null && hasConnectPermission()) {
-            val candidate = device.name
+            val candidate = try {
+                device.name
+            } catch (securityException: SecurityException) {
+                Log.w(TAG, "resolveDeviceName: unable to read device.name", securityException)
+                null
+            }
             if (!candidate.isNullOrBlank()) return candidate
         }
         return fallback ?: cachedEntry?.address ?: device?.address

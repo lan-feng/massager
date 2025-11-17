@@ -57,7 +57,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -135,54 +134,6 @@ private fun DeviceControlContent(
     var showInfoDialog by remember { mutableStateOf(false) }
     var timerDropdownExpanded by remember { mutableStateOf(false) }
 
-    LaunchedEffect(state.message) {
-        when (val message = state.message) {
-            is DeviceMessage.SessionStarted -> {
-                val text = context.getString(
-                    R.string.device_session_started,
-                    message.level,
-                    context.getString(modeLabelRes(message.mode))
-                )
-                snackbarHostState.showSnackbar(text)
-            }
-
-            DeviceMessage.SessionStopped -> {
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.device_session_stopped)
-                )
-            }
-
-            DeviceMessage.BatteryLow -> {
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.device_battery_low)
-                )
-            }
-            is DeviceMessage.RemoteLevelChanged -> {
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.device_remote_level_changed, message.level)
-                )
-            }
-
-            is DeviceMessage.MuteChanged -> {
-                val resId = if (message.enabled) {
-                    R.string.device_mute_enabled
-                } else {
-                    R.string.device_mute_disabled
-                }
-                snackbarHostState.showSnackbar(context.getString(resId))
-            }
-
-            is DeviceMessage.CommandFailed -> {
-                val text = message.messageText ?: context.getString(message.messageRes)
-                snackbarHostState.showSnackbar(text)
-            }
-
-            null -> Unit
-        }
-        if (state.message != null) {
-            onConsumeMessage()
-        }
-    }
 
     Scaffold(
         topBar = {

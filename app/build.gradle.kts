@@ -25,10 +25,21 @@ android {
         }
     }
 
+    flavorDimensions += "env"
+    productFlavors {
+        create("dev") {
+            dimension = "env"
+            buildConfigField("String", "BASE_URL", "\"http://192.168.2.110:9100/iot/api/\"")
+        }
+        // Flavor name不能以 "test" 开头，使用 qa 代替
+        create("qa") {
+            dimension = "env"
+            buildConfigField("String", "BASE_URL", "\"http://162.14.82.152:9100/iot/api/\"")
+        }
+    }
+
     buildTypes {
         getByName("debug") {
-           buildConfigField("String", "BASE_URL", "\"http://192.168.2.110:9100/iot/api/\"")
-            // buildConfigField("String", "BASE_URL", "\"http://192.168.2.133:8080/iot/api/\"")
             buildConfigField("String", "APP_ID", "\"test-app\"")
             buildConfigField("Boolean", "CRASHLYTICS_ENABLED", "false")
             isDebuggable = true
@@ -48,6 +59,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -68,6 +80,7 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
 }
 
 dependencies {
@@ -120,4 +133,10 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+}
+
+tasks.matching { it.name.startsWith("uploadCrashlyticsMappingFile") }.configureEach {
+    // Disable Crashlytics mapping upload tasks since we aren't shipping to Play Store
+    enabled = false
 }

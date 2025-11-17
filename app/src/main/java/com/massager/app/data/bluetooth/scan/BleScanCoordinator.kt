@@ -1,6 +1,7 @@
 package com.massager.app.data.bluetooth.scan
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.le.BluetoothLeScanner
@@ -118,9 +119,18 @@ class BleScanCoordinator @Inject constructor(
         synchronized(cachedDevices) { cachedDevices.clear() }
         emitDeviceSnapshot()
         isScanning = true
-        scanner.startScan(null, scanSettings, scanCallback)
-        scheduleScanTimeout(scanner)
-        return ScanStartResult.Started
+        return try {
+            scanner.startScan(null, scanSettings, scanCallback)
+            scheduleScanTimeout(scanner)
+            ScanStartResult.Started
+        } catch (securityException: SecurityException) {
+            Log.w(TAG, "startScan: missing permission", securityException)
+            isScanning = false
+            ScanStartResult.Error(
+                status = BleConnectionState.Status.BluetoothUnavailable,
+                message = context.getString(R.string.device_error_bluetooth_scan_permission)
+            )
+        }
     }
 
     fun restartScan(): ScanStartResult {
@@ -158,7 +168,7 @@ class BleScanCoordinator @Inject constructor(
         }
         val cachedDevice = CachedScanDevice(
             device = device,
-            name = buildDisplayName(device.name.orEmpty(), advertisement),
+            name = buildDisplayName(safeDeviceName(device).orEmpty(), advertisement),
             address = device.address,
             rssi = result.rssi,
             lastSeen = System.currentTimeMillis(),
@@ -240,8 +250,10 @@ class BleScanCoordinator @Inject constructor(
         mainHandler.postDelayed(runnable, SCAN_TIMEOUT_MS)
     }
 
-    private fun BluetoothLeScanner.stopSafeScan(callback: ScanCallback) = runCatching {
-        stopScan(callback)
+    @SuppressLint("MissingPermission")
+    private fun BluetoothLeScanner.stopSafeScan(callback: ScanCallback) {
+        if (!hasScanPermission()) return
+        runCatching { stopScan(callback) }
     }
 
     private fun hasScanPermission(): Boolean {
@@ -265,6 +277,19 @@ class BleScanCoordinator @Inject constructor(
             Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
         return fineGranted || coarseGranted
+    }
+
+    private fun safeDeviceName(device: BluetoothDevice): String? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                return null
+            }
+        }
+        return runCatching { device.name }.getOrNull()
     }
 
     data class CachedScanDevice(

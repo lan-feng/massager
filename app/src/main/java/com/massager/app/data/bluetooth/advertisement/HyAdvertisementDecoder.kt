@@ -11,8 +11,14 @@ class HyAdvertisementDecoder @Inject constructor() : AdvertisementDecoder {
 
     override fun decode(result: ScanResult): ProtocolAdvertisement? {
         val payload = extractHyPayload(result.scanRecord?.bytes)
+        val fallbackName = try {
+            result.device?.name
+        } catch (securityException: SecurityException) {
+            Log.w(TAG, "decode: unable to access device name", securityException)
+            null
+        }
         val parsed = HyAdvertisement.parse(payload)
-            ?: HyAdvertisement.parse(result.device?.name)
+            ?: HyAdvertisement.parse(fallbackName)
         if (parsed == null) {
             Log.v(TAG, "decode: unable to interpret advertisement for ${result.device?.address}")
             return null

@@ -23,9 +23,6 @@ data class HyAdvertisement(
          * Attempts to parse the given [payload] into a [HyAdvertisement].
          */
         fun parse(payload: ByteArray?): HyAdvertisement? {
-            if (payload != null && payload.contentEquals(TEST_FALLBACK_PAYLOAD2)) {
-                return HyAdvertisement(productId = 1, firmwareVersion = "1")
-            }
             if (payload == null || payload.size < 4) return null
             if (payload[0] != HEADER_FIRST || payload[1] != HEADER_SECOND) return null
             val productRaw = payload[2]
@@ -73,34 +70,5 @@ data class HyAdvertisement(
             }
             return builder.toString()
         }
-
-        private val TEST_FALLBACK_PAYLOAD = byteArrayOf(
-            0x02,
-            0x01,
-            0x06,
-            0x03,
-            0x03,
-            0xE0.toByte(),
-            0xFF.toByte(),
-            0x06,
-            0x09,
-            0x58,
-            0x4C,
-            0x42,
-            0x4C,
-            0x45
-        )
-
-        private val TEST_FALLBACK_PAYLOAD2 = byteArrayOf(
-            0x08,
-            0x09,
-            0x42,
-            0x4C.toByte(),
-            0x45,
-            0x5F.toByte(),
-            0x45,
-            0x4D.toByte(),
-            0x53
-        )
     }
 }

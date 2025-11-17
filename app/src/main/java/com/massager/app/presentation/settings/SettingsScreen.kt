@@ -33,17 +33,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.Security
-import androidx.compose.material.icons.outlined.Thermostat
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -199,16 +195,6 @@ fun SettingsScreen(
                                 onClick = onNavigateAccountSecurity
                             ),
                             SettingsItem(
-                                icon = Icons.Outlined.Thermostat,
-                                title = stringResource(R.string.settings_temperature_unit),
-                                trailingContent = {
-                                    TemperatureToggle(
-                                        unit = state.user.tempUnit,
-                                        onToggle = onToggleTemperature
-                                    )
-                                }
-                            ),
-                            SettingsItem(
                                 icon = Icons.Outlined.Delete,
                                 title = stringResource(R.string.settings_clear_cache),
                                 trailingText = state.user.cacheSize,
@@ -222,16 +208,6 @@ fun SettingsScreen(
                     SettingsGroup(
                         title = stringResource(R.string.settings_other_section),
                         items = listOf(
-                            SettingsItem(
-                                icon = Icons.Outlined.History,
-                                title = stringResource(R.string.settings_history),
-                                onClick = onNavigateHistory
-                            ),
-                            SettingsItem(
-                                icon = Icons.Outlined.FavoriteBorder,
-                                title = stringResource(R.string.settings_favorites),
-                                onClick = onNavigateFavorites
-                            ),
                             SettingsItem(
                                 icon = Icons.Filled.Info,
                                 title = stringResource(R.string.settings_about),
@@ -318,33 +294,6 @@ private fun HeaderSection(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 24.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Surface(
-                    modifier = Modifier.size(48.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.12f)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Filled.ChatBubble,
-                            contentDescription = stringResource(R.string.settings_header_greeting),
-                            tint = MaterialTheme.massagerExtendedColors.danger
-                        )
-                    }
-                }
-                Text(
-                    text = stringResource(R.string.settings_header_greeting),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        color = MaterialTheme.massagerExtendedColors.textSecondary
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(28.dp))
-
             AnimatedVisibility(
                 visible = animateIn,
                 enter = fadeIn(animationSpec = tween(360)) + slideInVertically { it / 3 },
