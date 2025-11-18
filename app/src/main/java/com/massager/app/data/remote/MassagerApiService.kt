@@ -2,6 +2,7 @@ package com.massager.app.data.remote
 
 import com.massager.app.data.remote.dto.ApiEnvelope
 import com.massager.app.data.remote.dto.DeviceBindRequest
+import com.massager.app.data.remote.dto.DeviceComboInfoUpdateRequest
 import com.massager.app.data.remote.dto.DeviceDto
 import com.massager.app.data.remote.dto.MeasurementDto
 import com.massager.app.data.remote.dto.DeviceUpdateRequest
@@ -25,6 +26,11 @@ interface MassagerApiService {
     @POST("device/v1/update")
     suspend fun updateDevice(
         @Body request: DeviceUpdateRequest
+    ): ApiEnvelope<DeviceDto?>
+
+    @POST("device/v1/updateComboInfo")
+    suspend fun updateComboInfo(
+        @Body request: DeviceComboInfoUpdateRequest
     ): ApiEnvelope<DeviceDto?>
 
     @POST("device/v1/delById/{id}")

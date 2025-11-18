@@ -53,6 +53,7 @@ data class DeviceDto(
     @SerialName("deviceType") val deviceType: Int? = null,
     @SerialName("firmwareVersion") val firmwareVersion: String? = null,
     @SerialName("nameAlias") val nameAlias: String? = null,
+    @SerialName("comboInfo") val comboInfo: String? = null,
     @SerialName("lastSeenAt") val lastSeenAt: String? = null,
     @SerialName("batteryLevel") val batteryLevel: Int? = null,
     val status: String? = null,
@@ -73,6 +74,12 @@ data class DeviceBindRequest(
 data class DeviceUpdateRequest(
     val id: Long,
     @SerialName("nameAlias") val nameAlias: String
+)
+
+@Serializable
+data class DeviceComboInfoUpdateRequest(
+    val id: Long,
+    @SerialName("comboInfo") val comboInfo: String
 )
 
 @Serializable

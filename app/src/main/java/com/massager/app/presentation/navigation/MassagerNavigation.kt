@@ -158,7 +158,8 @@ fun MassagerNavHost(
             val viewModel: DeviceControlViewModel = hiltViewModel()
             DeviceControlScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onAddDevice = { navController.navigate(Screen.AddDevice.route) }
             )
         }
         composable(Screen.AddDevice.route) {

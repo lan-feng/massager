@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -19,10 +20,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,10 +72,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +85,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.Dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
 import androidx.compose.material3.SnackbarHostState
@@ -89,14 +97,27 @@ import com.massager.app.presentation.theme.massagerExtendedColors
 @Composable
 fun DeviceControlScreen(
     viewModel: DeviceControlViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onAddDevice: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshAfterReturning()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     DeviceControlContent(
         state = state,
         onBack = onBack,
+        onAddDevice = onAddDevice,
         onReconnect = viewModel::reconnect,
         onSelectZone = viewModel::selectZone,
         onSelectMode = viewModel::selectMode,
@@ -127,7 +148,8 @@ private fun DeviceControlContent(
     onToggleMute: () -> Unit,
     onToggleSession: () -> Unit,
     snackbarHostState: SnackbarHostState,
-    onConsumeMessage: () -> Unit
+    onConsumeMessage: () -> Unit,
+    onAddDevice: () -> Unit = {}
 ) {
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -167,22 +189,30 @@ private fun DeviceControlContent(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                DeviceDisplaySection(
-                    state = state,
-                    onReconnect = onReconnect,
-                    onToggleMute = onToggleMute
-                )
-                BodyZoneTabs(
-                    selectedZone = state.zone,
-                    onSelectZone = onSelectZone
-                )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            DeviceDisplaySection(
+                state = state,
+                onReconnect = onReconnect,
+                onToggleMute = onToggleMute,
+                modifier = Modifier.weight(1f)
+            )
+            AddDeviceBox(onAddDevice = onAddDevice)
+        }
+        BodyZoneTabs(
+            selectedZone = state.zone,
+            onSelectZone = onSelectZone
+        )
                 ModeSelectionGrid(
                     selectedMode = state.mode,
                     isEnabled = state.isProtocolReady && state.isConnected,
@@ -270,114 +300,160 @@ private fun DeviceControlContent(
 private fun DeviceDisplaySection(
     state: DeviceControlUiState,
     onReconnect: () -> Unit,
-    onToggleMute: () -> Unit
+    onToggleMute: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.surfaceBright)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = state.deviceName.ifBlank { stringResource(id = R.string.device_title) },
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-                    )
-                    Text(
-                        text = stringResource(
-                            id = if (state.isConnected) {
-                                R.string.device_status_connected
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = state.deviceName.ifBlank { stringResource(id = R.string.device_title) },
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = stringResource(
+                                id = if (state.isConnected) {
+                                    R.string.device_status_connected
+                                } else {
+                                    R.string.device_status_disconnected
+                                }
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (state.isConnected) {
+                                MaterialTheme.massagerExtendedColors.success
                             } else {
-                                R.string.device_status_disconnected
-                            }
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (state.isConnected) {
-                            MaterialTheme.massagerExtendedColors.success
-                        } else {
-                            MaterialTheme.massagerExtendedColors.danger
-                        }
-                    )
-                }
-                IconButton(
-                    onClick = onReconnect,
-                    enabled = !state.isConnected && !state.isConnecting,
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(
-                            color = when {
-                                state.isConnected -> MaterialTheme.massagerExtendedColors.surfaceStrong
-                                state.isConnecting -> MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.15f)
-                                else -> MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.08f)
+                                MaterialTheme.massagerExtendedColors.danger
                             }
                         )
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Refresh,
-                        contentDescription = stringResource(id = R.string.device_reconnect),
-                        tint = when {
-                            state.isConnected -> MaterialTheme.massagerExtendedColors.iconMuted
-                            state.isConnecting -> MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.6f)
-                            else -> MaterialTheme.massagerExtendedColors.danger
-                        }
-                    )
+                    }
+                    IconButton(
+                        onClick = onReconnect,
+                        enabled = !state.isConnected && !state.isConnecting,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(
+                                color = when {
+                                    state.isConnected -> MaterialTheme.massagerExtendedColors.surfaceStrong
+                                    state.isConnecting -> MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.15f)
+                                    else -> MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.08f)
+                                }
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = stringResource(id = R.string.device_reconnect),
+                            tint = when {
+                                state.isConnected -> MaterialTheme.massagerExtendedColors.iconMuted
+                                state.isConnecting -> MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.6f)
+                                else -> MaterialTheme.massagerExtendedColors.danger
+                            }
+                        )
+                    }
                 }
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp),
-                contentAlignment = Alignment.Center
-            ) {
-        Surface(
-            modifier = Modifier.size(160.dp),
-            shape = CircleShape,
-            color = MaterialTheme.massagerExtendedColors.surfaceSubtle
-        ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_massager_logo),
-                        contentDescription = null,
-                        modifier = Modifier.padding(36.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                }
-                IconButton(
-                    onClick = onToggleMute,
+                Box(
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.massagerExtendedColors.surfaceBright)
+                        .fillMaxWidth()
+                        .heightIn(min = 96.dp, max = 120.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    val isMuted = state.isMuted
-                    Icon(
-                        imageVector = if (isMuted) Icons.Outlined.VolumeUp else Icons.Outlined.VolumeOff,
-                        contentDescription = if (isMuted) {
-                            stringResource(id = R.string.device_mute_enabled)
-                        } else {
-                            stringResource(id = R.string.device_mute_disabled)
-                        },
-                        tint = MaterialTheme.massagerExtendedColors.danger
-                    )
+                    val deviceBoxSize = 96.dp
+                    val cornerRadius = 12.dp
+                    Box(
+                        modifier = Modifier
+                            .size(deviceBoxSize)
+                            .shadow(
+                                elevation = 6.dp,
+                                shape = RoundedCornerShape(cornerRadius),
+                                clip = false
+                            )
+                            .clip(RoundedCornerShape(cornerRadius))
+                            .background(MaterialTheme.massagerExtendedColors.surfaceBright),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_massager_logo),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(12.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
                 }
+                BatteryStatusRow(
+                    batteryPercent = state.batteryPercent,
+                    isMuted = state.isMuted,
+                    onToggleMute = onToggleMute
+                )
             }
-            BatteryStatusRow(batteryPercent = state.batteryPercent)
         }
     }
 }
 
 @Composable
-private fun BatteryStatusRow(batteryPercent: Int) {
+private fun AddDeviceBox(
+    onAddDevice: () -> Unit,
+    size: Dp = 88.dp,
+    corner: Dp = 12.dp
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(corner))
+            .background(MaterialTheme.massagerExtendedColors.surfaceBright.copy(alpha = 0.08f))
+            .clickable(onClick = onAddDevice)
+            .drawBehind {
+                val stroke = Stroke(
+                    width = 2.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
+                )
+                drawRoundRect(
+                    color = Color(0xFF8AB5FF),
+                    cornerRadius = CornerRadius(corner.toPx(), corner.toPx()),
+                    style = stroke
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Add,
+            contentDescription = stringResource(id = R.string.home_add_device_content_desc),
+            tint = Color(0xFF8AB5FF),
+            modifier = Modifier.size(28.dp)
+        )
+    }
+}
+
+@Composable
+private fun BatteryStatusRow(
+    batteryPercent: Int,
+    isMuted: Boolean,
+    onToggleMute: () -> Unit
+) {
     val isUnknown = batteryPercent < 0
     val displayText = if (isUnknown) {
         stringResource(id = R.string.device_battery_unknown)
@@ -407,6 +483,24 @@ private fun BatteryStatusRow(batteryPercent: Int) {
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold
         )
+        Spacer(modifier = Modifier.weight(1f))
+        IconButton(
+            onClick = onToggleMute,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.massagerExtendedColors.surfaceBright)
+        ) {
+            Icon(
+                imageVector = if (isMuted) Icons.Outlined.VolumeUp else Icons.Outlined.VolumeOff,
+                contentDescription = if (isMuted) {
+                    stringResource(id = R.string.device_mute_enabled)
+                } else {
+                    stringResource(id = R.string.device_mute_disabled)
+                },
+                tint = MaterialTheme.massagerExtendedColors.danger
+            )
+        }
     }
 }
 

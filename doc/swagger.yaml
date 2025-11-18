@@ -15,8 +15,8 @@
   },
   "servers": [
     {
-      "url": "http://localhost:8080/iot/api",
-      "description": "本地开发环境"
+      "url": "http://192.168.2.110:9100/iot/api",
+      "description": "开发环境"
     }
   ],
   "security": [
@@ -102,6 +102,36 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/HttpResultVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/v1/updateComboInfo": {
+      "post": {
+        "tags": [
+          "device-controller"
+        ],
+        "operationId": "updateComboInfo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceComboInfoUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultDevice"
                 }
               }
             }
@@ -844,6 +874,18 @@
           "required": true
         },
         "responses": {
+          "400": {
+            "description": "上传失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "参数错误"
+                }
+              }
+            }
+          },
           "200": {
             "description": "上传成功",
             "content": {
@@ -859,18 +901,6 @@
                     "timestamp": "2024-01-15T10:30:00",
                     "data": "{\"temperature\":37.8,\"mode\":\"oral\"}"
                   }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "上传失败",
-            "content": {
-              "application/json": {
-                "example": {
-                  "code": 500,
-                  "success": false,
-                  "message": "参数错误"
                 }
               }
             }
@@ -1033,6 +1063,18 @@
           "required": true
         },
         "responses": {
+          "400": {
+            "description": "密码修改失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "原密码错误"
+                }
+              }
+            }
+          },
           "200": {
             "description": "密码修改成功",
             "content": {
@@ -1042,18 +1084,6 @@
                   "success": true,
                   "message": "密码修改成功",
                   "data": null
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "密码修改失败",
-            "content": {
-              "application/json": {
-                "example": {
-                  "code": 500,
-                  "success": false,
-                  "message": "原密码错误"
                 }
               }
             }
@@ -1080,18 +1110,6 @@
           "required": true
         },
         "responses": {
-          "400": {
-            "description": "邮箱修改失败",
-            "content": {
-              "application/json": {
-                "example": {
-                  "code": 500,
-                  "success": false,
-                  "message": "原密码错误"
-                }
-              }
-            }
-          },
           "200": {
             "description": "邮箱修改成功",
             "content": {
@@ -1101,6 +1119,18 @@
                   "success": true,
                   "message": "邮箱修改成功",
                   "data": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "邮箱修改失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "原密码错误"
                 }
               }
             }
@@ -1249,18 +1279,6 @@
           "required": true
         },
         "responses": {
-          "400": {
-            "description": "注册失败",
-            "content": {
-              "application/json": {
-                "example": {
-                  "code": 500,
-                  "success": false,
-                  "message": "邮箱已存在"
-                }
-              }
-            }
-          },
           "200": {
             "description": "注册成功",
             "content": {
@@ -1274,6 +1292,18 @@
                     "email": "test@example.com",
                     "name": "测试用户"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "注册失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "邮箱已存在"
                 }
               }
             }
@@ -2897,6 +2927,16 @@
         "description": "获取当前用户的所有登录会话",
         "operationId": "getUserSessions",
         "responses": {
+          "401": {
+            "description": "未授权",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListUserSession"
+                }
+              }
+            }
+          },
           "200": {
             "description": "获取成功",
             "content": {
@@ -2913,16 +2953,6 @@
                       "lastUsedAt": "2024-01-15T10:30:00"
                     }
                   ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "未授权",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/HttpResultListUserSession"
                 }
               }
             }
@@ -3051,6 +3081,10 @@
             "type": "string",
             "description": "设备别名"
           },
+          "comboInfo": {
+            "type": "string",
+            "description": "设备组合信息（JSON）"
+          },
           "lastSeenAt": {
             "type": "string",
             "description": "最近在线时间",
@@ -3153,6 +3187,18 @@
         },
         "description": "统一响应格式"
       },
+      "DeviceComboInfoUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "comboInfo": {
+            "type": "string"
+          }
+        }
+      },
       "DeviceBindRequest": {
         "required": [
           "deviceSerial",
@@ -3175,9 +3221,11 @@
           "nameAlias": {
             "type": "string"
           },
-          "advertisementId": {
-            "type": "string",
-            "description": "设备唯一标识（HY广播4字节ID）"
+          "uniqueId": {
+            "type": "string"
+          },
+          "comboInfo": {
+            "type": "string"
           }
         }
       },
@@ -4086,12 +4134,12 @@
           "sort": {
             "$ref": "#/components/schemas/SortObject"
           },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
           "numberOfElements": {
             "type": "integer",
             "format": "int32"
-          },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
           },
           "first": {
             "type": "boolean"
@@ -4123,10 +4171,10 @@
             "type": "integer",
             "format": "int32"
           },
-          "paged": {
+          "unpaged": {
             "type": "boolean"
           },
-          "unpaged": {
+          "paged": {
             "type": "boolean"
           }
         }
@@ -4406,12 +4454,12 @@
           "sort": {
             "$ref": "#/components/schemas/SortObject"
           },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
           "numberOfElements": {
             "type": "integer",
             "format": "int32"
-          },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
           },
           "first": {
             "type": "boolean"
@@ -4552,12 +4600,12 @@
           "sort": {
             "$ref": "#/components/schemas/SortObject"
           },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
           "numberOfElements": {
             "type": "integer",
             "format": "int32"
-          },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
           },
           "first": {
             "type": "boolean"
@@ -4665,12 +4713,12 @@
           "sort": {
             "$ref": "#/components/schemas/SortObject"
           },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
           "numberOfElements": {
             "type": "integer",
             "format": "int32"
-          },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
           },
           "first": {
             "type": "boolean"

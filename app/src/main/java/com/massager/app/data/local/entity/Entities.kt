@@ -18,6 +18,7 @@ data class DeviceEntity(
     val name: String,
     val serial: String?,
     val ownerId: String,
+    val comboInfo: String? = null,
     val status: String? = null,
     val batteryLevel: Int? = null,
     val lastSeenAt: Instant? = null

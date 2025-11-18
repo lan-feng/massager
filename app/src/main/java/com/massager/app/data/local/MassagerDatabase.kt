@@ -25,7 +25,7 @@ import com.massager.app.data.local.entity.UserEntity
         MeasurementEntity::class,
         MassagerDeviceEntity::class
     ],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

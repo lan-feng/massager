@@ -8,6 +8,7 @@ import com.massager.app.data.local.entity.DeviceEntity
 import com.massager.app.data.local.entity.MeasurementEntity
 import com.massager.app.data.remote.MassagerApiService
 import com.massager.app.data.remote.dto.DeviceBindRequest
+import com.massager.app.data.remote.dto.DeviceComboInfoUpdateRequest
 import com.massager.app.data.remote.dto.DeviceDto
 import com.massager.app.di.IoDispatcher
 import com.massager.app.domain.model.DeviceMetadata
@@ -33,6 +34,9 @@ class MassagerRepository @Inject constructor(
     private val sessionManager: SessionManager,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
+
+    fun observeDeviceComboInfo(deviceId: String): Flow<String?> =
+        database.deviceDao().getComboInfo(deviceId)
 
     fun deviceMetadata(): Flow<List<DeviceMetadata>> =
         database.deviceDao().getDevices().map { devices ->
@@ -162,6 +166,30 @@ class MassagerRepository @Inject constructor(
             }
         }
 
+    suspend fun updateDeviceComboInfo(
+        deviceId: String,
+        comboInfo: String
+    ): Result<Unit> = withContext(ioDispatcher) {
+        runCatching {
+            if (sessionManager.isGuestMode()) {
+                database.deviceDao().updateComboInfo(deviceId, comboInfo)
+                return@runCatching
+            }
+            val idLong = deviceId.toLongOrNull()
+                ?: throw IllegalArgumentException("Invalid device id: $deviceId")
+            val response = api.updateComboInfo(
+                DeviceComboInfoUpdateRequest(
+                    id = idLong,
+                    comboInfo = comboInfo
+                )
+            )
+            if (response.success.not()) {
+                throw IllegalStateException(response.message ?: "Failed to update combination info")
+            }
+            database.deviceDao().updateComboInfo(deviceId, comboInfo)
+        }
+    }
+
     suspend fun removeDevice(deviceId: String): Result<Unit> =
         withContext(ioDispatcher) {
             runCatching {
@@ -286,6 +314,7 @@ class MassagerRepository @Inject constructor(
                 ?: deviceSerial?.takeIf { it.isNotBlank() }
                 ?: id.toString(),
             serial = deviceSerial,
+            comboInfo = comboInfo,
             ownerId = userId?.toString().orEmpty(),
             status = status,
             batteryLevel = batteryLevel,

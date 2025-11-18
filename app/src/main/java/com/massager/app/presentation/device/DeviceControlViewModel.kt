@@ -197,6 +197,15 @@ class DeviceControlViewModel @Inject constructor(
         _uiState.update { it.copy(message = null) }
     }
 
+    fun refreshAfterReturning() {
+        val current = _uiState.value
+        if (current.isConnected && current.isProtocolReady) {
+            requestStatus()
+        } else if (!current.isConnecting) {
+            reconnect()
+        }
+    }
+
     private fun observeConnection() {
         viewModelScope.launch {
             bluetoothService.connectionState.collectLatest { state ->
