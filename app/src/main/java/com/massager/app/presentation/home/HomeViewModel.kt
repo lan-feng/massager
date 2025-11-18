@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.R
+import com.massager.app.data.local.SessionManager
 import com.massager.app.domain.model.DeviceMetadata
 import com.massager.app.domain.model.TemperatureRecord
 import com.massager.app.domain.usecase.device.ObserveDevicesUseCase
@@ -51,7 +52,8 @@ class HomeViewModel @Inject constructor(
     private val refreshDevicesUseCase: RefreshDevicesUseCase,
     private val refreshMeasurementsUseCase: RefreshMeasurementsUseCase,
     private val renameDeviceUseCase: RenameDeviceUseCase,
-    private val removeDeviceUseCase: RemoveDeviceUseCase
+    private val removeDeviceUseCase: RemoveDeviceUseCase,
+    private val sessionManager: SessionManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -59,6 +61,9 @@ class HomeViewModel @Inject constructor(
 
     private val _effects = MutableSharedFlow<HomeEffect>()
     val effects: SharedFlow<HomeEffect> = _effects.asSharedFlow()
+
+    private var guestEntryPromptShown = false
+    private var guestSyncPromptShown = false
 
     init {
         viewModelScope.launch {
@@ -84,6 +89,10 @@ class HomeViewModel @Inject constructor(
                 }
             }
         }
+        if (sessionManager.isGuestMode()) {
+            guestEntryPromptShown = true
+            emitMessageRes(R.string.guest_mode_entry_notice)
+        }
         viewModelScope.launch {
             observeMeasurementsUseCase().collect { measurements ->
                 _uiState.update { it.copy(measurements = measurements) }
@@ -95,6 +104,10 @@ class HomeViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true, errorMessage = null) }
+            if (sessionManager.isGuestMode() && !guestSyncPromptShown) {
+                emitMessageRes(R.string.guest_mode_cloud_restricted)
+                guestSyncPromptShown = true
+            }
             val deviceResult = refreshDevicesUseCase()
             val devices = deviceResult.getOrElse { error ->
                 _uiState.update {

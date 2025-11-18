@@ -17,9 +17,7 @@ class EmsFrameExtractor : FrameExtractor {
 
         val terminatorIndex = buffer.indexOfTerminator(startIndex = HEADER_LENGTH + LENGTH_FIELD)
         if (terminatorIndex < 0) return null
-        val advertisedLength = toUInt16Be(buffer[HEADER_LENGTH], buffer[HEADER_LENGTH + 1])
-        val expectedEnd = HEADER_LENGTH + advertisedLength
-        if (expectedEnd > buffer.size) return null
+        // Some devices misreport the length field; prefer the actual terminator location.
         val endExclusive = min(buffer.size, terminatorIndex + TERMINATOR_LENGTH)
         if (endExclusive > buffer.size) return null
         val frame = buffer.copyOfRange(0, endExclusive)

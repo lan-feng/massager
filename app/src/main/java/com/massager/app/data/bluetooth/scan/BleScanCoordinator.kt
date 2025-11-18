@@ -146,6 +146,11 @@ class BleScanCoordinator @Inject constructor(
         scanTimeout = null
     }
 
+    fun clearCache() {
+        synchronized(cachedDevices) { cachedDevices.clear() }
+        emitDeviceSnapshot()
+    }
+
     fun getCachedDevice(address: String): CachedScanDevice? =
         synchronized(cachedDevices) { cachedDevices[address] }
 

@@ -30,7 +30,11 @@ class AccountSecurityViewModel @Inject constructor(
     val uiState: StateFlow<AccountSecurityUiState> = _uiState.asStateFlow()
 
     init {
-        loadAccountEmail()
+        if (sessionManager.isGuestMode()) {
+            _uiState.update { it.copy(isGuestMode = true) }
+        } else {
+            loadAccountEmail()
+        }
     }
 
     fun toggleLogoutDialog(show: Boolean) {
@@ -71,7 +75,8 @@ data class AccountSecurityUiState(
     val userEmail: String = "",
     val thirdPartyAccounts: List<ThirdPartyAccountBinding> = emptyList(),
     val showLogoutDialog: Boolean = false,
-    val logoutCompleted: Boolean = false
+    val logoutCompleted: Boolean = false,
+    val isGuestMode: Boolean = false
 )
 
 data class ThirdPartyAccountBinding(

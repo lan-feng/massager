@@ -68,10 +68,21 @@ fun AccountSecurityScreen(
 ) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
+    val guestRestrictionText = stringResource(id = R.string.guest_mode_cloud_restricted)
     var contentVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         contentVisible = true
+    }
+    val restrictedClick: () -> Unit = {
+        Toast.makeText(context, guestRestrictionText, Toast.LENGTH_SHORT).show()
+    }
+    val setPasswordAction = if (state.isGuestMode) restrictedClick else onSetPassword
+    val deleteAccountAction = if (state.isGuestMode) restrictedClick else onDeleteAccount
+    val displayedEmail = if (state.isGuestMode && state.userEmail.isBlank()) {
+        stringResource(id = R.string.guest_placeholder_email)
+    } else {
+        state.userEmail
     }
 
     Surface(
@@ -114,14 +125,14 @@ fun AccountSecurityScreen(
                         Column {
                             AccountInfoRow(
                                 title = stringResource(id = R.string.email_label),
-                                value = state.userEmail,
+                                value = displayedEmail,
                                 onClick = null
                             )
                             Divider()
                             AccountInfoRow(
                                 title = stringResource(id = R.string.set_password),
                                 value = null,
-                                onClick = onSetPassword
+                                onClick = setPasswordAction
                             )
                         }
                     }
@@ -142,13 +153,17 @@ fun AccountSecurityScreen(
                                     ThirdPartyAccountRow(
                                         binding = binding,
                                         onClick = {
-                                            Toast
-                                                .makeText(
-                                                    context,
-                                                    context.getString(R.string.third_party_binding_coming_soon),
-                                                    Toast.LENGTH_SHORT
-                                                )
-                                                .show()
+                                            if (state.isGuestMode) {
+                                                restrictedClick()
+                                            } else {
+                                                Toast
+                                                    .makeText(
+                                                        context,
+                                                        context.getString(R.string.third_party_binding_coming_soon),
+                                                        Toast.LENGTH_SHORT
+                                                    )
+                                                    .show()
+                                            }
                                         }
                                     )
                                     if (index != state.thirdPartyAccounts.lastIndex) {
@@ -166,7 +181,7 @@ fun AccountSecurityScreen(
                         AccountInfoRow(
                             title = stringResource(id = R.string.delete_account),
                             value = null,
-                            onClick = onDeleteAccount
+                            onClick = deleteAccountAction
                         )
                     }
 

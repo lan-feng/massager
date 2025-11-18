@@ -1,7 +1,9 @@
 package com.massager.app.presentation.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.massager.app.R
 import com.massager.app.data.local.AppCacheManager
 import com.massager.app.data.local.SessionManager
 import com.massager.app.domain.model.UserProfile
@@ -10,6 +12,7 @@ import com.massager.app.domain.usecase.profile.UpdateUserProfileUseCase
 import com.massager.app.domain.usecase.profile.UploadAvatarUseCase
 import com.massager.app.domain.usecase.settings.LogoutUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +22,7 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val logoutUseCase: LogoutUseCase,
     private val sessionManager: SessionManager,
     private val getUserProfileUseCase: GetUserProfileUseCase,
@@ -31,11 +35,22 @@ class SettingsViewModel @Inject constructor(
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
-        refreshProfile()
-        refreshCacheSize()
+        if (isGuestMode()) {
+            _uiState.update {
+                it.copy(isGuestMode = true)
+            }
+            refreshCacheSize()
+        } else {
+            refreshProfile()
+            refreshCacheSize()
+        }
     }
 
     fun refreshProfile() {
+        if (isGuestMode()) {
+            _uiState.update { it.copy(isLoading = false, isGuestMode = true) }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             getUserProfileUseCase()
@@ -98,6 +113,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateUserName(newName: String) {
+        if (isGuestMode()) {
+            showGuestRestriction()
+            return
+        }
         val trimmed = newName.trim()
         if (trimmed.length < 2) {
             _uiState.update { it.copy(toastMessage = "Name must be at least 2 characters") }
@@ -127,6 +146,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateAvatar(bytes: ByteArray) {
+        if (isGuestMode()) {
+            showGuestRestriction()
+            return
+        }
         if (bytes.isEmpty()) return
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
@@ -167,6 +190,12 @@ class SettingsViewModel @Inject constructor(
         sessionManager.clear()
     }
 
+    fun showGuestRestriction(message: String = guestRestrictionMessage) {
+        _uiState.update { it.copy(toastMessage = message) }
+    }
+
+    private fun isGuestMode(): Boolean = sessionManager.isGuestMode()
+
     private fun refreshCacheSize() {
         viewModelScope.launch {
             runCatching { cacheManager.cacheSnapshot() }
@@ -188,12 +217,16 @@ class SettingsViewModel @Inject constructor(
             avatarUrl = avatarUrl,
             cacheSize = cacheSize ?: previous.cacheSize
         )
+
+    private val guestRestrictionMessage: String
+        get() = appContext.getString(R.string.guest_mode_cloud_restricted)
 }
 
 data class SettingsUiState(
     val user: SettingsUser = SettingsUser(),
     val toastMessage: String? = null,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val isGuestMode: Boolean = false
 )
 
 data class SettingsUser(

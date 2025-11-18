@@ -41,6 +41,8 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -108,11 +110,13 @@ fun SettingsScreen(
     onNavigateFavorites: () -> Unit,
     onNavigateAbout: () -> Unit,
     onLogout: () -> Unit,
+    onGuestRestricted: (String) -> Unit,
     onConsumeToast: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val guestRestrictionMessage = stringResource(id = R.string.guest_mode_cloud_restricted)
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showAvatarDialog by remember { mutableStateOf(false) }
 
@@ -176,7 +180,14 @@ fun SettingsScreen(
                 item {
                     HeaderSection(
                         user = state.user,
-                        onAvatarTap = { showAvatarDialog = true }
+                        isGuestMode = state.isGuestMode,
+                        onAvatarTap = {
+                            if (state.isGuestMode) {
+                                onGuestRestricted(guestRestrictionMessage)
+                            } else {
+                                showAvatarDialog = true
+                            }
+                        }
                     )
                 }
 
@@ -192,7 +203,9 @@ fun SettingsScreen(
                             SettingsItem(
                                 icon = Icons.Outlined.Security,
                                 title = stringResource(R.string.settings_account_security),
-                                onClick = onNavigateAccountSecurity
+                                onClick = if (state.isGuestMode) {
+                                    { onGuestRestricted(guestRestrictionMessage) }
+                                } else onNavigateAccountSecurity
                             ),
                             SettingsItem(
                                 icon = Icons.Outlined.Delete,
@@ -215,6 +228,50 @@ fun SettingsScreen(
                             )
                         )
                     )
+                }
+
+                if (state.isGuestMode) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .padding(horizontal = 20.dp)
+                                .fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.massagerExtendedColors.surfaceBright
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(id = R.string.guest_mode_entry_notice),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = stringResource(id = R.string.guest_mode_cross_device),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Button(
+                                    onClick = onLogout,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.massagerExtendedColors.danger,
+                                        contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
+                                    )
+                                ) {
+                                    Text(text = stringResource(id = R.string.exit_guest_mode))
+                                }
+                            }
+                        }
+                    }
                 }
 
                 item { Spacer(modifier = Modifier.height(72.dp)) }
@@ -264,12 +321,23 @@ fun SettingsScreen(
 @Composable
 private fun HeaderSection(
     user: SettingsUser,
+    isGuestMode: Boolean,
     onAvatarTap: () -> Unit
 ) {
     val avatarBitmap = remember(user.avatarBytes) {
         user.avatarBytes?.let { bytes ->
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
         }
+    }
+    val displayName = if (isGuestMode && user.name.isBlank()) {
+        stringResource(id = R.string.guest_placeholder_name)
+    } else {
+        user.name
+    }
+    val displayEmail = if (isGuestMode && user.email.isBlank()) {
+        stringResource(id = R.string.guest_placeholder_email)
+    } else {
+        user.email
     }
 
     var animateIn by remember { mutableStateOf(false) }
@@ -360,14 +428,14 @@ private fun HeaderSection(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = user.name,
+                            text = displayName,
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        if (user.email.isNotBlank()) {
+                        if (displayEmail.isNotBlank()) {
                             Text(
-                                text = user.email,
+                                text = displayEmail,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

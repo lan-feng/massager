@@ -68,7 +68,8 @@ fun MassagerNavHost(
                 state = authState.value,
                 onLogin = { email, password -> authViewModel.login(email, password) },
                 onNavigateToRegister = { navController.navigate(Screen.Register.route) },
-                onForgotPassword = { navController.navigate(Screen.ForgetPassword.route) }
+                onForgotPassword = { navController.navigate(Screen.ForgetPassword.route) },
+                onGuestLogin = { authViewModel.enterGuestMode() }
             )
         }
         composable(Screen.Register.route) {
@@ -216,6 +217,7 @@ fun MassagerNavHost(
                     }
                     authViewModel.clearAuthenticationFlag()
                 },
+                onGuestRestricted = viewModel::showGuestRestriction,
                 onConsumeToast = viewModel::consumeToast
             )
         }

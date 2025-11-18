@@ -1,12 +1,16 @@
 package com.massager.app.presentation.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.massager.app.R
+import com.massager.app.data.local.SessionManager
 import com.massager.app.domain.model.UserProfile
 import com.massager.app.domain.usecase.profile.GetUserProfileUseCase
 import com.massager.app.domain.usecase.profile.UpdateUserProfileUseCase
 import com.massager.app.domain.usecase.profile.UploadAvatarUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,19 +20,37 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class PersonalInformationViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val getUserProfileUseCase: GetUserProfileUseCase,
     private val updateUserProfileUseCase: UpdateUserProfileUseCase,
-    private val uploadAvatarUseCase: UploadAvatarUseCase
+    private val uploadAvatarUseCase: UploadAvatarUseCase,
+    private val sessionManager: SessionManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PersonalInfoUiState(isLoading = true))
     val uiState: StateFlow<PersonalInfoUiState> = _uiState.asStateFlow()
 
     init {
-        refresh()
+        if (sessionManager.isGuestMode()) {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isGuestMode = true,
+                    name = sessionManager.guestName().orEmpty().ifBlank { defaultGuestName() },
+                    avatarBytes = sessionManager.guestAvatar(),
+                    toastMessage = null
+                )
+            }
+        } else {
+            refresh()
+        }
     }
 
     fun refresh() {
+        if (sessionManager.isGuestMode()) {
+            _uiState.update { it.copy(isLoading = false, isGuestMode = true) }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             getUserProfileUseCase()
@@ -59,6 +81,16 @@ class PersonalInformationViewModel @Inject constructor(
             _uiState.update { it.copy(toastMessage = "Name cannot be empty") }
             return
         }
+        if (sessionManager.isGuestMode()) {
+            sessionManager.saveGuestName(trimmed)
+            _uiState.update {
+                it.copy(
+                    name = trimmed,
+                    toastMessage = appContext.getString(R.string.profile_name_updated_local)
+                )
+            }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             updateUserProfileUseCase.updateName(trimmed)
@@ -84,6 +116,16 @@ class PersonalInformationViewModel @Inject constructor(
 
     fun updateAvatar(bytes: ByteArray) {
         if (bytes.isEmpty()) return
+        if (sessionManager.isGuestMode()) {
+            sessionManager.saveGuestAvatar(bytes)
+            _uiState.update {
+                it.copy(
+                    avatarBytes = bytes,
+                    toastMessage = appContext.getString(R.string.profile_avatar_updated_local)
+                )
+            }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             val fileName = "avatar_${System.currentTimeMillis()}.jpg"
@@ -122,6 +164,8 @@ class PersonalInformationViewModel @Inject constructor(
     fun consumeToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
+
+    private fun defaultGuestName(): String = appContext.getString(R.string.guest_placeholder_name)
 }
 
 data class PersonalInfoUiState(
@@ -130,6 +174,7 @@ data class PersonalInfoUiState(
     val avatarUrl: String = "",
     val avatarBytes: ByteArray? = null,
     val isLoading: Boolean = false,
-    val toastMessage: String? = null
+    val toastMessage: String? = null,
+    val isGuestMode: Boolean = false
 )
 

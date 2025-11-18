@@ -162,6 +162,16 @@ private fun PersonalInformationContent(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                val displayName = if (state.name.isBlank() && state.isGuestMode) {
+                    stringResource(id = R.string.guest_placeholder_name)
+                } else {
+                    state.name
+                }
+                val displayEmail = if (state.email.isBlank() && state.isGuestMode) {
+                    stringResource(id = R.string.guest_placeholder_email)
+                } else {
+                    state.email
+                }
                 ProfileListCard {
                     ProfileRow(
                         title = stringResource(id = R.string.avatar_label),
@@ -176,13 +186,13 @@ private fun PersonalInformationContent(
                     Divider()
                     ProfileRow(
                         title = stringResource(id = R.string.email_label),
-                        trailingText = state.email,
+                        trailingText = displayEmail,
                         onClick = null
                     )
                     Divider()
                     ProfileRow(
                         title = stringResource(id = R.string.name_label),
-                        trailingText = state.name,
+                        trailingText = displayName,
                         onClick = { showNameDialog = true }
                     )
                 }
@@ -190,7 +200,7 @@ private fun PersonalInformationContent(
         }
     }
 
-    if (showAvatarDialog) {
+    if (showAvatarDialog && !state.isGuestMode) {
         AlertDialog(
             onDismissRequest = { showAvatarDialog = false },
             title = { Text(text = stringResource(id = R.string.change_avatar)) },
@@ -228,7 +238,7 @@ private fun PersonalInformationContent(
         )
     }
 
-    if (showNameDialog) {
+    if (showNameDialog && !state.isGuestMode) {
         EditNameDialog(
             currentName = state.name,
             onDismiss = { showNameDialog = false },

@@ -14,6 +14,7 @@ class ProtocolPayloadBuffer(
         if (payload.isEmpty()) return emptyList()
         val frames = mutableListOf<ByteArray>()
         synchronized(lock) {
+            val beforeSize = buffer.size
             buffer += payload
             while (true) {
                 val extraction = extractor.extract(buffer) ?: break
@@ -28,6 +29,10 @@ class ProtocolPayloadBuffer(
                 Log.w(TAG, "append: clearing oversized buffer size=${buffer.size}")
                 buffer = ByteArray(0)
             }
+            Log.d(
+                TAG,
+                "append: before=$beforeSize incoming=${payload.size} after=${buffer.size} frames=${frames.size}"
+            )
         }
         return frames
     }

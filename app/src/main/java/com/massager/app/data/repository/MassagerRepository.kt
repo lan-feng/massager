@@ -3,6 +3,7 @@ package com.massager.app.data.repository
 import androidx.room.withTransaction
 import com.massager.app.core.DeviceCatalog
 import com.massager.app.data.local.MassagerDatabase
+import com.massager.app.data.local.SessionManager
 import com.massager.app.data.local.entity.DeviceEntity
 import com.massager.app.data.local.entity.MeasurementEntity
 import com.massager.app.data.remote.MassagerApiService
@@ -13,6 +14,7 @@ import com.massager.app.domain.model.DeviceMetadata
 import com.massager.app.domain.model.TemperatureRecord
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.json.JSONException
@@ -28,6 +30,7 @@ class MassagerRepository @Inject constructor(
     private val api: MassagerApiService,
     private val database: MassagerDatabase,
     private val deviceCatalog: DeviceCatalog,
+    private val sessionManager: SessionManager,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
 
@@ -46,6 +49,9 @@ class MassagerRepository @Inject constructor(
         deviceTypes: List<Int> = deviceCatalog.reservedDeviceTypes
     ): Result<List<DeviceMetadata>> = withContext(ioDispatcher) {
         runCatching {
+            if (sessionManager.isGuestMode()) {
+                return@runCatching localDevicesSnapshot()
+            }
             val typesToRequest = deviceTypes.ifEmpty { deviceCatalog.reservedDeviceTypes }
             val response = api.fetchDevicesByType(typesToRequest.joinToString(","))
             if (response.success.not()) {
@@ -73,23 +79,42 @@ class MassagerRepository @Inject constructor(
         uniqueId: String? = null
     ): Result<DeviceMetadata> = withContext(ioDispatcher) {
         runCatching {
-            val type = deviceCatalog.resolveType(productId, displayName)
-            val response = api.bindDevice(
-                DeviceBindRequest(
-                    deviceSerial = deviceSerial,
-                    deviceType = type,
-                    nameAlias = displayName.takeIf { it.isNotBlank() },
-                    firmwareVersion = firmwareVersion,
-                    uniqueId = uniqueId
+            if (sessionManager.isGuestMode()) {
+                val now = Instant.now()
+                val generatedId = deviceSerial
+                    .takeIf { it.isNotBlank() }
+                    ?: uniqueId
+                    ?: now.toEpochMilli().toString()
+                val entity = DeviceEntity(
+                    id = generatedId,
+                    name = displayName.ifBlank { deviceSerial.ifBlank { "Local Device" } },
+                    serial = deviceSerial.ifBlank { uniqueId },
+                    ownerId = sessionManager.userId().orEmpty().ifBlank { "guest" },
+                    status = "online",
+                    batteryLevel = 100,
+                    lastSeenAt = now
                 )
-            )
-            if (response.success.not()) {
-                throw IllegalStateException(response.message ?: "Failed to bind device")
+                database.deviceDao().upsert(entity)
+                entity.toDeviceMetadata()
+            } else {
+                val type = deviceCatalog.resolveType(productId, displayName)
+                val response = api.bindDevice(
+                    DeviceBindRequest(
+                        deviceSerial = deviceSerial,
+                        deviceType = type,
+                        nameAlias = displayName.takeIf { it.isNotBlank() },
+                        firmwareVersion = firmwareVersion,
+                        uniqueId = uniqueId
+                    )
+                )
+                if (response.success.not()) {
+                    throw IllegalStateException(response.message ?: "Failed to bind device")
+                }
+                val dto = response.data ?: throw IllegalStateException("Empty bind response")
+                val entity = dto.toEntity(defaultAlias = displayName)
+                database.deviceDao().upsert(entity)
+                entity.toDeviceMetadata()
             }
-            val dto = response.data ?: throw IllegalStateException("Empty bind response")
-            val entity = dto.toEntity(defaultAlias = displayName)
-            database.deviceDao().upsert(entity)
-            entity.toDeviceMetadata()
         }
     }
 
@@ -107,6 +132,12 @@ class MassagerRepository @Inject constructor(
     suspend fun renameDevice(deviceId: String, newName: String): Result<DeviceMetadata> =
         withContext(ioDispatcher) {
             runCatching {
+                if (sessionManager.isGuestMode()) {
+                    val existing = database.deviceDao().findById(deviceId)
+                        ?: throw IllegalStateException("Device not found locally")
+                    database.deviceDao().updateName(deviceId, newName)
+                    return@runCatching existing.copy(name = newName).toDeviceMetadata()
+                }
                 val idLong = deviceId.toLongOrNull()
                     ?: throw IllegalArgumentException("Invalid device id: $deviceId")
                 val response = api.updateDevice(
@@ -134,6 +165,13 @@ class MassagerRepository @Inject constructor(
     suspend fun removeDevice(deviceId: String): Result<Unit> =
         withContext(ioDispatcher) {
             runCatching {
+                if (sessionManager.isGuestMode()) {
+                    database.withTransaction {
+                        database.deviceDao().deleteById(deviceId)
+                        database.measurementDao().deleteForDevice(deviceId)
+                    }
+                    return@runCatching Unit
+                }
                 val idLong = deviceId.toLongOrNull()
                     ?: throw IllegalArgumentException("Invalid device id: $deviceId")
                 val response = api.deleteDevice(idLong)
@@ -150,6 +188,17 @@ class MassagerRepository @Inject constructor(
     suspend fun refreshMeasurements(deviceId: String): Result<List<TemperatureRecord>> =
         withContext(ioDispatcher) {
             runCatching {
+                if (sessionManager.isGuestMode()) {
+                    val existing = database.measurementDao().getMeasurementsForDevice(deviceId).first()
+                    val records = if (existing.isEmpty()) {
+                        val seeded = seedGuestMeasurements(deviceId)
+                        database.measurementDao().upsertAll(seeded)
+                        seeded
+                    } else {
+                        existing
+                    }
+                    return@runCatching records.map { it.toDomain() }
+                }
                 val deviceIdLong = deviceId.toLongOrNull()
                     ?: throw IllegalArgumentException("Invalid device id: $deviceId")
                 val response = api.fetchMeasurements(deviceIdLong)
@@ -181,6 +230,31 @@ class MassagerRepository @Inject constructor(
                 }
             }
         }
+
+    private suspend fun localDevicesSnapshot(): List<DeviceMetadata> =
+        database.deviceDao().getDevices().first().map { it.toDeviceMetadata() }
+
+    private suspend fun seedGuestMeasurements(deviceId: String): List<MeasurementEntity> {
+        val now = Instant.now()
+        return listOf(0, 1, 2, 3, 4).map { index ->
+            MeasurementEntity(
+                id = "$deviceId-sample-$index",
+                deviceId = deviceId,
+                type = "temperature",
+                value = 35.5 + index * 0.3,
+                unit = "C",
+                recordedAt = now.minusSeconds(index * 3600L),
+                rawData = null
+            )
+        }
+    }
+
+    private fun MeasurementEntity.toDomain(): TemperatureRecord =
+        TemperatureRecord(
+            id = id,
+            celsius = value ?: 0.0,
+            recordedAt = recordedAt
+        )
 
     private fun parseInstant(value: String?): Instant? {
         if (value.isNullOrBlank()) return null

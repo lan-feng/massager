@@ -377,6 +377,7 @@ class MassagerBluetoothService @Inject constructor(
 
     fun restartScan() {
         Log.d(TAG, "restartScan: restarting BLE scan")
+        scanCoordinator.clearCache()
         when (scanCoordinator.restartScan()) {
             is BleScanCoordinator.ScanStartResult.Started -> _connectionState.update {
                 it.copy(
@@ -649,6 +650,7 @@ class MassagerBluetoothService @Inject constructor(
             Log.w(TAG, "sendProtocolCommand: no active adapter, command=$command")
             return false
         }
+        Log.d(TAG, "sendProtocolCommand: preparing command=$command writeType=$writeType")
         var serviceUuid = activeServiceUuid
         var characteristicUuid = activeWriteCharacteristicUuid
         if (serviceUuid == null || characteristicUuid == null) {
@@ -684,6 +686,11 @@ class MassagerBluetoothService @Inject constructor(
             return false
         }
         val payload = adapter.encode(command)
+        Log.d(
+            TAG,
+            "sendProtocolCommand: encoded payload=${payload.toDebugHexString()} " +
+                "service=$resolvedService characteristic=$resolvedCharacteristic"
+        )
         val result = writeCharacteristic(resolvedService, resolvedCharacteristic, payload, writeType)
         if (!result) {
             Log.e(
@@ -883,6 +890,10 @@ class MassagerBluetoothService @Inject constructor(
     private fun handleProtocolPayload(payload: ByteArray) {
         if (payload.isEmpty()) return
         val adapter = activeAdapter ?: return
+        Log.d(
+            TAG,
+            "handleProtocolPayload: incoming raw=${payload.toDebugHexString()} length=${payload.size}"
+        )
         val frames = payloadBuffer.append(payload)
         if (frames.isEmpty()) {
             val now = SystemClock.elapsedRealtime()
@@ -893,7 +904,11 @@ class MassagerBluetoothService @Inject constructor(
             return
         }
         ioScope.launch {
-            frames.forEach { frame ->
+            frames.forEachIndexed { index, frame ->
+                Log.d(
+                    TAG,
+                    "handleProtocolPayload: decoding frame#$index hex=${frame.toDebugHexString()} length=${frame.size}"
+                )
                 val messages = adapter.decode(frame)
                 if (messages.isEmpty()) {
                     val now = SystemClock.elapsedRealtime()
@@ -901,7 +916,7 @@ class MassagerBluetoothService @Inject constructor(
                         lastEmptyDecodeLogAt = now
                         Log.v(TAG, "handleProtocolPayload: no decodable messages (length=${frame.size})")
                     }
-                    return@forEach
+                    return@forEachIndexed
                 }
                 Log.d(TAG, "handleProtocolPayload: decoded ${messages.toString()} message(s)")
                 messages.forEach { _protocolMessages.tryEmit(it) }

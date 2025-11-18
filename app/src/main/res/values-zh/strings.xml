@@ -218,4 +218,12 @@
     <string name="device_removed">设备移除成功</string>
     <string name="rename_error_length">名称长度需在 2 到 30 个字符之间。</string>
     <string name="rename_error_invalid">仅支持字母、数字和空格。</string>
+    <string name="guest_mode_entry_notice">当前为游客模式，仅支持本地设备控制，云同步不可用。</string>
+    <string name="guest_mode_cloud_restricted">该功能需登录正式账号（先绑定邮箱后可跨设备同步）。</string>
+    <string name="guest_mode_cross_device">游客模式无法跨设备登录，请绑定邮箱并登录正式账号。</string>
+    <string name="exit_guest_mode">退出游客模式</string>
+    <string name="guest_placeholder_name">游客</string>
+    <string name="guest_placeholder_email">未登录账号</string>
+    <string name="profile_name_updated_local">名称已本地保存</string>
+    <string name="profile_avatar_updated_local">头像已本地保存</string>
 </resources>

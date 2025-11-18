@@ -218,4 +218,12 @@
     <string name="device_removed">Device removed successfully</string>
     <string name="rename_error_length">Name must be between 2 and 30 characters.</string>
     <string name="rename_error_invalid">Only letters, numbers, and spaces are allowed.</string>
+    <string name="guest_mode_entry_notice">Guest mode is active. Only local device control is supported; cloud sync is unavailable.</string>
+    <string name="guest_mode_cloud_restricted">This feature requires a full account (bind email to enable cross-device sync).</string>
+    <string name="guest_mode_cross_device">Guest mode cannot be used for cross-device login. Bind your email and sign in with a full account.</string>
+    <string name="exit_guest_mode">Exit guest mode</string>
+    <string name="guest_placeholder_name">Guest</string>
+    <string name="guest_placeholder_email">Not signed in</string>
+    <string name="profile_name_updated_local">Name updated locally</string>
+    <string name="profile_avatar_updated_local">Avatar saved locally</string>
 </resources>
