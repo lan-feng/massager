@@ -22,4 +22,7 @@ interface AuthApiService {
 
     @POST("auth/v1/password/reset")
     suspend fun resetPassword(@Body request: ResetPasswordRequest): ApiEnvelope<Unit>
+
+    @POST("auth/v1/logout")
+    suspend fun logout(): ApiEnvelope<Unit>
 }

@@ -44,7 +44,6 @@ class AccountSecurityViewModel @Inject constructor(
     fun logout() {
         viewModelScope.launch {
             logoutUseCase()
-            sessionManager.clear()
             _uiState.update {
                 it.copy(
                     showLogoutDialog = false,

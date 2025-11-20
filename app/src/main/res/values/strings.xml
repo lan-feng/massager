@@ -71,6 +71,7 @@
     <string name="logout_confirm">Are you sure you want to log out?</string>
     <string name="logout_confirm_cancel">Cancel</string>
     <string name="logout_confirm_confirm">Log out</string>
+    <string name="logout_failed">Unable to logout right now</string>
     <string name="third_party_binding_coming_soon">Third-party binding feature coming soon</string>
     <string name="third_party_facebook">Facebook</string>
     <string name="third_party_google">Google</string>

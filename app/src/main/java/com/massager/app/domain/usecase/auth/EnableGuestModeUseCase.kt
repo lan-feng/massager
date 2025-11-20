@@ -9,7 +9,7 @@ class EnableGuestModeUseCase @Inject constructor(
 ){
     operator fun invoke() {
         sessionManager.clear()
-        sessionManager.saveUserId("guest")
+        sessionManager.saveUserId(SessionManager.GUEST_USER_ID)
         sessionManager.saveAppId(BuildConfig.APP_ID)
         sessionManager.enableGuestMode()
     }

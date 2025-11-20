@@ -66,12 +66,20 @@ class SessionManager @Inject constructor(
         prefs.edit().clear().apply()
     }
 
-    private companion object {
+    fun activeOwnerId(): String =
+        userId()?.takeIf { it.isNotBlank() }
+            ?: if (isGuestMode()) GUEST_USER_ID else GUEST_USER_ID
+
+    fun accountOwnerId(): String? = userId()?.takeIf { it.isNotBlank() }
+
+    companion object {
         const val KEY_TOKEN = "key_token"
         const val KEY_USER_ID = "key_user_id"
         const val KEY_APP_ID = "key_app_id"
         const val KEY_GUEST_MODE = "key_guest_mode"
         const val KEY_GUEST_NAME = "key_guest_name"
         const val KEY_GUEST_AVATAR = "key_guest_avatar"
+
+        const val GUEST_USER_ID = "guest"
     }
 }

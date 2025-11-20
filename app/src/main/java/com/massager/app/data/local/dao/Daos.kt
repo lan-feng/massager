@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.massager.app.data.local.SessionManager
 import com.massager.app.data.local.entity.DeviceEntity
 import com.massager.app.data.local.entity.MassagerDeviceEntity
 import com.massager.app.data.local.entity.MeasurementEntity
@@ -26,8 +27,29 @@ interface UserDao {
 
 @Dao
 interface DeviceDao {
-    @Query("SELECT * FROM devices")
-    fun getDevices(): Flow<List<DeviceEntity>>
+    @Query(
+        """
+        SELECT * FROM devices 
+        WHERE ownerId = :ownerId 
+            OR (:ownerId = :guestOwnerId AND (ownerId IS NULL OR ownerId = ''))
+        """
+    )
+    fun getDevicesForOwner(
+        ownerId: String,
+        guestOwnerId: String = SessionManager.GUEST_USER_ID
+    ): Flow<List<DeviceEntity>>
+
+    @Query(
+        """
+        SELECT * FROM devices 
+        WHERE ownerId = :ownerId 
+            OR (:ownerId = :guestOwnerId AND (ownerId IS NULL OR ownerId = ''))
+        """
+    )
+    suspend fun listDevicesForOwner(
+        ownerId: String,
+        guestOwnerId: String = SessionManager.GUEST_USER_ID
+    ): List<DeviceEntity>
 
     @Query("SELECT comboInfo FROM devices WHERE id = :deviceId LIMIT 1")
     fun getComboInfo(deviceId: String): Flow<String?>
@@ -37,6 +59,18 @@ interface DeviceDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(device: DeviceEntity)
+
+    @Query(
+        """
+        DELETE FROM devices 
+        WHERE ownerId = :ownerId 
+            OR (:ownerId = :guestOwnerId AND (ownerId IS NULL OR ownerId = ''))
+    """
+    )
+    suspend fun clearForOwner(
+        ownerId: String,
+        guestOwnerId: String = SessionManager.GUEST_USER_ID
+    )
 
     @Query("DELETE FROM devices")
     suspend fun clear()

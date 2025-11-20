@@ -322,6 +322,7 @@ fun MassagerNavHost(
             val uiState = viewModel.uiState.collectAsStateWithLifecycle()
             LaunchedEffect(uiState.value.logoutCompleted) {
                 if (uiState.value.logoutCompleted) {
+                    authViewModel.clearAuthenticationFlag()
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }

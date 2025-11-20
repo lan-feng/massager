@@ -53,6 +53,7 @@
     <string name="logout_confirm">确定要退出登录吗？</string>
     <string name="logout_confirm_cancel">取消</string>
     <string name="logout_confirm_confirm">退出登录</string>
+    <string name="logout_failed">当前无法退出登录</string>
     <string name="third_party_binding_coming_soon">第三方绑定功能即将上线</string>
     <string name="third_party_facebook">Facebook</string>
     <string name="third_party_google">Google</string>

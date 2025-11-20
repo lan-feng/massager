@@ -1,6 +1,9 @@
 package com.massager.app.data.repository
 
 import com.massager.app.BuildConfig
+import androidx.room.withTransaction
+import androidx.room.withTransaction
+import com.massager.app.data.local.MassagerDatabase
 import com.massager.app.data.local.SessionManager
 import com.massager.app.data.remote.AuthApiService
 import com.massager.app.data.remote.dto.AuthRequest
@@ -16,7 +19,8 @@ import javax.inject.Singleton
 @Singleton
 class AuthRepository @Inject constructor(
     private val api: AuthApiService,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val database: MassagerDatabase
 ) {
 
     suspend fun login(email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
@@ -111,8 +115,41 @@ class AuthRepository @Inject constructor(
             }
         }
 
-    fun logout() {
+    suspend fun logout(): Result<Unit> = withContext(Dispatchers.IO) {
+        val isGuest = sessionManager.isGuestMode()
+        val ownerId = if (isGuest) {
+            SessionManager.GUEST_USER_ID
+        } else {
+            sessionManager.accountOwnerId()
+        }
+        val apiResult = if (isGuest) {
+            Result.success(Unit)
+        } else {
+            runCatching {
+                val response = api.logout()
+                if (response.success.not()) {
+                    throw IllegalStateException(response.message ?: "Logout failed")
+                }
+            }
+        }
+        val clearResult = runCatching { clearLocalData(ownerId) }
         sessionManager.clear()
+        if (apiResult.isFailure) apiResult else clearResult
+    }
+
+    private suspend fun clearLocalData(ownerId: String?) {
+        if (ownerId.isNullOrBlank()) {
+            database.clearAllTables()
+            return
+        }
+        database.withTransaction {
+            val ownedDevices = database.deviceDao().listDevicesForOwner(ownerId)
+            ownedDevices.forEach { device ->
+                database.measurementDao().deleteForDevice(device.id)
+            }
+            database.deviceDao().clearForOwner(ownerId)
+            database.userDao().clear()
+        }
     }
 }
 

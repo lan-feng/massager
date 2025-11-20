@@ -186,8 +186,14 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun logout() = viewModelScope.launch {
-        logoutUseCase()
-        sessionManager.clear()
+        val result = logoutUseCase()
+        result.onFailure { throwable ->
+            _uiState.update {
+                it.copy(
+                    toastMessage = throwable.message ?: appContext.getString(R.string.logout_failed)
+                )
+            }
+        }
     }
 
     fun showGuestRestriction(message: String = guestRestrictionMessage) {

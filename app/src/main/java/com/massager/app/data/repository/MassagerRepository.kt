@@ -38,8 +38,9 @@ class MassagerRepository @Inject constructor(
     fun observeDeviceComboInfo(deviceId: String): Flow<String?> =
         database.deviceDao().getComboInfo(deviceId)
 
-    fun deviceMetadata(): Flow<List<DeviceMetadata>> =
-        database.deviceDao().getDevices().map { devices ->
+    fun deviceMetadata(): Flow<List<DeviceMetadata>> {
+        val ownerId = sessionManager.activeOwnerId()
+        return database.deviceDao().getDevicesForOwner(ownerId).map { devices ->
             devices
                 .sortedWith(
                     compareByDescending<DeviceEntity> {
@@ -48,6 +49,7 @@ class MassagerRepository @Inject constructor(
                 )
                 .map { it.toDeviceMetadata() }
         }
+    }
 
     suspend fun refreshDevices(
         deviceTypes: List<Int> = deviceCatalog.reservedDeviceTypes
@@ -56,6 +58,8 @@ class MassagerRepository @Inject constructor(
             if (sessionManager.isGuestMode()) {
                 return@runCatching localDevicesSnapshot()
             }
+            val ownerId = sessionManager.accountOwnerId()
+                ?: throw IllegalStateException("Missing account owner id")
             val typesToRequest = deviceTypes.ifEmpty { deviceCatalog.reservedDeviceTypes }
             val response = api.fetchDevicesByType(typesToRequest.joinToString(","))
             if (response.success.not()) {
@@ -66,9 +70,9 @@ class MassagerRepository @Inject constructor(
                 val type = dto.deviceType
                 type == null || allowedTypeSet.contains(type)
             }
-            val entities = devices.map { dto -> dto.toEntity() }
+            val entities = devices.map { dto -> dto.toEntity(ownerIdOverride = ownerId) }
             database.withTransaction {
-                database.deviceDao().clear()
+                database.deviceDao().clearForOwner(ownerId)
                 database.deviceDao().upsertAll(entities)
             }
             entities.map { entity -> entity.toDeviceMetadata() }
@@ -89,11 +93,12 @@ class MassagerRepository @Inject constructor(
                     .takeIf { it.isNotBlank() }
                     ?: uniqueId
                     ?: now.toEpochMilli().toString()
+                val ownerId = sessionManager.activeOwnerId()
                 val entity = DeviceEntity(
                     id = generatedId,
                     name = displayName.ifBlank { deviceSerial.ifBlank { "Local Device" } },
                     serial = deviceSerial.ifBlank { uniqueId },
-                    ownerId = sessionManager.userId().orEmpty().ifBlank { "guest" },
+                    ownerId = ownerId,
                     status = "online",
                     batteryLevel = 100,
                     lastSeenAt = now
@@ -101,6 +106,8 @@ class MassagerRepository @Inject constructor(
                 database.deviceDao().upsert(entity)
                 entity.toDeviceMetadata()
             } else {
+                val ownerId = sessionManager.accountOwnerId()
+                    ?: throw IllegalStateException("Missing account owner id")
                 val type = deviceCatalog.resolveType(productId, displayName)
                 val response = api.bindDevice(
                     DeviceBindRequest(
@@ -115,7 +122,10 @@ class MassagerRepository @Inject constructor(
                     throw IllegalStateException(response.message ?: "Failed to bind device")
                 }
                 val dto = response.data ?: throw IllegalStateException("Empty bind response")
-                val entity = dto.toEntity(defaultAlias = displayName)
+                val entity = dto.toEntity(
+                    defaultAlias = displayName,
+                    ownerIdOverride = ownerId
+                )
                 database.deviceDao().upsert(entity)
                 entity.toDeviceMetadata()
             }
@@ -142,6 +152,8 @@ class MassagerRepository @Inject constructor(
                     database.deviceDao().updateName(deviceId, newName)
                     return@runCatching existing.copy(name = newName).toDeviceMetadata()
                 }
+                val ownerId = sessionManager.accountOwnerId()
+                    ?: throw IllegalStateException("Missing account owner id")
                 val idLong = deviceId.toLongOrNull()
                     ?: throw IllegalArgumentException("Invalid device id: $deviceId")
                 val response = api.updateDevice(
@@ -155,7 +167,10 @@ class MassagerRepository @Inject constructor(
                 }
                 val dto = response.data
                 if (dto != null) {
-                    val entity = dto.toEntity(defaultAlias = newName)
+                    val entity = dto.toEntity(
+                        defaultAlias = newName,
+                        ownerIdOverride = ownerId
+                    )
                     database.deviceDao().upsert(entity)
                     entity.toDeviceMetadata()
                 } else {
@@ -259,8 +274,11 @@ class MassagerRepository @Inject constructor(
             }
         }
 
-    private suspend fun localDevicesSnapshot(): List<DeviceMetadata> =
-        database.deviceDao().getDevices().first().map { it.toDeviceMetadata() }
+    private suspend fun localDevicesSnapshot(): List<DeviceMetadata> {
+        val ownerId = sessionManager.activeOwnerId()
+        return database.deviceDao().getDevicesForOwner(ownerId).first()
+            .map { it.toDeviceMetadata() }
+    }
 
     private suspend fun seedGuestMeasurements(deviceId: String): List<MeasurementEntity> {
         val now = Instant.now()
@@ -306,7 +324,10 @@ class MassagerRepository @Inject constructor(
         }
     }
 
-    private fun DeviceDto.toEntity(defaultAlias: String? = null): DeviceEntity =
+    private fun DeviceDto.toEntity(
+        defaultAlias: String? = null,
+        ownerIdOverride: String? = null
+    ): DeviceEntity =
         DeviceEntity(
             id = id.toString(),
             name = nameAlias?.takeIf { it.isNotBlank() }
@@ -315,7 +336,7 @@ class MassagerRepository @Inject constructor(
                 ?: id.toString(),
             serial = deviceSerial,
             comboInfo = comboInfo,
-            ownerId = userId?.toString().orEmpty(),
+            ownerId = ownerIdOverride ?: userId?.toString().orEmpty(),
             status = status,
             batteryLevel = batteryLevel,
             lastSeenAt = parseInstant(lastSeenAt)
