@@ -320,6 +320,7 @@ class MassagerBluetoothService @Inject constructor(
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
+            Log.d(TAG, "onCharacteristicChanged: mac=${gatt.device.address} value=${value.toDebugHexString()}")
             handleProtocolPayload(value)
         }
 
@@ -328,6 +329,7 @@ class MassagerBluetoothService @Inject constructor(
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic
         ) {
+            Log.d(TAG, "onCharacteristicChanged: mac=${gatt.device.address}")
             characteristic.value?.let(::handleProtocolPayload)
         }
 
@@ -337,6 +339,7 @@ class MassagerBluetoothService @Inject constructor(
             status: Int
         ) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.d(TAG, "onCharacteristicRead: mac=${gatt.device.address}")
                 characteristic.value?.let(::handleProtocolPayload)
             }
         }

@@ -6,7 +6,28 @@ sealed class Screen(val route: String) {
     data object Login : Screen("login")
     data object Register : Screen("register")
     data object Home : Screen("home")
-    data object DeviceScan : Screen("device_scan")
+    data object DeviceScan : Screen("device_scan") {
+        const val ARG_SOURCE = "source"
+        const val ARG_EXCLUDED = "excluded"
+        const val ARG_OWNER_DEVICE_ID = "ownerDeviceId"
+        val routePattern: String =
+            "device_scan?$ARG_SOURCE={$ARG_SOURCE}&$ARG_EXCLUDED={$ARG_EXCLUDED}&$ARG_OWNER_DEVICE_ID={$ARG_OWNER_DEVICE_ID}"
+
+        fun createRoute(
+            source: DeviceScanSource,
+            ownerDeviceId: String? = null,
+            excludedSerials: List<String> = emptyList()
+        ): String {
+            val sourceParam = source.name
+            val ownerParam = Uri.encode(ownerDeviceId.orEmpty())
+            val excludedParam = if (excludedSerials.isEmpty()) {
+                ""
+            } else {
+                Uri.encode(excludedSerials.joinToString("|"))
+            }
+            return "device_scan?$ARG_SOURCE=$sourceParam&$ARG_EXCLUDED=$excludedParam&$ARG_OWNER_DEVICE_ID=$ownerParam"
+        }
+    }
     data object DeviceControl : Screen("device_control") {
         const val ARG_DEVICE_ID = "deviceId"
         const val ARG_DEVICE_NAME = "deviceName"
@@ -33,4 +54,9 @@ sealed class Screen(val route: String) {
     data object ChangePassword : Screen("change_password")
     data object DeleteAccount : Screen("delete_account")
     data object ForgetPassword : Screen("forget_password")
+}
+
+enum class DeviceScanSource {
+    HOME,
+    CONTROL
 }

@@ -1,5 +1,6 @@
 package com.massager.app.presentation.device
 
+import android.content.Context
 import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
@@ -15,7 +16,13 @@ import com.massager.app.domain.device.DeviceSessionRegistry
 import com.massager.app.domain.device.DeviceTelemetry
 import com.massager.app.domain.device.DeviceTelemetryMapper
 import com.massager.app.domain.device.DeviceTelemetryMessage
+import com.massager.app.domain.model.ComboDeviceInfo
+import com.massager.app.domain.model.ComboInfoPayload
+import com.massager.app.domain.model.ComboInfoSerializer
+import com.massager.app.domain.usecase.device.ObserveDeviceComboInfoUseCase
+import com.massager.app.domain.usecase.device.UpdateDeviceComboInfoUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.massager.app.presentation.navigation.Screen
 import javax.inject.Inject
 import kotlin.math.max
@@ -39,14 +46,23 @@ class DeviceControlViewModel @Inject constructor(
     private val bluetoothService: MassagerBluetoothService,
     savedStateHandle: SavedStateHandle,
     private val sessionRegistry: DeviceSessionRegistry,
-    private val telemetryMappers: Set<@JvmSuppressWildcards DeviceTelemetryMapper>
+    private val telemetryMappers: Set<@JvmSuppressWildcards DeviceTelemetryMapper>,
+    private val observeComboInfoUseCase: ObserveDeviceComboInfoUseCase,
+    private val updateDeviceComboInfoUseCase: UpdateDeviceComboInfoUseCase,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     private val tag = logTag("DeviceControlVM")
 
+    private val mainDeviceId =
+        savedStateHandle.get<String>(Screen.DeviceControl.ARG_DEVICE_ID)?.takeIf { it.isNotBlank() }
     private var initialStatusRequested = false
     private var lastConnectionError: Pair<BleConnectionState.Status, String?>? = null
     private var awaitingStopAck = false
+    private var comboDevices: List<ComboDeviceInfo> = emptyList()
+    private var comboInfoRaw: String? = null
+    private var pendingSelectionSerial: String? = null
+    private var selectedDeviceSerial: String? = null
 
     private val preferredName: String? =
         savedStateHandle.get<String>(Screen.DeviceControl.ARG_DEVICE_NAME)?.takeIf { it.isNotBlank() }
@@ -64,8 +80,12 @@ class DeviceControlViewModel @Inject constructor(
         targetAddress?.let { address ->
             _uiState.update { it.copy(deviceAddress = address) }
         }
+        selectedDeviceSerial = targetAddress
+        _uiState.update { it.copy(selectedDeviceSerial = selectedDeviceSerial) }
+        buildDeviceCards()
         observeConnection()
         observeProtocolMessages()
+        observeComboDevices()
         attemptInitialConnection()
     }
 
@@ -197,6 +217,10 @@ class DeviceControlViewModel @Inject constructor(
         _uiState.update { it.copy(message = null) }
     }
 
+    fun consumeTransientMessage() {
+        _uiState.update { it.copy(transientMessage = null) }
+    }
+
     fun refreshAfterReturning() {
         val current = _uiState.value
         if (current.isConnected && current.isProtocolReady) {
@@ -206,21 +230,31 @@ class DeviceControlViewModel @Inject constructor(
         }
     }
 
+    fun disconnectActiveDevice() {
+        bluetoothService.disconnect()
+    }
+
     private fun observeConnection() {
         viewModelScope.launch {
             bluetoothService.connectionState.collectLatest { state ->
                 val isConnected = state.status == BleConnectionState.Status.Connected
                 val isConnecting = state.status == BleConnectionState.Status.Connecting
+                if (!state.deviceAddress.isNullOrBlank()) {
+                    selectedDeviceSerial = state.deviceAddress
+                }
                 _uiState.update {
+                    val resolvedAddress = state.deviceAddress ?: selectedDeviceSerial
+                        ?: it.deviceAddress ?: targetAddress
                     val resolvedName = resolveDisplayName(
                         connectionName = state.deviceName,
                         currentName = it.deviceName,
-                        preferred = preferredName,
-                        address = state.deviceAddress ?: it.deviceAddress ?: targetAddress
+                        preferred = preferredNameFor(resolvedAddress),
+                        address = resolvedAddress
                     )
                     it.copy(
                         deviceName = resolvedName,
-                        deviceAddress = state.deviceAddress ?: it.deviceAddress ?: targetAddress,
+                        deviceAddress = resolvedAddress,
+                        selectedDeviceSerial = resolvedAddress,
                         isConnected = isConnected,
                         isConnecting = isConnecting,
                         isProtocolReady = state.isProtocolReady
@@ -264,6 +298,187 @@ class DeviceControlViewModel @Inject constructor(
                 applyTelemetry(telemetry)
             }
         }
+    }
+
+    private fun observeComboDevices() {
+        val deviceId = mainDeviceId ?: return
+        viewModelScope.launch {
+            observeComboInfoUseCase(deviceId).collectLatest { raw ->
+                comboInfoRaw = raw
+                comboDevices = ComboInfoSerializer.parse(raw).devices
+                buildDeviceCards()
+                attemptPendingSelection()
+            }
+        }
+    }
+
+    private fun buildDeviceCards() {
+        val cards = buildList {
+            val mainName = preferredName?.takeIf { it.isNotBlank() }
+                ?: _uiState.value.deviceName.takeIf { it.isNotBlank() }
+                ?: targetAddress.orEmpty()
+            add(
+                DeviceCardState(
+                    deviceSerial = targetAddress,
+                    displayName = mainName,
+                    isSelected = isSerialSelected(targetAddress),
+                    isMainDevice = true
+                )
+            )
+            comboDevices.forEach { device ->
+                val displayName = device.nameAlias?.takeIf { it.isNotBlank() } ?: device.deviceSerial
+                add(
+                    DeviceCardState(
+                        deviceSerial = device.deviceSerial,
+                        displayName = displayName,
+                        isSelected = isSerialSelected(device.deviceSerial),
+                        isMainDevice = false
+                    )
+                )
+            }
+        }
+        _uiState.update { it.copy(deviceCards = cards) }
+    }
+
+    private fun attemptPendingSelection() {
+        val pending = pendingSelectionSerial ?: return
+        val available = buildList {
+            targetAddress?.let { add(it) }
+            addAll(comboDevices.map(ComboDeviceInfo::deviceSerial))
+        }
+        if (available.any { it.equals(pending, ignoreCase = true) }) {
+            updateSelectedDevice(pending, shouldReconnect = true)
+            pendingSelectionSerial = null
+        }
+    }
+
+    fun selectComboDevice(serial: String?) {
+        val sanitized = serial ?: targetAddress
+        if (sanitized.isNullOrBlank()) return
+        pendingSelectionSerial = null
+        updateSelectedDevice(sanitized, shouldReconnect = true)
+    }
+
+    fun handleComboResult(serial: String?) {
+        pendingSelectionSerial = serial
+        attemptPendingSelection()
+    }
+
+    fun removeAttachedDevice(serial: String) {
+        if (serial.isBlank()) return
+        val updated = comboDevices.filterNot { device ->
+            device.deviceSerial.equals(serial, ignoreCase = true)
+        }
+        if (updated.size == comboDevices.size) {
+            postTransientMessage(appContext.getString(R.string.device_combo_manage_error_not_found))
+            return
+        }
+        modifyComboDevices(
+            updatedDevices = updated,
+            successMessageRes = R.string.device_removed
+        ) {
+            if (serial.equals(selectedDeviceSerial, ignoreCase = true)) {
+                val fallback = targetAddress ?: updated.firstOrNull()?.deviceSerial
+                if (fallback != null) {
+                    updateSelectedDevice(fallback, shouldReconnect = true)
+                } else {
+                    bluetoothService.disconnect()
+                    selectedDeviceSerial = null
+                    buildDeviceCards()
+                }
+            }
+        }
+    }
+
+    fun renameAttachedDevice(serial: String, newName: String) {
+        if (serial.isBlank()) return
+        val updated = comboDevices.map { device ->
+            if (device.deviceSerial.equals(serial, ignoreCase = true)) {
+                device.copy(nameAlias = newName)
+            } else {
+                device
+            }
+        }
+        if (updated == comboDevices) {
+            postTransientMessage(appContext.getString(R.string.device_combo_manage_error_not_found))
+            return
+        }
+        modifyComboDevices(
+            updatedDevices = updated,
+            successMessageRes = R.string.device_renamed
+        )
+    }
+
+    private fun updateSelectedDevice(serial: String, shouldReconnect: Boolean) {
+        if (isSerialSelected(serial)) return
+        selectedDeviceSerial = serial
+        val resolvedName = resolveDisplayName(
+            connectionName = _uiState.value.deviceName,
+            currentName = _uiState.value.deviceName,
+            preferred = preferredNameFor(serial),
+            address = serial
+        )
+        _uiState.update {
+            it.copy(
+                selectedDeviceSerial = serial,
+                deviceAddress = serial,
+                deviceName = resolvedName
+            )
+        }
+        buildDeviceCards()
+        if (shouldReconnect) {
+            bluetoothService.disconnect()
+            reconnect()
+        }
+    }
+
+    private fun isSerialSelected(serial: String?): Boolean =
+        serial != null && selectedDeviceSerial?.equals(serial, ignoreCase = true) == true
+
+    private fun preferredNameFor(address: String?): String? {
+        if (address.isNullOrBlank()) return preferredName
+        return if (address.equals(targetAddress, ignoreCase = true)) {
+            preferredName
+        } else {
+            comboDevices.firstOrNull { it.deviceSerial.equals(address, ignoreCase = true) }?.nameAlias
+        }
+    }
+
+    private fun modifyComboDevices(
+        updatedDevices: List<ComboDeviceInfo>,
+        successMessageRes: Int? = null,
+        afterSuccess: () -> Unit = {}
+    ) {
+        val deviceId = mainDeviceId ?: run {
+            postTransientMessage(appContext.getString(R.string.device_combo_manage_error_not_found))
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isComboUpdating = true) }
+            val payload = ComboInfoPayload(updatedDevices)
+            val json = payload.toJson()
+            val result = updateDeviceComboInfoUseCase(deviceId, json)
+            result.onSuccess {
+                comboInfoRaw = json
+                comboDevices = updatedDevices
+                buildDeviceCards()
+                afterSuccess()
+                successMessageRes?.let { res ->
+                    postTransientMessage(appContext.getString(res))
+                }
+            }.onFailure { throwable ->
+                postTransientMessage(
+                    throwable.message
+                        ?: appContext.getString(R.string.device_combo_manage_error_not_found)
+                )
+            }
+            _uiState.update { it.copy(isComboUpdating = false) }
+        }
+    }
+
+    private fun postTransientMessage(message: String?) {
+        if (message.isNullOrBlank()) return
+        _uiState.update { it.copy(transientMessage = message) }
     }
 
     private fun applyTelemetry(telemetry: DeviceTelemetry) {
@@ -414,9 +629,9 @@ class DeviceControlViewModel @Inject constructor(
         address: String?
     ): String {
         val candidates = listOf(
-            connectionName,
-            currentName,
             preferred,
+            currentName,
+            connectionName,
             bluetoothService.cachedDeviceName(address),
             address
         )
@@ -432,7 +647,7 @@ class DeviceControlViewModel @Inject constructor(
     }
 
     private fun attemptInitialConnection() {
-        val address = targetAddress ?: return
+        val address = selectedDeviceSerial ?: targetAddress ?: return
         val connection = bluetoothService.connectionState.value
         val alreadyActive = connection.deviceAddress == address &&
             when (connection.status) {
@@ -469,10 +684,21 @@ data class DeviceControlUiState(
     val isMuted: Boolean = false,
     val batteryPercent: Int = -1,
     val message: DeviceMessage? = null,
-    val showConnectingOverlay: Boolean = false
+    val showConnectingOverlay: Boolean = false,
+    val selectedDeviceSerial: String? = null,
+    val deviceCards: List<DeviceCardState> = emptyList(),
+    val isComboUpdating: Boolean = false,
+    val transientMessage: String? = null
 ) {
     val availableTimerOptions: List<Int> = listOf(5, 10, 15, 20, 30, 45, 60)
 }
+
+data class DeviceCardState(
+    val deviceSerial: String?,
+    val displayName: String,
+    val isSelected: Boolean,
+    val isMainDevice: Boolean
+)
 
 enum class BodyZone(val index: Int, @StringRes val labelRes: Int) {
     SHOULDER(0, R.string.device_zone_shldr),

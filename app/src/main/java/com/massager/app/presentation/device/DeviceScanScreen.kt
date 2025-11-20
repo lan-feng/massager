@@ -37,27 +37,47 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
 import com.massager.app.data.bluetooth.BleConnectionState
+import com.massager.app.presentation.navigation.DeviceScanSource
+import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceScanScreen(
     viewModel: DeviceViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateControl: (String?) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val errorMessage = uiState.connectionState.errorMessage
+    val context = LocalContext.current
 
     LaunchedEffect(errorMessage) {
         if (!errorMessage.isNullOrBlank()) {
             snackbarHostState.showSnackbar(errorMessage)
             viewModel.clearErrorMessage()
+        }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.effects.collectLatest { effect ->
+            when (effect) {
+                DeviceScanEffect.NavigateHome -> onNavigateHome()
+                is DeviceScanEffect.ReturnToControl -> onNavigateControl(effect.deviceSerial)
+                is DeviceScanEffect.ShowMessage -> {
+                    val text = effect.messageRes?.let(context::getString) ?: effect.message
+                    if (!text.isNullOrBlank()) {
+                        snackbarHostState.showSnackbar(text)
+                    }
+                }
+            }
         }
     }
 
@@ -108,6 +128,11 @@ fun DeviceScanScreen(
                 isScanning = uiState.isScanning
             )
             Spacer(modifier = Modifier.height(12.dp))
+            val actionLabel = if (uiState.scanSource == DeviceScanSource.CONTROL) {
+                stringResource(id = R.string.device_scan_action_combo)
+            } else {
+                stringResource(id = R.string.device_scan_action_bind)
+            }
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -126,7 +151,9 @@ fun DeviceScanScreen(
                     items(uiState.devices, key = { it.address }) { device ->
                         DeviceScanListItem(
                             device = device,
-                            onAction = { viewModel.onDeviceSelected(device.address) }
+                            actionLabel = actionLabel,
+                            isProcessing = uiState.processingAddress == device.address,
+                            onAction = { viewModel.onDeviceSelected(device) }
                         )
                     }
                 }
@@ -215,6 +242,8 @@ private fun DeviceStatusRow(
 @Composable
 private fun DeviceScanListItem(
     device: DeviceListItem,
+    actionLabel: String,
+    isProcessing: Boolean,
     onAction: () -> Unit
 ) {
     Card(
@@ -255,6 +284,7 @@ private fun DeviceScanListItem(
             Button(
                 onClick = onAction,
                 modifier = Modifier.fillMaxWidth(),
+                enabled = !isProcessing,
                 colors = if (device.isConnected) {
                     ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondary
@@ -263,15 +293,15 @@ private fun DeviceScanListItem(
                     ButtonDefaults.buttonColors()
                 }
             ) {
-                Text(
-                    text = stringResource(
-                        id = if (device.isConnected) {
-                            R.string.device_scan_disconnect
-                        } else {
-                            R.string.device_scan_connect
-                        }
+                if (isProcessing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
-                )
+                } else {
+                    Text(text = actionLabel)
+                }
             }
         }
     }

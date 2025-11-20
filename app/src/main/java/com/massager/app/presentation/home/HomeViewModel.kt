@@ -236,7 +236,8 @@ class HomeViewModel @Inject constructor(
                         isActionInProgress = false,
                         isRenameDialogVisible = false,
                         renameInput = "",
-                        renameInputError = null
+                        renameInputError = null,
+                        selectedDeviceIds = emptySet()
                     )
                 }
             }.onFailure { throwable ->

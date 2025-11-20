@@ -7,8 +7,11 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,6 +29,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,7 +56,9 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Surface
@@ -75,7 +82,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
@@ -98,7 +104,7 @@ import com.massager.app.presentation.theme.massagerExtendedColors
 fun DeviceControlScreen(
     viewModel: DeviceControlViewModel,
     onBack: () -> Unit,
-    onAddDevice: () -> Unit = {}
+    onAddDevice: (List<String>) -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -114,11 +120,26 @@ fun DeviceControlScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.disconnectActiveDevice()
+        }
+    }
+
+    LaunchedEffect(state.transientMessage) {
+        val message = state.transientMessage
+        if (!message.isNullOrBlank()) {
+            snackbarHostState.showSnackbar(message)
+            viewModel.consumeTransientMessage()
+        }
+    }
+
     DeviceControlContent(
         state = state,
         onBack = onBack,
         onAddDevice = onAddDevice,
         onReconnect = viewModel::reconnect,
+        onSelectDevice = viewModel::selectComboDevice,
         onSelectZone = viewModel::selectZone,
         onSelectMode = viewModel::selectMode,
         onSelectTimer = viewModel::selectTimer,
@@ -126,6 +147,8 @@ fun DeviceControlScreen(
         onDecreaseLevel = viewModel::decreaseLevel,
         onToggleMute = viewModel::toggleMute,
         onToggleSession = viewModel::toggleSession,
+        onRenameAttached = viewModel::renameAttachedDevice,
+        onRemoveAttached = viewModel::removeAttachedDevice,
         snackbarHostState = snackbarHostState,
         onConsumeMessage = viewModel::consumeMessage
     )
@@ -139,7 +162,9 @@ fun DeviceControlScreen(
 private fun DeviceControlContent(
     state: DeviceControlUiState,
     onBack: () -> Unit,
+    onAddDevice: (List<String>) -> Unit = {},
     onReconnect: () -> Unit,
+    onSelectDevice: (String?) -> Unit,
     onSelectZone: (BodyZone) -> Unit,
     onSelectMode: (Int) -> Unit,
     onSelectTimer: (Int) -> Unit,
@@ -147,14 +172,19 @@ private fun DeviceControlContent(
     onDecreaseLevel: () -> Unit,
     onToggleMute: () -> Unit,
     onToggleSession: () -> Unit,
+    onRenameAttached: (String, String) -> Unit,
+    onRemoveAttached: (String) -> Unit,
     snackbarHostState: SnackbarHostState,
-    onConsumeMessage: () -> Unit,
-    onAddDevice: () -> Unit = {}
+    onConsumeMessage: () -> Unit
 ) {
     val haptics = LocalHapticFeedback.current
-    val context = LocalContext.current
     var showInfoDialog by remember { mutableStateOf(false) }
     var timerDropdownExpanded by remember { mutableStateOf(false) }
+    var manageTarget by remember { mutableStateOf<DeviceCardState?>(null) }
+    var renameTarget by remember { mutableStateOf<DeviceCardState?>(null) }
+    var renameValue by remember { mutableStateOf("") }
+    var renameErrorRes by remember { mutableStateOf<Int?>(null) }
+    var deleteTarget by remember { mutableStateOf<DeviceCardState?>(null) }
 
 
     Scaffold(
@@ -189,59 +219,70 @@ private fun DeviceControlContent(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 12.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            val excludedSerials = remember(state.deviceCards) {
+                state.deviceCards.mapNotNull { it.deviceSerial }
+            }
+            DeviceSwitcherRow(
+                cards = state.deviceCards,
+                onSelect = onSelectDevice,
+                onLongPress = { card ->
+                    if (!card.isMainDevice && card.deviceSerial != null) {
+                        manageTarget = card
+                    }
+                },
+                onAddDevice = { onAddDevice(excludedSerials) }
+            )
+            AnimatedVisibility(visible = state.isComboUpdating) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             DeviceDisplaySection(
                 state = state,
                 onReconnect = onReconnect,
                 onToggleMute = onToggleMute,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth()
             )
-            AddDeviceBox(onAddDevice = onAddDevice)
+            BodyZoneTabs(
+                selectedZone = state.zone,
+                onSelectZone = onSelectZone
+            )
+            ModeSelectionGrid(
+                selectedMode = state.mode,
+                isEnabled = state.isProtocolReady && state.isConnected,
+                onSelectMode = onSelectMode
+            )
+            LevelControlSection(
+                level = state.level,
+                isConnected = state.isConnected,
+                onIncrease = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onIncreaseLevel()
+                },
+                onDecrease = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onDecreaseLevel()
+                }
+            )
+            TimerActionSection(
+                state = state,
+                timerDropdownExpanded = timerDropdownExpanded,
+                onToggleTimerMenu = { timerDropdownExpanded = !timerDropdownExpanded },
+                onDismissTimerMenu = { timerDropdownExpanded = false },
+                onSelectTimer = {
+                    timerDropdownExpanded = false
+                    onSelectTimer(it)
+                },
+                onToggleSession = onToggleSession
+            )
         }
-        BodyZoneTabs(
-            selectedZone = state.zone,
-            onSelectZone = onSelectZone
-        )
-                ModeSelectionGrid(
-                    selectedMode = state.mode,
-                    isEnabled = state.isProtocolReady && state.isConnected,
-                    onSelectMode = onSelectMode
-                )
-                LevelControlSection(
-                    level = state.level,
-                    isConnected = state.isConnected,
-                    onIncrease = {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onIncreaseLevel()
-                    },
-                    onDecrease = {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onDecreaseLevel()
-                    }
-                )
-                TimerActionSection(
-                    state = state,
-                    timerDropdownExpanded = timerDropdownExpanded,
-                    onToggleTimerMenu = { timerDropdownExpanded = !timerDropdownExpanded },
-                    onDismissTimerMenu = { timerDropdownExpanded = false },
-                    onSelectTimer = {
-                        timerDropdownExpanded = false
-                        onSelectTimer(it)
-                    },
-                    onToggleSession = onToggleSession
-                )
-            }
             AnimatedVisibility(
                 visible = state.showConnectingOverlay,
                 enter = fadeIn(),
@@ -280,6 +321,138 @@ private fun DeviceControlContent(
                 }
             }
         }
+    }
+
+    manageTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { manageTarget = null },
+            title = { Text(text = stringResource(id = R.string.device_combo_manage_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = stringResource(id = R.string.device_combo_manage_message, target.displayName),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    TextButton(
+                        onClick = {
+                            renameTarget = target
+                            renameValue = target.displayName
+                            renameErrorRes = null
+                            manageTarget = null
+                        }
+                    ) {
+                        Text(text = stringResource(id = R.string.device_combo_manage_rename))
+                    }
+                    TextButton(
+                        onClick = {
+                            deleteTarget = target
+                            manageTarget = null
+                        }
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.device_combo_manage_remove),
+                            color = MaterialTheme.massagerExtendedColors.danger
+                        )
+                    }
+                    TextButton(onClick = { manageTarget = null }) {
+                        Text(text = stringResource(id = R.string.device_combo_manage_cancel))
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {}
+        )
+    }
+
+    renameTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = {
+                renameTarget = null
+                renameErrorRes = null
+            },
+            title = { Text(text = stringResource(id = R.string.rename_device_title)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = renameValue,
+                        onValueChange = {
+                            renameValue = it
+                            renameErrorRes = null
+                        },
+                        placeholder = { Text(text = stringResource(id = R.string.device_combo_rename_hint)) },
+                        singleLine = true
+                    )
+                    renameErrorRes?.let { errorRes ->
+                        Text(
+                            text = stringResource(id = errorRes),
+                            color = MaterialTheme.massagerExtendedColors.danger,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val trimmed = renameValue.trim()
+                        val error = validateLinkedDeviceName(trimmed)
+                        if (error != null) {
+                            renameErrorRes = error
+                        } else {
+                            target.deviceSerial?.let { serial ->
+                                onRenameAttached(serial, trimmed)
+                            }
+                            renameTarget = null
+                            renameErrorRes = null
+                        }
+                    },
+                    enabled = !state.isComboUpdating
+                ) {
+                    Text(text = stringResource(id = R.string.rename))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    renameTarget = null
+                    renameErrorRes = null
+                }) {
+                    Text(text = stringResource(id = R.string.cancel))
+                }
+            }
+        )
+    }
+
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text(text = stringResource(id = R.string.device_combo_remove_confirm_title)) },
+            text = {
+                Text(
+                    text = stringResource(id = R.string.device_combo_remove_confirm_message, target.displayName),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        target.deviceSerial?.let(onRemoveAttached)
+                        deleteTarget = null
+                    },
+                    enabled = !state.isComboUpdating
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.device_combo_remove_action),
+                        color = MaterialTheme.massagerExtendedColors.danger
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text(text = stringResource(id = R.string.device_combo_cancel))
+                }
+            }
+        )
     }
 
     if (showInfoDialog) {
@@ -415,13 +588,100 @@ private fun DeviceDisplaySection(
 }
 
 @Composable
+private fun DeviceSwitcherRow(
+    cards: List<DeviceCardState>,
+    onSelect: (String?) -> Unit,
+    onLongPress: (DeviceCardState) -> Unit,
+    onAddDevice: () -> Unit
+) {
+    val cardHeight = 120.dp
+    val cardSpacing = 12.dp
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(cardHeight),
+        horizontalArrangement = Arrangement.spacedBy(cardSpacing),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        items(cards, key = { card ->
+            card.deviceSerial ?: if (card.isMainDevice) "main-device" else card.displayName
+        }) { card ->
+            DeviceSwitcherCard(
+                card = card,
+                modifier = Modifier
+                    .height(cardHeight),
+                onSelect = { onSelect(card.deviceSerial) },
+                onLongPress = { onLongPress(card) }
+            )
+        }
+        item {
+            AddDeviceBox(
+                onAddDevice = onAddDevice,
+                size = cardHeight,
+                corner = 16.dp
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DeviceSwitcherCard(
+    card: DeviceCardState,
+    modifier: Modifier = Modifier,
+    onSelect: () -> Unit,
+    onLongPress: () -> Unit
+) {
+    val selectedColor = MaterialTheme.massagerExtendedColors.surfaceBright
+    val unselectedColor = MaterialTheme.massagerExtendedColors.surfaceSubtle
+    Surface(
+        modifier = modifier
+            .width(160.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .combinedClickable(
+                onClick = onSelect,
+                onLongClick = onLongPress
+            ),
+        color = if (card.isSelected) selectedColor else unselectedColor,
+        tonalElevation = if (card.isSelected) 6.dp else 0.dp,
+        shadowElevation = if (card.isSelected) 8.dp else 0.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = card.displayName,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = stringResource(
+                    id = if (card.isMainDevice) {
+                        R.string.device_combo_main_label
+                    } else {
+                        R.string.device_combo_member_label
+                    }
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.massagerExtendedColors.textMuted
+            )
+        }
+    }
+}
+
+@Composable
 private fun AddDeviceBox(
     onAddDevice: () -> Unit,
     size: Dp = 88.dp,
-    corner: Dp = 12.dp
+    corner: Dp = 12.dp,
+    modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(corner))
             .background(MaterialTheme.massagerExtendedColors.surfaceBright.copy(alpha = 0.08f))
@@ -448,6 +708,14 @@ private fun AddDeviceBox(
     }
 }
 
+@StringRes
+private fun validateLinkedDeviceName(value: String): Int? {
+    val trimmed = value.trim()
+    if (trimmed.length !in 2..30) return R.string.rename_error_length
+    val regex = Regex("^[A-Za-z0-9\\s]+\$")
+    return if (!regex.matches(trimmed)) R.string.rename_error_invalid else null
+}
+
 @Composable
 private fun BatteryStatusRow(
     batteryPercent: Int,
@@ -455,11 +723,7 @@ private fun BatteryStatusRow(
     onToggleMute: () -> Unit
 ) {
     val isUnknown = batteryPercent < 0
-    val displayText = if (isUnknown) {
-        stringResource(id = R.string.device_battery_unknown)
-    } else {
-        stringResource(id = R.string.device_battery_label, batteryPercent)
-    }
+    val displayText = if (isUnknown) "--%" else "${batteryPercent}%"
     Row(
         modifier = Modifier
             .fillMaxWidth()

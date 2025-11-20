@@ -2,6 +2,7 @@ package com.massager.app.presentation.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -39,6 +40,9 @@ import com.massager.app.presentation.settings.PersonalInformationViewModel
 import com.massager.app.presentation.settings.SettingsScreen
 import com.massager.app.presentation.settings.SettingsViewModel
 import com.massager.app.presentation.settings.WebDocumentScreen
+import kotlinx.coroutines.flow.collectLatest
+
+private const val DEVICE_SCAN_RESULT_KEY = "device_scan_result_serial"
 
 @Composable
 fun MassagerNavHost(
@@ -95,7 +99,15 @@ fun MassagerNavHost(
                 state = homeState.value,
                 effects = viewModel.effects,
                 currentTab = AppBottomTab.Home,
-                onAddDevice = { navController.navigate(Screen.AddDevice.route) },
+                onAddDevice = {
+                    val excludedSerials = homeState.value.devices.mapNotNull { it.macAddress }
+                    navController.navigate(
+                        Screen.DeviceScan.createRoute(
+                            source = DeviceScanSource.HOME,
+                            excludedSerials = excludedSerials
+                        )
+                    )
+                },
                 onDeviceToggle = { device -> viewModel.toggleDeviceSelection(device.id) },
                 onDeviceOpen = { device ->
                     navController.navigate(
@@ -130,11 +142,39 @@ fun MassagerNavHost(
                 }
             )
         }
-        composable(Screen.DeviceScan.route) {
+        composable(
+            Screen.DeviceScan.routePattern,
+            arguments = listOf(
+                navArgument(Screen.DeviceScan.ARG_SOURCE) {
+                    type = NavType.StringType
+                    defaultValue = DeviceScanSource.HOME.name
+                },
+                navArgument(Screen.DeviceScan.ARG_EXCLUDED) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument(Screen.DeviceScan.ARG_OWNER_DEVICE_ID) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) {
             val viewModel: DeviceViewModel = hiltViewModel()
             DeviceScanScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                },
+                onNavigateControl = { serial ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set(
+                        DEVICE_SCAN_RESULT_KEY,
+                        serial.orEmpty()
+                    )
+                    navController.popBackStack()
+                }
             )
         }
         composable(
@@ -154,12 +194,35 @@ fun MassagerNavHost(
                     nullable = true
                 }
             )
-        ) {
+        ) { backStackEntry ->
             val viewModel: DeviceControlViewModel = hiltViewModel()
+            val comboResultFlow = backStackEntry.savedStateHandle.getStateFlow(
+                DEVICE_SCAN_RESULT_KEY,
+                ""
+            )
+            LaunchedEffect(comboResultFlow) {
+                comboResultFlow.collectLatest { serial ->
+                    if (!serial.isNullOrBlank()) {
+                        viewModel.handleComboResult(serial)
+                        backStackEntry.savedStateHandle[DEVICE_SCAN_RESULT_KEY] = ""
+                    }
+                }
+            }
             DeviceControlScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onAddDevice = { navController.navigate(Screen.AddDevice.route) }
+                onAddDevice = { excludedSerials ->
+                    val ownerId = backStackEntry.arguments
+                        ?.getString(Screen.DeviceControl.ARG_DEVICE_ID)
+                        .orEmpty()
+                    navController.navigate(
+                        Screen.DeviceScan.createRoute(
+                            source = DeviceScanSource.CONTROL,
+                            ownerDeviceId = ownerId,
+                            excludedSerials = excludedSerials
+                        )
+                    )
+                }
             )
         }
         composable(Screen.AddDevice.route) {
