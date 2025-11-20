@@ -227,7 +227,14 @@ private fun DeviceControlContent(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             val excludedSerials = remember(state.deviceCards) {
-                state.deviceCards.mapNotNull { it.deviceSerial }
+                val hostSerial = state.deviceCards.firstOrNull { it.isMainDevice }?.deviceSerial
+                val combos = state.deviceCards
+                    .filterNot { it.isMainDevice }
+                    .mapNotNull { it.deviceSerial }
+                buildList {
+                    hostSerial?.let { add(it) }
+                    addAll(combos)
+                }
             }
             DeviceSwitcherRow(
                 cards = state.deviceCards,
