@@ -40,6 +40,7 @@ private const val MAX_LEVEL = 19
 private const val MIN_LEVEL = 0
 private const val DEFAULT_TIMER_MINUTES = 15
 private const val CONNECTING_OVERLAY_DURATION_MS = 3_000L
+private const val PROTOCOL_SIGNAL_TIMEOUT_MS = 1_200L
 
 @HiltViewModel
 class DeviceControlViewModel @Inject constructor(
@@ -63,6 +64,8 @@ class DeviceControlViewModel @Inject constructor(
     private var comboInfoRaw: String? = null
     private var pendingSelectionSerial: String? = null
     private var selectedDeviceSerial: String? = null
+    private var hasProtocolSignal = false
+    private var protocolSignalTimeoutJob: kotlinx.coroutines.Job? = null
 
     private val preferredName: String? =
         savedStateHandle.get<String>(Screen.DeviceControl.ARG_DEVICE_NAME)?.takeIf { it.isNotBlank() }
@@ -97,6 +100,91 @@ class DeviceControlViewModel @Inject constructor(
             val session = currentSession() ?: return@withContext false
             block(session)
         }
+
+    private fun processConnectionState(state: BleConnectionState) {
+        Log.d(
+            tag,
+            "processConnectionState: status=${state.status} protocolReady=${state.isProtocolReady} " +
+                "device=${state.deviceAddress} name=${state.deviceName} hasSignal=$hasProtocolSignal"
+        )
+        if (state.status != BleConnectionState.Status.Connected) {
+            hasProtocolSignal = false
+            protocolSignalTimeoutJob?.cancel()
+            protocolSignalTimeoutJob = null
+        }
+        val isProtocolReady = state.isProtocolReady
+        // 连接展示基于协议就绪，一旦 GATT 服务解析/通知开启完成即可认为“已连接”。
+        val isConnected =
+            state.status == BleConnectionState.Status.Connected && isProtocolReady
+        val isConnecting = state.status == BleConnectionState.Status.Connecting ||
+            (state.status == BleConnectionState.Status.Connected && !isProtocolReady)
+        if (!state.deviceAddress.isNullOrBlank()) {
+            selectedDeviceSerial = state.deviceAddress
+        }
+        _uiState.update {
+            val resolvedAddress = state.deviceAddress ?: selectedDeviceSerial
+                ?: it.deviceAddress ?: targetAddress
+            val resolvedName = resolveDisplayName(
+                connectionName = state.deviceName,
+                currentName = it.deviceName,
+                preferred = preferredNameFor(resolvedAddress),
+                address = resolvedAddress
+            )
+            it.copy(
+                deviceName = resolvedName,
+                deviceAddress = resolvedAddress,
+                selectedDeviceSerial = resolvedAddress,
+                isConnected = isConnected,
+                isConnecting = isConnecting,
+                isProtocolReady = isProtocolReady
+            )
+        }
+        if (!isConnecting) {
+            _uiState.update { current -> current.copy(showConnectingOverlay = false) }
+        }
+        if (state.errorMessage.isNullOrBlank()) {
+            lastConnectionError = null
+        } else {
+            val token = state.status to state.errorMessage
+            if (lastConnectionError != token) {
+                lastConnectionError = token
+                _uiState.update { current ->
+                    current.copy(
+                        message = DeviceMessage.CommandFailed(
+                            messageRes = R.string.device_command_failed,
+                            messageText = state.errorMessage
+                        )
+                    )
+                }
+            }
+        }
+        if (isConnected && isProtocolReady) {
+            if (!initialStatusRequested) {
+                initialStatusRequested = true
+                requestStatus()
+            }
+        } else {
+            initialStatusRequested = false
+        }
+        if (state.status == BleConnectionState.Status.Connected && isProtocolReady && !hasProtocolSignal && protocolSignalTimeoutJob == null) {
+            scheduleProtocolSignalTimeout()
+        }
+    }
+
+    private fun scheduleProtocolSignalTimeout() {
+        protocolSignalTimeoutJob = viewModelScope.launch {
+            val timeoutMs = PROTOCOL_SIGNAL_TIMEOUT_MS
+            Log.d(tag, "scheduleProtocolSignalTimeout: waiting ${timeoutMs}ms for protocol traffic")
+            delay(timeoutMs)
+            if (!hasProtocolSignal) {
+                Log.w(tag, "scheduleProtocolSignalTimeout: no protocol traffic received, keeping connected but will request status")
+                protocolSignalTimeoutJob = null
+                requestStatus()
+            } else {
+                protocolSignalTimeoutJob = null
+            }
+        }
+    }
 
     private fun mapTelemetry(message: ProtocolMessage): DeviceTelemetry? {
         telemetryMappers.forEach { mapper ->
@@ -237,56 +325,8 @@ class DeviceControlViewModel @Inject constructor(
     private fun observeConnection() {
         viewModelScope.launch {
             bluetoothService.connectionState.collectLatest { state ->
-                val isConnected = state.status == BleConnectionState.Status.Connected
-                val isConnecting = state.status == BleConnectionState.Status.Connecting
-                if (!state.deviceAddress.isNullOrBlank()) {
-                    selectedDeviceSerial = state.deviceAddress
-                }
-                _uiState.update {
-                    val resolvedAddress = state.deviceAddress ?: selectedDeviceSerial
-                        ?: it.deviceAddress ?: targetAddress
-                    val resolvedName = resolveDisplayName(
-                        connectionName = state.deviceName,
-                        currentName = it.deviceName,
-                        preferred = preferredNameFor(resolvedAddress),
-                        address = resolvedAddress
-                    )
-                    it.copy(
-                        deviceName = resolvedName,
-                        deviceAddress = resolvedAddress,
-                        selectedDeviceSerial = resolvedAddress,
-                        isConnected = isConnected,
-                        isConnecting = isConnecting,
-                        isProtocolReady = state.isProtocolReady
-                    )
-                }
-                if (!isConnecting) {
-                    _uiState.update { current -> current.copy(showConnectingOverlay = false) }
-                }
-                if (state.errorMessage.isNullOrBlank()) {
-                    lastConnectionError = null
-                } else {
-                    val token = state.status to state.errorMessage
-                    if (lastConnectionError != token) {
-                        lastConnectionError = token
-                        _uiState.update { current ->
-                            current.copy(
-                                message = DeviceMessage.CommandFailed(
-                                    messageRes = R.string.device_command_failed,
-                                    messageText = state.errorMessage
-                                )
-                            )
-                        }
-                    }
-                }
-                if (isConnected && state.isProtocolReady) {
-                    if (!initialStatusRequested) {
-                        initialStatusRequested = true
-                        requestStatus()
-                    }
-                } else {
-                    initialStatusRequested = false
-                }
+                Log.d(tag, "observeConnection: state=$state hasSignal=$hasProtocolSignal")
+                processConnectionState(state)
             }
         }
     }
@@ -294,6 +334,14 @@ class DeviceControlViewModel @Inject constructor(
     private fun observeProtocolMessages() {
         viewModelScope.launch {
             bluetoothService.protocolMessages.collectLatest { message ->
+                Log.d(tag, "observeProtocolMessages: received protocol message=$message")
+                if (!hasProtocolSignal) {
+                    hasProtocolSignal = true
+                    protocolSignalTimeoutJob?.cancel()
+                    protocolSignalTimeoutJob = null
+                    // Re-evaluate connection state once we have seen protocol traffic.
+                    processConnectionState(bluetoothService.connectionState.value)
+                }
                 val telemetry = mapTelemetry(message) ?: return@collectLatest
                 applyTelemetry(telemetry)
             }
@@ -482,6 +530,7 @@ class DeviceControlViewModel @Inject constructor(
     }
 
     private fun applyTelemetry(telemetry: DeviceTelemetry) {
+        Log.d(tag, "applyTelemetry: telemetry=$telemetry")
         if (awaitingStopAck && telemetry.isRunning == true) {
             Log.v(tag, "applyTelemetry: awaiting stop ack, ignoring running telemetry")
             return
