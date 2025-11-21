@@ -44,20 +44,18 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
         val advertisedLength = toUInt16Be(payload[2], payload[3])
         val allowableLengths = setOf(payload.size, payload.size - TERMINATOR_LENGTH)
 
-        /**
-         * TODO:EMS报文长度有问题，后面正常了放开校验
-         */
-//        if (advertisedLength !in allowableLengths) return emptyList()
+        if (advertisedLength !in allowableLengths) return emptyList()
 
         val crcIndex = payload.size - TERMINATOR_LENGTH - CRC_LENGTH
         val bodyEnd = crcIndex - 1
 
         /**
-         * TODO:EMS报文还没做CRC,后面放开
+         * TODO:EMS报文做了CRC
          */
-//        val crcCalculated = Crc16Ccitt.compute(payload.copyOfRange(0, crcIndex))
-//        val crcReceived = toUInt16Be(payload[crcIndex], payload[crcIndex + 1])
-//        if (crcCalculated != crcReceived) return emptyList()
+        val crcCalculated = Crc16Ccitt.compute(payload.copyOfRange(0, crcIndex))
+        val crcReceivedLe = toUInt16Le(payload[crcIndex], payload[crcIndex + 1])
+        val crcReceivedBe = toUInt16Be(payload[crcIndex], payload[crcIndex + 1])
+        if (crcCalculated != crcReceivedLe && crcCalculated != crcReceivedBe) return emptyList()
 
         val direction = when (payload[4].toInt()) {
             1 -> FrameDirection.AppToDevice
@@ -245,6 +243,12 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
         val lo = (value and 0xFF).toByte()
         return hi to lo
     }
+
+    /**
+     * TODO:EMS的CRC 发送和接收大小端不一致，暂时兼容
+     */
+    private fun toUInt16Le(low: Byte, high: Byte): Int =
+        ((high.toInt() and 0xFF) shl 8) or (low.toInt() and 0xFF)
 
     companion object {
         const val PROTOCOL_KEY = "ems_v2"
