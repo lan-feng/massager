@@ -244,17 +244,30 @@ class DeviceControlViewModel @Inject constructor(
 
     fun increaseLevel() = adjustLevel(1)
     fun decreaseLevel() = adjustLevel(-1)
+    fun previewLevel(level: Int) = updateLevel(level, dispatchCommand = false)
+    fun commitLevel(level: Int) = updateLevel(level, dispatchCommand = true)
 
     private fun adjustLevel(delta: Int) {
         val current = _uiState.value
         val newLevel = (current.level + delta).coerceIn(MIN_LEVEL, MAX_LEVEL)
-        if (newLevel == current.level) return
-        _uiState.update { it.copy(level = newLevel) }
-        Log.d(tag, "adjustLevel: requested delta=$delta resultingLevel=$newLevel isRunning=${current.isRunning}")
-        if (current.isRunning) {
+        updateLevel(newLevel, dispatchCommand = true)
+    }
+
+    private fun updateLevel(level: Int, dispatchCommand: Boolean) {
+        val current = _uiState.value
+        val sanitized = level.coerceIn(MIN_LEVEL, MAX_LEVEL)
+        val shouldUpdateState = sanitized != current.level
+        if (shouldUpdateState) {
+            _uiState.update { it.copy(level = sanitized) }
+        }
+        Log.d(
+            tag,
+            "updateLevel: level=$sanitized dispatchCommand=$dispatchCommand isRunning=${current.isRunning}"
+        )
+        if (dispatchCommand && current.isRunning) {
             viewModelScope.launch {
-                Log.d(tag, "adjustLevel: sending live level update level=$newLevel")
-                if (!withSession { session -> session.selectLevel(newLevel) }) {
+                Log.d(tag, "updateLevel: sending live level update level=$sanitized")
+                if (!withSession { session -> session.selectLevel(sanitized) }) {
                     _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
                 }
             }

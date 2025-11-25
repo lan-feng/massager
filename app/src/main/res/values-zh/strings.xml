@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Massager</string>
+    <string name="app_name">TheraLink</string>
     <string name="settings_profile_section">账号</string>
     <string name="settings_personal_info">个人信息</string>
     <string name="settings_account_security">账号与安全</string>

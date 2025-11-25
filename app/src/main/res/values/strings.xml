@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Massager</string>
+    <string name="app_name">TheraLink</string>
     <string name="settings_profile_section">Account</string>
     <string name="settings_personal_info">Personal Information</string>
     <string name="settings_account_security">Account and Security</string>

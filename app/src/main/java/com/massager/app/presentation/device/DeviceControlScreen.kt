@@ -2,20 +2,17 @@ package com.massager.app.presentation.device
 
 // 文件说明：设备控制 UI，提供模式、强度等交互。
 import androidx.annotation.StringRes
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,7 +38,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.outlined.BatteryFull
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.VolumeOff
@@ -62,12 +58,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SliderPositions
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,10 +79,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -97,8 +101,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
-import androidx.compose.material3.SnackbarHostState
 import com.massager.app.presentation.theme.massagerExtendedColors
+import kotlin.math.roundToInt
 
 
 @Composable
@@ -144,8 +148,8 @@ fun DeviceControlScreen(
         onSelectZone = viewModel::selectZone,
         onSelectMode = viewModel::selectMode,
         onSelectTimer = viewModel::selectTimer,
-        onIncreaseLevel = viewModel::increaseLevel,
-        onDecreaseLevel = viewModel::decreaseLevel,
+        onPreviewLevel = viewModel::previewLevel,
+        onCommitLevel = viewModel::commitLevel,
         onToggleMute = viewModel::toggleMute,
         onToggleSession = viewModel::toggleSession,
         onRenameAttached = viewModel::renameAttachedDevice,
@@ -155,10 +159,7 @@ fun DeviceControlScreen(
     )
 }
 
-@OptIn(
-    ExperimentalMaterial3Api::class,
-    ExperimentalAnimationApi::class
-)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DeviceControlContent(
     state: DeviceControlUiState,
@@ -169,8 +170,8 @@ private fun DeviceControlContent(
     onSelectZone: (BodyZone) -> Unit,
     onSelectMode: (Int) -> Unit,
     onSelectTimer: (Int) -> Unit,
-    onIncreaseLevel: () -> Unit,
-    onDecreaseLevel: () -> Unit,
+    onPreviewLevel: (Int) -> Unit,
+    onCommitLevel: (Int) -> Unit,
     onToggleMute: () -> Unit,
     onToggleSession: () -> Unit,
     onRenameAttached: (String, String) -> Unit,
@@ -270,13 +271,10 @@ private fun DeviceControlContent(
             LevelControlSection(
                 level = state.level,
                 isConnected = state.isConnected,
-                onIncrease = {
+                onPreviewLevel = onPreviewLevel,
+                onCommitLevel = {
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onIncreaseLevel()
-                },
-                onDecrease = {
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onDecreaseLevel()
+                    onCommitLevel(it)
                 }
             )
             TimerActionSection(
@@ -893,14 +891,25 @@ private fun ModeSelectionGrid(
     }
 }
 
-@OptIn(ExperimentalAnimationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LevelControlSection(
     level: Int,
     isConnected: Boolean,
-    onIncrease: () -> Unit,
-    onDecrease: () -> Unit
+    onPreviewLevel: (Int) -> Unit,
+    onCommitLevel: (Int) -> Unit
 ) {
+    val sliderInteractionSource = remember { MutableInteractionSource() }
+    var sliderValue by remember { mutableStateOf(level.toFloat()) }
+    var isDragging by remember { mutableStateOf(false) }
+
+    LaunchedEffect(level) {
+        if (!isDragging) {
+            sliderValue = level.toFloat()
+        }
+    }
+
+    val displayValue = sliderValue.roundToInt().coerceIn(0, 19)
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -908,40 +917,79 @@ private fun LevelControlSection(
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = stringResource(id = R.string.device_level_label),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                ControlCircularButton(
-                    icon = Icons.Filled.Remove,
-                    enabled = isConnected && level > 0,
-                    onClick = onDecrease
+                Text(
+                    text = stringResource(id = R.string.device_level_label),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
-                AnimatedContent(
-                    targetState = level,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    label = "level-counter"
-                ) { value ->
-                    Text(
-                        text = value.toString(),
-                        style = MaterialTheme.typography.displayLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.massagerExtendedColors.danger
+                Text(
+                    text = "Level: $displayValue",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.massagerExtendedColors.danger,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Slider(
+                    value = sliderValue,
+                    onValueChange = { next ->
+                        isDragging = true
+                        sliderValue = next.coerceIn(0f, 19f)
+                        onPreviewLevel(sliderValue.roundToInt())
+                    },
+                    onValueChangeFinished = {
+                        isDragging = false
+                        sliderValue = displayValue.toFloat()
+                        onCommitLevel(displayValue)
+                    },
+                    valueRange = 0f..19f,
+                    steps = 18,
+                    enabled = isConnected,
+                    modifier = Modifier.weight(1f),
+                    interactionSource = sliderInteractionSource,
+                    thumb = {
+                        LevelSliderThumb(
+                            enabled = isConnected,
+                            interactionSource = sliderInteractionSource
                         )
+                    },
+                    track = { positions ->
+                        LevelSliderTrack(
+                            sliderPositions = positions,
+                            enabled = isConnected
+                        )
+                    },
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.massagerExtendedColors.surfaceBright,
+                        activeTrackColor = Color.Transparent,
+                        inactiveTrackColor = Color.Transparent,
+                        disabledThumbColor = MaterialTheme.massagerExtendedColors.surfaceSubtle
                     )
-                }
-                ControlCircularButton(
-                    icon = Icons.Filled.Add,
-                    enabled = isConnected && level < 19,
-                    onClick = onIncrease
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "0",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.massagerExtendedColors.textMuted
+                )
+                Text(
+                    text = "19",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.massagerExtendedColors.textMuted
                 )
             }
         }
@@ -949,33 +997,67 @@ private fun LevelControlSection(
 }
 
 @Composable
-private fun ControlCircularButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    enabled: Boolean,
-    onClick: () -> Unit
+@OptIn(ExperimentalMaterial3Api::class)
+private fun LevelSliderTrack(
+    sliderPositions: SliderPositions,
+    enabled: Boolean
 ) {
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
+    val trackHeight = 12.dp
+    val cornerRadius = trackHeight / 2
+    val baseActive = MaterialTheme.massagerExtendedColors.danger
+    val baseInactive = MaterialTheme.massagerExtendedColors.surfaceSubtle
+    val activeColor = if (enabled) baseActive else baseActive.copy(alpha = 0.4f)
+    val inactiveColor = if (enabled) baseInactive else baseInactive.copy(alpha = 0.5f)
+
+    Canvas(
         modifier = Modifier
-            .size(56.dp)
-            .background(
-                color = if (enabled) {
-                    MaterialTheme.massagerExtendedColors.accentSoft
-                } else {
-                    MaterialTheme.massagerExtendedColors.surfaceStrong
-                },
+            .fillMaxWidth()
+            .height(trackHeight)
+    ) {
+        val trackHeightPx = trackHeight.toPx()
+        val corner = cornerRadius.toPx()
+        drawRoundRect(
+            color = inactiveColor,
+            cornerRadius = CornerRadius(corner, corner),
+            size = Size(size.width, trackHeightPx)
+        )
+        val activeStart = sliderPositions.activeRange.start * size.width
+        val activeEnd = sliderPositions.activeRange.endInclusive * size.width
+        drawRoundRect(
+            color = activeColor,
+            topLeft = Offset(activeStart, 0f),
+            size = Size((activeEnd - activeStart).coerceAtLeast(0f), trackHeightPx),
+            cornerRadius = CornerRadius(corner, corner)
+        )
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun LevelSliderThumb(
+    enabled: Boolean,
+    interactionSource: MutableInteractionSource
+) {
+    val borderColor = MaterialTheme.massagerExtendedColors.danger
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .shadow(elevation = 6.dp, shape = CircleShape, clip = false)
+            .border(
+                width = 2.dp,
+                color = if (enabled) borderColor else borderColor.copy(alpha = 0.4f),
                 shape = CircleShape
             )
+            .background(MaterialTheme.massagerExtendedColors.surfaceBright, CircleShape),
+        contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (enabled) {
-                MaterialTheme.massagerExtendedColors.danger
-            } else {
-                MaterialTheme.massagerExtendedColors.iconMuted
-            }
+        // Engage interactionSource for consistent ripple/press state without altering the visuals.
+        SliderDefaults.Thumb(
+            interactionSource = interactionSource,
+            colors = SliderDefaults.colors(
+                thumbColor = Color.Transparent,
+                disabledThumbColor = Color.Transparent
+            )
         )
     }
 }
