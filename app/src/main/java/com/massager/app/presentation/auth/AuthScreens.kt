@@ -7,6 +7,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -56,6 +57,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,7 +72,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -97,7 +101,9 @@ fun LoginScreen(
     onForgotPassword: () -> Unit = {},
     onGuestLogin: () -> Unit = {},
     onGoogleLogin: () -> Unit = {},
-    onFacebookLogin: () -> Unit = {}
+    onFacebookLogin: () -> Unit = {},
+    onOpenUserAgreement: () -> Unit = {},
+    onOpenPrivacyPolicy: () -> Unit = {}
 ) {
     val focusManager = LocalFocusManager.current
     var email by remember { mutableStateOf("") }
@@ -118,6 +124,11 @@ fun LoginScreen(
         label = "login_button_scale"
     )
     val scrollState = rememberScrollState()
+    val brand = Color(0xFF2BA39D)
+    val brandDeep = Color(0xFF238C86)
+    val fieldShape = RoundedCornerShape(14.dp)
+    val fieldBackground = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+    val fieldContent = MaterialTheme.colorScheme.onSurface
 
     Surface(
         modifier = Modifier
@@ -133,17 +144,10 @@ fun LoginScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
-                    .padding(horizontal = 24.dp, vertical = 32.dp),
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 AuthLogo()
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Log In",
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontWeight = FontWeight.Bold
-                    )
-                )
                 Spacer(modifier = Modifier.height(24.dp))
 
                 AnimatedVisibility(
@@ -167,54 +171,40 @@ fun LoginScreen(
                     }
                 }
 
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
+                LoginTextField(
                     value = email,
                     onValueChange = { updated ->
                         email = updated.trimEnd { ch -> ch.isWhitespace() }
                         emailError = null
                     },
-                    label = { Text("Email") },
-                    placeholder = { Text("Please enter your email") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.MailOutline,
-                            contentDescription = "Email"
-                        )
-                    },
+                    label = "Email",
+                    placeholder = "Please enter your email",
+                    leadingIcon = Icons.Default.MailOutline,
+                    isError = emailError != null,
+                    supportingText = emailError,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Next
                     ),
-                    isError = emailError != null,
-                    supportingText = {
-                        emailError?.let {
-                            Text(
-                                text = it,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                    ),
+                    shape = fieldShape,
+                    background = fieldBackground,
+                    contentColor = fieldContent
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
+                LoginTextField(
                     value = password,
                     onValueChange = { updated ->
                         password = updated.trimEnd { ch -> ch.isWhitespace() }
                         passwordError = null
                     },
-                    label = { Text("Password") },
-                    placeholder = { Text("Please enter your password") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Password"
-                        )
-                    },
+                    label = "Password",
+                    placeholder = "Please enter your password",
+                    leadingIcon = Icons.Default.Person,
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
@@ -257,18 +247,42 @@ fun LoginScreen(
                         }
                     ),
                     isError = passwordError != null,
-                    supportingText = {
-                        passwordError?.let {
-                            Text(
-                                text = it,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
+                    supportingText = passwordError,
+                    shape = fieldShape,
+                    background = fieldBackground,
+                    contentColor = fieldContent
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onNavigateToRegister) {
+                        Text(
+                            text = "Sign Up",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = brand,
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                    }
+                    TextButton(onClick = onForgotPassword) {
+                        Text(
+                            text = "Forget your password",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = brand,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            textAlign = TextAlign.End
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Button(
                     onClick = {
@@ -290,17 +304,18 @@ fun LoginScreen(
                             scaleY = buttonScale
                         },
                     enabled = !state.isLoading,
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(22.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.massagerExtendedColors.danger,
-                        disabledContainerColor = MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.4f),
-                        contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
+                        containerColor = brand,
+                        disabledContainerColor = brand.copy(alpha = 0.4f),
+                        contentColor = Color.White
                     ),
                     elevation = ButtonDefaults.buttonElevation(
-                        defaultElevation = 6.dp,
+                        defaultElevation = 8.dp,
                         pressedElevation = 2.dp
                     ),
-                    interactionSource = interactionSource
+                    interactionSource = interactionSource,
+                    contentPadding = PaddingValues(vertical = 16.dp)
                 ) {
                     if (state.isLoading) {
                         CircularProgressIndicator(
@@ -319,65 +334,197 @@ fun LoginScreen(
                     }
                 }
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedButton(
+                    onClick = onGuestLogin,
+                    enabled = !state.isLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    border = BorderStroke(
+                        width = 1.6.dp,
+                        brush = Brush.linearGradient(listOf(brandDeep, brand))
+                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = brand
+                    ),
+                    contentPadding = PaddingValues(vertical = 14.dp, horizontal = 12.dp)
                 ) {
-                    TextButton(onClick = onNavigateToRegister) {
-                        Text("Sign Up")
-                    }
-                    TextButton(onClick = onForgotPassword) {
-                        Text("Forget your password")
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Continue as Guest",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Continue as Guest",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(22.dp))
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Divider(modifier = Modifier.weight(1f))
+                    Divider(
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
                     Text(
-                        text = "Or continue with",
+                        text = "OR",
                         modifier = Modifier.padding(horizontal = 12.dp),
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
                         )
                     )
-                    Divider(modifier = Modifier.weight(1f))
+                    Divider(
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                SocialButton(
-                    buttonText = "Continue as Guest",
-                    icon = Icons.Default.Person,
-                    onClick = onGuestLogin,
-                    enabled = !state.isLoading
-                )
                 Spacer(modifier = Modifier.height(16.dp))
-                SocialButton(
-                    buttonText = "Continue with Google",
-                    icon = Icons.Default.MailOutline,
-                    onClick = onGoogleLogin,
-                    enabled = !state.isLoading
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                SocialButton(
-                    buttonText = "Continue with Facebook",
-                    icon = Icons.Default.Facebook,
-                    onClick = onFacebookLogin,
-                    enabled = !state.isLoading
-                )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally)
+                ) {
+                    SocialIconButton(
+                        icon = painterResource(id = R.drawable.ic_google),
+                        contentDescription = "Google",
+                        onClick = onGoogleLogin,
+                        enabled = !state.isLoading,
+                        tint = null
+                    )
+                    SocialIconButton(
+                        icon = rememberVectorPainter(image = Icons.Default.Facebook),
+                        contentDescription = "Facebook",
+                        onClick = onFacebookLogin,
+                        enabled = !state.isLoading,
+                        tint = Color(0xFF1877F2)
+                    )
+                }
 
-                AuthFooter()
+                Spacer(modifier = Modifier.height(28.dp))
+
+                AuthFooter(
+                    onOpenUserAgreement = onOpenUserAgreement,
+                    onOpenPrivacyPolicy = onOpenPrivacyPolicy
+                )
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LoginTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    placeholder: String,
+    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+    trailingIcon: (@Composable () -> Unit)? = null,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    isError: Boolean = false,
+    supportingText: String? = null,
+    shape: RoundedCornerShape,
+    background: Color,
+    contentColor: Color
+) {
+    OutlinedTextField(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(background),
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        label = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = contentColor.copy(alpha = 0.8f)
+            )
+        },
+        placeholder = {
+            Text(
+                text = placeholder,
+                style = MaterialTheme.typography.bodyMedium,
+                color = contentColor.copy(alpha = 0.6f)
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = leadingIcon,
+                contentDescription = label,
+                modifier = Modifier.size(22.dp),
+                tint = contentColor.copy(alpha = 0.9f)
+            )
+        },
+        trailingIcon = trailingIcon,
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = contentColor),
+        visualTransformation = visualTransformation,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        isError = isError,
+        colors = TextFieldDefaults.outlinedTextFieldColors(
+            focusedBorderColor = Color.Transparent,
+            unfocusedBorderColor = Color.Transparent,
+            disabledBorderColor = Color.Transparent,
+            errorBorderColor = MaterialTheme.colorScheme.error,
+            containerColor = Color.Transparent,
+            cursorColor = contentColor
+        ),
+        shape = shape,
+        supportingText = {
+            supportingText?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun SocialIconButton(
+    icon: Painter,
+    contentDescription: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    tint: Color?
+) {
+    Surface(
+        shape = CircleShape,
+        shadowElevation = 8.dp,
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier
+            .size(60.dp)
+    ) {
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Icon(
+                painter = icon,
+                contentDescription = contentDescription,
+                tint = tint ?: Color.Unspecified,
+                modifier = Modifier.size(28.dp)
+            )
         }
     }
 }
@@ -388,11 +535,14 @@ fun RegisterScreen(
     onRegister: (name: String, email: String, password: String, verificationCode: String) -> Unit,
     onSendVerificationCode: suspend (email: String) -> Result<Unit>,
     onNavigateToLogin: () -> Unit,
-    onRegistrationHandled: () -> Unit
+    onRegistrationHandled: () -> Unit,
+    onOpenUserAgreement: () -> Unit = {},
+    onOpenPrivacyPolicy: () -> Unit = {}
 ) {
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val brand = Color(0xFF2BA39D)
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var verificationCode by remember { mutableStateOf("") }
@@ -642,8 +792,8 @@ fun RegisterScreen(
                     enabled = canSubmit,
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.massagerExtendedColors.danger,
-                        disabledContainerColor = MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.4f),
+                        containerColor = brand,
+                        disabledContainerColor = brand.copy(alpha = 0.4f),
                         contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
                     )
                 ) {
@@ -675,7 +825,10 @@ fun RegisterScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                AuthFooter()
+                AuthFooter(
+                    onOpenUserAgreement = onOpenUserAgreement,
+                    onOpenPrivacyPolicy = onOpenPrivacyPolicy
+                )
             }
         }
     }
@@ -696,8 +849,7 @@ fun ForgetPasswordScreen(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val accent = MaterialTheme.massagerExtendedColors.danger
-    val accentDim = MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.85f)
+    val brand = Color(0xFF2BA39D)
 
     var email by remember { mutableStateOf("") }
     var verificationCode by remember { mutableStateOf("") }
@@ -788,29 +940,7 @@ fun ForgetPasswordScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             AnimatedVisibility(visible = logoVisible, enter = fadeIn()) {
-                Card(
-                    shape = CircleShape,
-                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(96.dp)
-                            .clip(CircleShape)
-                            .background(
-                                brush = Brush.linearGradient(listOf(accent, accentDim))
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_massager_logo),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .padding(12.dp)
-                        )
-                    }
-                }
+                AuthLogo()
             }
 
             OutlinedTextField(
@@ -861,7 +991,7 @@ fun ForgetPasswordScreen(
                             Text(
                                 text = getCodeText,
                                 color = if (sendCodeEnabled) {
-                                    accent
+                                    brand
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 }
@@ -917,7 +1047,7 @@ fun ForgetPasswordScreen(
 
             Text(
                 text = stringResource(R.string.password_rule),
-                style = MaterialTheme.typography.bodySmall.copy(color = accent),
+                style = MaterialTheme.typography.bodySmall.copy(color = brand),
                 textAlign = TextAlign.Start,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -930,8 +1060,8 @@ fun ForgetPasswordScreen(
                     .padding(top = 8.dp),
                 shape = RoundedCornerShape(50.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = accent,
-                    disabledContainerColor = accent.copy(alpha = 0.4f),
+                    containerColor = brand,
+                    disabledContainerColor = brand.copy(alpha = 0.4f),
                     contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
                 ),
                 contentPadding = PaddingValues(vertical = 16.dp)
@@ -952,38 +1082,74 @@ fun ForgetPasswordScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            AuthFooter()
+            AuthFooter(
+                onOpenUserAgreement = {},
+                onOpenPrivacyPolicy = {}
+            )
         }
     }
 }
 
 @Composable
 private fun AuthLogo() {
-    Surface(
-        modifier = Modifier.size(96.dp),
-        shape = CircleShape,
-        color = MaterialTheme.massagerExtendedColors.danger
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_massager_logo),
-            contentDescription = "MASSAGER logo",
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp)
-        )
-    }
+    Image(
+        painter = painterResource(id = R.drawable.ic_massager_logo),
+        contentDescription = "MASSAGER logo",
+        modifier = Modifier.size(192.dp)
+    )
 }
 
 @Composable
-private fun AuthFooter() {
-    Text(
-        text = "By continuing you agree with xyj's User Agreement and Privacy Policy",
-        style = MaterialTheme.typography.bodySmall.copy(
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp
-        ),
-        textAlign = TextAlign.Center
-    )
+private fun AuthFooter(
+    onOpenUserAgreement: () -> Unit,
+    onOpenPrivacyPolicy: () -> Unit
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = "By continuing you agree with",
+            style = MaterialTheme.typography.bodySmall.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            TextButton(
+                onClick = onOpenUserAgreement,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    text = "User Agreement",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = accent,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+            Text(
+                text = "|",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+            TextButton(
+                onClick = onOpenPrivacyPolicy,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    text = "Privacy Policy",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = accent,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+        }
+    }
 }
 
 @Composable

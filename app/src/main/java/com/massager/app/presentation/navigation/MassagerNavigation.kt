@@ -74,7 +74,9 @@ fun MassagerNavHost(
                 onLogin = { email, password -> authViewModel.login(email, password) },
                 onNavigateToRegister = { navController.navigate(Screen.Register.route) },
                 onForgotPassword = { navController.navigate(Screen.ForgetPassword.route) },
-                onGuestLogin = { authViewModel.enterGuestMode() }
+                onGuestLogin = { authViewModel.enterGuestMode() },
+                onOpenUserAgreement = { navController.navigate(Screen.UserAgreement.route) },
+                onOpenPrivacyPolicy = { navController.navigate(Screen.PrivacyPolicy.route) }
             )
         }
         composable(Screen.Register.route) {
@@ -90,7 +92,9 @@ fun MassagerNavHost(
                 onRegistrationHandled = {
                     authViewModel.clearRegistrationFlag()
                     authViewModel.clearError()
-                }
+                },
+                onOpenUserAgreement = { navController.navigate(Screen.UserAgreement.route) },
+                onOpenPrivacyPolicy = { navController.navigate(Screen.PrivacyPolicy.route) }
             )
         }
         composable(Screen.Home.route) {
