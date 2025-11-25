@@ -1,5 +1,6 @@
 package com.massager.app.domain.device
 
+// 文件说明：定义 EMS 设备会话，实现连接、命令与数据管道。
 import com.massager.app.data.bluetooth.MassagerBluetoothService
 import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter
 import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter.EmsV2Command

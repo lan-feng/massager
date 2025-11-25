@@ -1,5 +1,6 @@
 package com.massager.app.di
 
+// 文件说明：配置网络与蓝牙相关的 Hilt 提供器，统一创建 OkHttp/Retrofit 与蓝牙适配器实例。
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context

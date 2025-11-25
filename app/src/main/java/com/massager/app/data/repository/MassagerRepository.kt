@@ -1,5 +1,6 @@
 package com.massager.app.data.repository
 
+// 文件说明：管理设备与测量数据的获取、同步、组合信息更新等核心数据流。
 import androidx.room.withTransaction
 import com.massager.app.core.DeviceCatalog
 import com.massager.app.data.local.MassagerDatabase

@@ -1,5 +1,6 @@
 package com.massager.app.domain.model
 
+// 文件说明：保存设备组合信息的领域模型。
 import org.json.JSONArray
 import org.json.JSONObject
 

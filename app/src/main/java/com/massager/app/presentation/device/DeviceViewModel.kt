@@ -1,5 +1,6 @@
 package com.massager.app.presentation.device
 
+// 文件说明：设备列表页的状态管理与刷新逻辑。
 import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel

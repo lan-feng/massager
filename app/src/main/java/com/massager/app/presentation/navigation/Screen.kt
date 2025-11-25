@@ -1,5 +1,6 @@
 package com.massager.app.presentation.navigation
 
+// 文件说明：集中声明导航目的地与路由常量。
 import android.net.Uri
 
 sealed class Screen(val route: String) {

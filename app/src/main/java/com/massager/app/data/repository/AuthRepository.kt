@@ -1,5 +1,6 @@
 package com.massager.app.data.repository
 
+// 文件说明：处理登录注册、验证码、登出等身份认证流程并维护本地会话。
 import com.massager.app.BuildConfig
 import androidx.room.withTransaction
 import androidx.room.withTransaction

@@ -1,5 +1,6 @@
 package com.massager.app.data.bluetooth.session
 
+// 文件说明：缓冲并组装协议负载数据的工具。
 import android.util.Log
 import com.massager.app.core.logging.logTag
 

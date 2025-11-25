@@ -1,5 +1,6 @@
 package com.massager.app.presentation.settings
 
+// 文件说明：展示应用版本信息与相关链接的关于页面。
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri

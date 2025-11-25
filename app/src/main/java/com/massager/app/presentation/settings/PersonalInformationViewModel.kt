@@ -1,5 +1,6 @@
 package com.massager.app.presentation.settings
 
+// 文件说明：处理个人信息修改与头像上传的状态管理与提交逻辑。
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

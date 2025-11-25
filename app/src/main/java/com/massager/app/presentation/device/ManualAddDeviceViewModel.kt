@@ -1,5 +1,6 @@
 package com.massager.app.presentation.device
 
+// 文件说明：手动添加设备流程的状态管理。
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.R

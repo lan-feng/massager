@@ -1,5 +1,6 @@
 package com.massager.app.data.remote.upload
 
+// 文件说明：工具方法，构建带文件的 Multipart 请求体。
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody

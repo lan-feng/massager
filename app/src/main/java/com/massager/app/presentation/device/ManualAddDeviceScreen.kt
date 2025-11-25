@@ -1,5 +1,6 @@
 package com.massager.app.presentation.device
 
+// 文件说明：手动录入设备信息的界面。
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut

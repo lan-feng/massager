@@ -1,5 +1,6 @@
 package com.massager.app.domain.usecase.profile
 
+// 文件说明：处理密码修改请求的业务入口。
 import com.massager.app.data.repository.UserRepository
 import javax.inject.Inject
 

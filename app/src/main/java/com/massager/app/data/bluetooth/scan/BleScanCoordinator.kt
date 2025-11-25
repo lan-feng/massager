@@ -1,5 +1,6 @@
 package com.massager.app.data.bluetooth.scan
 
+// 文件说明：协调 BLE 扫描流程与过滤逻辑的组件。
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter

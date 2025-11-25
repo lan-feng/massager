@@ -1,5 +1,6 @@
 package com.massager.app.presentation.settings
 
+// 文件说明：账户安全界面，提供密码找回、邮件验证等操作入口。
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn

@@ -1,5 +1,6 @@
 package com.massager.app.presentation.home
 
+// 文件说明：汇总首页仪表盘的设备、测量数据加载与刷新逻辑。
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

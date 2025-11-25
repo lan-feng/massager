@@ -1,5 +1,6 @@
 package com.massager.app.presentation.settings
 
+// 文件说明：定义账户安全相关的导航路由与参数常量。
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

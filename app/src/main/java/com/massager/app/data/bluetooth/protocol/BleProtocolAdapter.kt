@@ -1,5 +1,6 @@
 package com.massager.app.data.bluetooth.protocol
 
+// 文件说明：蓝牙协议适配器接口，定义编码解码方法。
 import java.util.UUID
 
 /**

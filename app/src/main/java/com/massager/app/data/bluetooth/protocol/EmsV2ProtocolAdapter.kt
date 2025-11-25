@@ -1,5 +1,6 @@
 package com.massager.app.data.bluetooth.protocol
 
+// 文件说明：EMS V2 协议适配器，负责编码解码指令帧。
 import java.util.UUID
 
 private const val EMS_V2_HEADER_FIRST: Byte = 0x68

@@ -1,5 +1,6 @@
 package com.massager.app.data.local
 
+// 文件说明：Room 数据库入口，注册实体与版本配置。
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters

@@ -1,5 +1,6 @@
 package com.massager.app.data.remote
 
+// 文件说明：用户资料与账号安全相关的 Retrofit API 定义。
 import com.massager.app.data.remote.dto.ApiEnvelope
 import com.massager.app.data.remote.dto.ChangePasswordRequest
 import com.massager.app.data.remote.dto.FileUploadResponse

@@ -1,5 +1,6 @@
 package com.massager.app.presentation.navigation
 
+// 文件说明：构建应用导航图，连接各功能模块的路由。
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember

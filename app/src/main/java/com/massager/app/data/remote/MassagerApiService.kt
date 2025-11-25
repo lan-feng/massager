@@ -1,5 +1,6 @@
 package com.massager.app.data.remote
 
+// 文件说明：提供设备、测量等业务接口的 Retrofit 定义。
 import com.massager.app.data.remote.dto.ApiEnvelope
 import com.massager.app.data.remote.dto.DeviceBindRequest
 import com.massager.app.data.remote.dto.DeviceComboInfoUpdateRequest

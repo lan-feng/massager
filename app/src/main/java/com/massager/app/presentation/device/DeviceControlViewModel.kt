@@ -1,5 +1,6 @@
 package com.massager.app.presentation.device
 
+// 文件说明：设备控制界面的状态管理与指令发送逻辑。
 import android.content.Context
 import android.util.Log
 import androidx.annotation.StringRes

@@ -1,5 +1,6 @@
 package com.massager.app.presentation.settings
 
+// 文件说明：Compose 实现的设置主页面，汇集账户、安全与关于等入口。
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

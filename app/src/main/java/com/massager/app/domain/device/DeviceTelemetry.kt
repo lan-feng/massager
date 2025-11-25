@@ -1,5 +1,6 @@
 package com.massager.app.domain.device
 
+// 文件说明：描述设备遥测数据的领域结构。
 import com.massager.app.data.bluetooth.protocol.ProtocolMessage
 
 data class DeviceTelemetry(

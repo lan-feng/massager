@@ -1,5 +1,6 @@
 package com.massager.app.domain.device
 
+// 文件说明：设备会话接口，规范连接、发送命令与关闭流程。
 interface DeviceSession {
     val supportedProtocolKeys: Set<String>
 

@@ -1,5 +1,6 @@
 package com.massager.app.presentation.home
 
+// 文件说明：Compose 首页仪表盘界面，呈现设备状态与健康数据。
 import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility

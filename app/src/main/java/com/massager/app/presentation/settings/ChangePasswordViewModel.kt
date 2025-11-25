@@ -1,5 +1,6 @@
 package com.massager.app.presentation.settings
 
+// 文件说明：驱动修改密码流程，校验输入并调用域层用例。
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.domain.usecase.profile.ChangePasswordUseCase

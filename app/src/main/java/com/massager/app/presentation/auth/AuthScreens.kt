@@ -1,5 +1,6 @@
 package com.massager.app.presentation.auth
 
+// 文件说明：Compose 实现的登录、注册、重置密码界面与导航。
 import android.util.Patterns
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility

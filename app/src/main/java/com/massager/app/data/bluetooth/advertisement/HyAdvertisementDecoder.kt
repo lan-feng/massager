@@ -1,5 +1,6 @@
 package com.massager.app.data.bluetooth.advertisement
 
+// 文件说明：解析 HY 广播数据的解码器实现。
 import android.bluetooth.le.ScanResult
 import android.util.Log
 import com.massager.app.core.logging.logTag

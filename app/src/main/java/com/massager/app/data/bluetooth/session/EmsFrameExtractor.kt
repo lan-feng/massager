@@ -1,5 +1,6 @@
 package com.massager.app.data.bluetooth.session
 
+// 文件说明：解析 EMS 协议数据帧的提取器，实现粘包拆包逻辑。
 import kotlin.math.min
 
 class EmsFrameExtractor : FrameExtractor {

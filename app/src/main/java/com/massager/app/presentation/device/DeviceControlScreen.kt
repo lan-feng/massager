@@ -1,5 +1,6 @@
 package com.massager.app.presentation.device
 
+// 文件说明：设备控制 UI，提供模式、强度等交互。
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility

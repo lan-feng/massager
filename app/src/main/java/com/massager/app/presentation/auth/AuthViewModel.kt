@@ -1,5 +1,6 @@
 package com.massager.app.presentation.auth
 
+// 文件说明：登录/注册页的表单状态与认证交互处理。
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.data.local.SessionManager

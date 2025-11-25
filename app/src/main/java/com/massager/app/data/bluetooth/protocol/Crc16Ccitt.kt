@@ -1,5 +1,6 @@
 package com.massager.app.data.bluetooth.protocol
 
+// 文件说明：计算 CRC16-CCITT 校验值的工具函数。
 /**
  * CRC16-CCITT (poly 0x1021) calculation helper.
  *

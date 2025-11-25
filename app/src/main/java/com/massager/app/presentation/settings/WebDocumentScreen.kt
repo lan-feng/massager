@@ -1,5 +1,6 @@
 package com.massager.app.presentation.settings
 
+// 文件说明：展示服务协议、隐私政策等外部文档的 WebView 界面。
 import android.annotation.SuppressLint
 import android.webkit.WebChromeClient
 import android.webkit.WebView

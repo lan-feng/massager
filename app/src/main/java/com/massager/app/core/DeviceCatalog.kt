@@ -1,5 +1,6 @@
 package com.massager.app.core
 
+// 文件说明：从资源或默认值加载设备类型定义，用于解析产品信息并给出内部设备类型。
 import android.content.Context
 import androidx.annotation.RawRes
 import dagger.hilt.android.qualifiers.ApplicationContext

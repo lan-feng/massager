@@ -1,5 +1,6 @@
 package com.massager.app.presentation.common
 
+// 文件说明：封装可本地化的 UI 文本表示。
 import android.content.Context
 import androidx.annotation.StringRes
 

@@ -1,5 +1,6 @@
 package com.massager.app.presentation.settings
 
+// 文件说明：负责账户安全页的 UI 状态、验证码发送与重置密码触发。
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.data.local.SessionManager

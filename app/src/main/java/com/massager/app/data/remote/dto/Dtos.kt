@@ -1,5 +1,6 @@
 package com.massager.app.data.remote.dto
 
+// 文件说明：定义通用网络响应与请求的数据传输对象。
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 

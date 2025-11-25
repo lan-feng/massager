@@ -1,5 +1,6 @@
 package com.massager.app.presentation.theme
 
+// 文件说明：扩展颜色模型与持有类，统一提供明暗主题的自定义色板。
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable

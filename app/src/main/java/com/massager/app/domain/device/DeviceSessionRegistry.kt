@@ -1,5 +1,6 @@
 package com.massager.app.domain.device
 
+// 文件说明：管理已注册设备会话实例的查找与获取。
 import javax.inject.Inject
 import javax.inject.Singleton
 

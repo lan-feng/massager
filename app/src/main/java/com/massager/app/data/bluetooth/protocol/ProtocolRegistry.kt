@@ -1,5 +1,6 @@
 package com.massager.app.data.bluetooth.protocol
 
+// 文件说明：注册并按协议版本选择蓝牙适配器的工具。
 import com.massager.app.data.bluetooth.advertisement.ProtocolAdvertisement
 import java.util.UUID
 import javax.inject.Inject

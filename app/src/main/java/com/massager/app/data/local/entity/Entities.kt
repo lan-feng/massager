@@ -1,5 +1,6 @@
 package com.massager.app.data.local.entity
 
+// 文件说明：定义 Room 实体数据类与字段映射。
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.time.Instant

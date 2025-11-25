@@ -1,5 +1,6 @@
 package com.massager.app.data.local
 
+// 文件说明：Room 类型转换器，处理复杂类型的存储。
 import androidx.room.TypeConverter
 import java.time.Instant
 

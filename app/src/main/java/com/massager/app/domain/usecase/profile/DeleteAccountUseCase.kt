@@ -1,5 +1,6 @@
 package com.massager.app.domain.usecase.profile
 
+// 文件说明：封装注销账号流程的用例。
 import com.massager.app.data.repository.UserRepository
 import javax.inject.Inject
 

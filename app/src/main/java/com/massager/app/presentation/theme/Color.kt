@@ -1,5 +1,6 @@
 package com.massager.app.presentation.theme
 
+// 文件说明：集中声明应用使用的颜色常量与明暗模式色值。
 import androidx.compose.ui.graphics.Color
 
 // Brand palette

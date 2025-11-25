@@ -1,5 +1,6 @@
 package com.massager.app.presentation.settings
 
+// 文件说明：个人信息编辑界面，提供姓名、邮箱、头像等表单交互。
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.widget.Toast

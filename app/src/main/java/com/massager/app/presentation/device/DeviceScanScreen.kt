@@ -1,5 +1,6 @@
 package com.massager.app.presentation.device
 
+// 文件说明：展示扫描到的设备列表供选择连接。
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

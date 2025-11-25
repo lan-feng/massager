@@ -1,5 +1,6 @@
 package com.massager.app.core.logging
 
+// 文件说明：封装 Crashlytics 日志上报，统一处理日志级别与自定义键值。
 import android.util.Log
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 

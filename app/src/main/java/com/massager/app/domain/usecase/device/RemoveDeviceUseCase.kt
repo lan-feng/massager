@@ -1,5 +1,6 @@
 package com.massager.app.domain.usecase.device
 
+// 文件说明：处理解绑或删除设备的业务流程。
 import com.massager.app.data.repository.MassagerRepository
 import javax.inject.Inject
 

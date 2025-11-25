@@ -1,5 +1,6 @@
 package com.massager.app.data.bluetooth
 
+// 文件说明：封装蓝牙扫描、连接与指令发送的核心服务。
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -345,19 +346,23 @@ class MassagerBluetoothService @Inject constructor(
         }
     }
 
+    // 监听器注册：用于上报连接、断开、失败等事件。
     fun addConnectionListener(listener: BleConnectionListener) {
         listeners.add(listener)
     }
 
+    // 监听器移除。
     fun removeConnectionListener(listener: BleConnectionListener) {
         listeners.remove(listener)
     }
 
+    // 清空当前错误消息，便于重新展示 UI 状态。
     fun clearError() {
         _connectionState.update { it.copy(errorMessage = null) }
     }
 
     @SuppressLint("MissingPermission")
+    // 启动扫描：协调器开始搜索设备并更新连接状态。
     fun startScan() {
         when (val result = scanCoordinator.startScan()) {
             is BleScanCoordinator.ScanStartResult.Started -> {
@@ -378,6 +383,7 @@ class MassagerBluetoothService @Inject constructor(
         }
     }
 
+    // 重启扫描：清理缓存后重新开始，出错时回退为普通扫描。
     fun restartScan() {
         Log.d(TAG, "restartScan: restarting BLE scan")
         scanCoordinator.clearCache()
@@ -394,6 +400,7 @@ class MassagerBluetoothService @Inject constructor(
     }
 
     @SuppressLint("MissingPermission")
+    // 停止扫描：终止扫描任务并将状态恢复空闲。
     fun stopScan() {
         Log.d(TAG, "stopScan: stopping BLE scan")
         scanCoordinator.stopScan()
@@ -407,6 +414,7 @@ class MassagerBluetoothService @Inject constructor(
     }
 
     @SuppressLint("MissingPermission")
+    // 发起连接：根据扫描缓存或地址获取设备，选择协议适配器并建立 GATT 连接。
     fun connect(address: String): Boolean {
         val adapter = bluetoothAdapter ?: run {
             Log.w(TAG, "connect: bluetooth adapter is null")
@@ -505,6 +513,7 @@ class MassagerBluetoothService @Inject constructor(
     }
 
     @SuppressLint("MissingPermission")
+    // 主动断开：清理会话状态、重置适配器并关闭 GATT。
     fun disconnect() {
         connectedAddress = null
         activeAdapter = null
@@ -530,6 +539,7 @@ class MassagerBluetoothService @Inject constructor(
         scanCoordinator.updateConnectedAddress(null)
     }
 
+    // 关闭服务：停止扫描、断开连接并取消协程。
     fun shutdown() {
         stopScan()
         disconnect()
@@ -538,6 +548,7 @@ class MassagerBluetoothService @Inject constructor(
     }
 
     @SuppressLint("MissingPermission")
+    // 读取特征：按给定 Service/Characteristic UUID 发起一次 GATT 读取。
     fun readCharacteristic(serviceUuid: UUID, characteristicUuid: UUID): Boolean {
         val gatt = currentGatt ?: return false
         val characteristic = gatt
@@ -575,6 +586,7 @@ class MassagerBluetoothService @Inject constructor(
         return request.completion.await()
     }
 
+    // 入队写请求：若当前无写操作则立即执行，否则排队。
     private fun enqueueWrite(request: PendingWrite) {
         val shouldStart = synchronized(writeQueue) {
             if (activeWrite == null) {
@@ -596,6 +608,7 @@ class MassagerBluetoothService @Inject constructor(
     private fun currentGattMatches(gatt: BluetoothGatt): Boolean = currentGatt == gatt
 
     @SuppressLint("MissingPermission")
+    // 执行写入：根据系统版本调用对应 API 并在失败时推进队列。
     private fun performWrite(request: PendingWrite) {
         if (!currentGattMatches(request.gatt)) {
             request.completion.complete(false)
@@ -645,6 +658,7 @@ class MassagerBluetoothService @Inject constructor(
         pending.forEach { it.completion.complete(false) }
     }
 
+    // 发送协议命令：若缺少句柄则尝试重新解析，编码后写入当前特征。
     suspend fun sendProtocolCommand(
         command: ProtocolCommand,
         writeType: Int = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
@@ -709,10 +723,13 @@ class MassagerBluetoothService @Inject constructor(
         return result
     }
 
+    // 协议就绪判断：已解析到写特征则认为可发指令。
     fun isProtocolReady(): Boolean = activeAdapter != null && activeWriteCharacteristicUuid != null
 
+    // 当前协议标识。
     fun activeProtocolKey(): String? = activeAdapter?.protocolKey
 
+    // 处理断开：重置会话、清理队列并更新 UI 状态，同时通知监听器。
     private fun handleDisconnection(device: BluetoothDevice, status: Int) {
         val failed = status != BluetoothGatt.GATT_SUCCESS
         if (connectedAddress == device.address) {
@@ -751,6 +768,7 @@ class MassagerBluetoothService @Inject constructor(
         }
     }
 
+    // 安排服务发现：按延迟重试 discoverServices，记录原因避免过度重试。
     private fun queueServiceDiscovery(
         gatt: BluetoothGatt,
         delayMs: Long,
@@ -817,6 +835,7 @@ class MassagerBluetoothService @Inject constructor(
         pendingServiceRetry = null
     }
 
+    // 临时提升连接优先级：初连阶段请求高优先级，稍后恢复平衡模式。
     private fun boostConnectionPriority(gatt: BluetoothGatt) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return
         if (hasConnectPermission()) {
@@ -890,6 +909,7 @@ class MassagerBluetoothService @Inject constructor(
         listeners.forEach { it.onConnectionFailed(device, reason) }
     }
 
+    // 处理协议负载：累积分片、解码帧并向上游分发协议消息。
     private fun handleProtocolPayload(payload: ByteArray) {
         if (payload.isEmpty()) return
         val adapter = activeAdapter ?: return
@@ -1001,6 +1021,7 @@ class MassagerBluetoothService @Inject constructor(
         return true
     }
 
+    // 解析协议句柄：匹配服务与读写/通知特征，必要时重映射协议并更新状态。
     private fun resolveProtocolHandles(
         gatt: BluetoothGatt,
         adapter: BleProtocolAdapter,

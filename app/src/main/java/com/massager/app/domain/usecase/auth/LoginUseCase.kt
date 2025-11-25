@@ -1,5 +1,6 @@
 package com.massager.app.domain.usecase.auth
 
+// 文件说明：执行用户登录逻辑的域层入口。
 import com.massager.app.data.repository.AuthRepository
 import com.massager.app.domain.model.AuthResult
 import javax.inject.Inject

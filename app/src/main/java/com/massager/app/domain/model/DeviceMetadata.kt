@@ -1,5 +1,6 @@
 package com.massager.app.domain.model
 
+// 文件说明：表征设备列表展示所需的元数据。
 data class DeviceMetadata(
     val id: String,
     val name: String,

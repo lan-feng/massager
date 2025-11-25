@@ -1,5 +1,6 @@
 package com.massager.app.data.local.dao
 
+// 文件说明：聚合各业务表的 Room DAO 接口定义。
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy

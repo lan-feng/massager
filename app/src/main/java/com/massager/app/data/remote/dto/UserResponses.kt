@@ -1,5 +1,6 @@
 package com.massager.app.data.remote.dto
 
+// 文件说明：用户相关 API 的响应与请求 DTO。
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 

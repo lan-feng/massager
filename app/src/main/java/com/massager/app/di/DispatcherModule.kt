@@ -1,5 +1,6 @@
 package com.massager.app.di
 
+// 文件说明：提供协程调度器的 Hilt 绑定，集中注入 IO 线程调度。
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

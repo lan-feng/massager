@@ -1,5 +1,6 @@
 package com.massager.app.domain.usecase.auth
 
+// 文件说明：开启游客模式并准备本地会话的用例。
 import com.massager.app.BuildConfig
 import com.massager.app.data.local.SessionManager
 import javax.inject.Inject

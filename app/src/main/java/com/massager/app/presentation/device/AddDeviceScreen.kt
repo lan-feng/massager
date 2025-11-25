@@ -1,5 +1,6 @@
 package com.massager.app.presentation.device
 
+// 文件说明：新增设备的扫描/输入界面。
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build

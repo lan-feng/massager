@@ -1,5 +1,6 @@
 package com.massager.app.presentation.recovery
 
+// 文件说明：账号恢复方式选择界面。
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding

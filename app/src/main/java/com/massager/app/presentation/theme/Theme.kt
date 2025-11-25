@@ -1,5 +1,6 @@
 package com.massager.app.presentation.theme
 
+// 文件说明：封装 Massager 的主题装饰，注入颜色、排版并提供给全局界面。
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme

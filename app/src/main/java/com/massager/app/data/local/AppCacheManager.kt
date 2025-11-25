@@ -1,5 +1,6 @@
 package com.massager.app.data.local
 
+// 文件说明：管理磁盘缓存文件的统一工具。
 import android.content.Context
 import com.massager.app.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext

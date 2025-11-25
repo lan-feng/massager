@@ -1,5 +1,6 @@
 package com.massager.app.presentation.settings
 
+// 文件说明：管理设置页状态与动作，如登出、跳转和用户信息加载。
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

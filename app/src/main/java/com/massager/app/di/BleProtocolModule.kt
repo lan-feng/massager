@@ -1,5 +1,6 @@
 package com.massager.app.di
 
+// 文件说明：注册蓝牙协议适配器与广播解码器到 Hilt 集合供扫描与通讯使用。
 import com.massager.app.data.bluetooth.advertisement.AdvertisementDecoder
 import com.massager.app.data.bluetooth.advertisement.HyAdvertisementDecoder
 import com.massager.app.data.bluetooth.protocol.BleProtocolAdapter

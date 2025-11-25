@@ -1,5 +1,6 @@
 package com.massager.app.data.repository
 
+// 文件说明：封装用户资料相关的远端接口与本地缓存同步。
 import com.massager.app.data.remote.UserApiService
 import com.massager.app.data.remote.dto.ChangePasswordRequest
 import com.massager.app.data.remote.dto.FileUploadResponse

@@ -1,5 +1,6 @@
 package com.massager.app.data.local
 
+// 文件说明：管理本地会话信息、令牌与账户模式切换。
 import android.content.Context
 import android.util.Base64
 import dagger.hilt.android.qualifiers.ApplicationContext

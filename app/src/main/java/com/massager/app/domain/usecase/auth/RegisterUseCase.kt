@@ -1,5 +1,6 @@
 package com.massager.app.domain.usecase.auth
 
+// 文件说明：处理注册业务，调用仓库并返回认证结果。
 import com.massager.app.data.repository.AuthRepository
 import com.massager.app.domain.model.AuthResult
 import javax.inject.Inject

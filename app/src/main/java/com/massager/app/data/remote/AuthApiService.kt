@@ -1,5 +1,6 @@
 package com.massager.app.data.remote
 
+// 文件说明：定义登录、注册、重置密码等认证相关的 Retrofit 接口。
 import com.massager.app.data.remote.dto.ApiEnvelope
 import com.massager.app.data.remote.dto.AuthRequest
 import com.massager.app.data.remote.dto.AuthResponse

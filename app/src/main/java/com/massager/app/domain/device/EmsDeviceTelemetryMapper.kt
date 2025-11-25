@@ -1,5 +1,6 @@
 package com.massager.app.domain.device
 
+// 文件说明：将 EMS 设备遥测数据映射为领域模型。
 import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter
 import com.massager.app.data.bluetooth.protocol.FrameDirection
 import com.massager.app.data.bluetooth.protocol.ProtocolMessage

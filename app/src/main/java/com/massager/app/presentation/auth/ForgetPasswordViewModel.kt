@@ -1,5 +1,6 @@
 package com.massager.app.presentation.auth
 
+// 文件说明：忘记密码流程的状态管理与验证码发送逻辑。
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.R

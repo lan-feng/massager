@@ -1,5 +1,6 @@
 package com.massager.app.domain.usecase.device
 
+// 文件说明：执行设备绑定流程的域层用例。
 import com.massager.app.data.repository.MassagerRepository
 import com.massager.app.domain.model.DeviceMetadata
 import javax.inject.Inject

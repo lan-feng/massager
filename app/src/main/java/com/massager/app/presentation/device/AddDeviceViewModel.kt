@@ -1,5 +1,6 @@
 package com.massager.app.presentation.device
 
+// 文件说明：添加设备流程的状态与提交逻辑。
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

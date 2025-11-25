@@ -1,5 +1,6 @@
 package com.massager.app.domain.usecase.auth
 
+// 文件说明：封装重置密码流程，转发至认证仓库。
 import com.massager.app.data.repository.AuthRepository
 import javax.inject.Inject
 

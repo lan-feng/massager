@@ -1,5 +1,6 @@
 package com.massager.app.di
 
+// 文件说明：集中创建 Room 数据库与各 DAO 的 Hilt 提供器。
 import android.content.Context
 import androidx.room.Room
 import com.massager.app.data.local.MassagerDatabase

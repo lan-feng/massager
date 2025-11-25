@@ -1,5 +1,6 @@
 package com.massager.app.presentation.components
 
+// 文件说明：底部导航栏组件，承载主要 Tab 切换。
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar

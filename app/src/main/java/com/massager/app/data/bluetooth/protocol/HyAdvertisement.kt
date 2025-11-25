@@ -1,5 +1,6 @@
 package com.massager.app.data.bluetooth.protocol
 
+// 文件说明：HY 设备广播数据模型与解析逻辑。
 import java.util.Locale
 
 /**

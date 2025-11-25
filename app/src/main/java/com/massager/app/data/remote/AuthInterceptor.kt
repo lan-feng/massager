@@ -1,5 +1,6 @@
 package com.massager.app.data.remote
 
+// 文件说明：为网络请求附加认证信息与应用标识的 OkHttp 拦截器。
 import com.massager.app.BuildConfig
 import com.massager.app.data.local.SessionManager
 import okhttp3.Interceptor
