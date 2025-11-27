@@ -123,8 +123,9 @@
     <string name="device_mode_5">Cupping</string>
     <string name="device_mode_6">Activate</string>
     <string name="device_mode_7">Shape</string>
-    <string name="mode">Mode</string>
-    <string name="device_level_label">Level</string>
+    <string name="mode">Mode Selection</string>
+    <string name="body_part_title">Body Part</string>
+    <string name="device_level_label">Intensity</string>
     <string name="device_minutes_suffix">min</string>
     <string name="device_timer_placeholder">0 min</string>
     <string name="device_timer_select_title">Select duration</string>

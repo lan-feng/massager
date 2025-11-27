@@ -105,7 +105,8 @@
     <string name="device_mode_5">拔罐</string>
     <string name="device_mode_6">激活</string>
     <string name="device_mode_7">塑形</string>
-    <string name="mode">模式</string>
+    <string name="mode">模式选择</string>
+    <string name="body_part_title">身体部位</string>
     <string name="device_level_label">强度</string>
     <string name="device_minutes_suffix">分钟</string>
     <string name="device_timer_placeholder">0 分钟</string>

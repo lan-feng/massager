@@ -409,15 +409,16 @@ class DeviceControlViewModel @Inject constructor(
             addAll(comboDevices.map(ComboDeviceInfo::deviceSerial))
         }
         if (available.any { it.equals(pending, ignoreCase = true) }) {
-            updateSelectedDevice(pending, shouldReconnect = true)
-            pendingSelectionSerial = null
-        }
+        updateSelectedDevice(pending, shouldReconnect = true)
+        pendingSelectionSerial = null
+    }
     }
 
     fun selectComboDevice(serial: String?) {
         val sanitized = serial ?: targetAddress
         if (sanitized.isNullOrBlank()) return
         pendingSelectionSerial = null
+        // 切换卡片不再断开其他设备，仅切换选中设备并重连到目标
         updateSelectedDevice(sanitized, shouldReconnect = true)
     }
 
@@ -489,8 +490,8 @@ class DeviceControlViewModel @Inject constructor(
         }
         buildDeviceCards()
         if (shouldReconnect) {
-            bluetoothService.disconnect()
-            reconnect()
+            // 不断开其他设备，仅切换主动连接到新的 target
+            bluetoothService.connect(serial)
         }
     }
 
