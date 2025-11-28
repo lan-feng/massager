@@ -105,7 +105,8 @@ class MassagerBluetoothService @Inject constructor(
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastEmptyDecodeLogAt = 0L
     private val listeners = CopyOnWriteArraySet<BleConnectionListener>()
-    private var payloadBuffer: ProtocolPayloadBuffer = ProtocolPayloadBuffer(EmsFrameExtractor())
+    private val payloadBuffers = mutableMapOf<String, ProtocolPayloadBuffer>()
+    private val protocolAdapters = mutableMapOf<String, BleProtocolAdapter>()
 
     private val scanFailureListener = object : BleScanCoordinator.ScanFailureListener {
         override fun onScanFailure(errorCode: Int) {
@@ -123,21 +124,55 @@ class MassagerBluetoothService @Inject constructor(
 
     private val _connectionState = MutableStateFlow(BleConnectionState())
     val connectionState: StateFlow<BleConnectionState> = _connectionState.asStateFlow()
+    private val _connectionStates = MutableStateFlow<Map<String, BleConnectionState>>(emptyMap())
+    val connectionStates: StateFlow<Map<String, BleConnectionState>> = _connectionStates.asStateFlow()
 
     private val _protocolMessages = MutableSharedFlow<ProtocolMessage>(extraBufferCapacity = 32)
     val protocolMessages: SharedFlow<ProtocolMessage> = _protocolMessages.asSharedFlow()
+    private val _deviceProtocolMessages =
+        MutableSharedFlow<DeviceProtocolMessage>(extraBufferCapacity = 32)
+    val deviceProtocolMessages: SharedFlow<DeviceProtocolMessage> = _deviceProtocolMessages.asSharedFlow()
 
     init {
         scanCoordinator.addFailureListener(scanFailureListener)
     }
 
-    private fun resetPayloadBuffer(adapter: BleProtocolAdapter?) {
-        payloadBuffer = ProtocolPayloadBuffer(
+    private fun resetPayloadBuffer(adapter: BleProtocolAdapter?, address: String?) {
+        if (address.isNullOrBlank()) return
+        payloadBuffers[address] = ProtocolPayloadBuffer(
             when (adapter?.protocolKey) {
                 EmsV2ProtocolAdapter.PROTOCOL_KEY -> EmsFrameExtractor()
                 else -> EmsFrameExtractor()
             }
         )
+    }
+
+    private fun putConnectionState(address: String?, state: BleConnectionState) {
+        if (address.isNullOrBlank()) return
+        _connectionStates.update { current ->
+            current + (address to state.copy(deviceAddress = address))
+        }
+    }
+
+    private fun updateConnectionState(address: String?, reducer: (BleConnectionState) -> BleConnectionState) {
+        if (address.isNullOrBlank()) return
+        _connectionStates.update { current ->
+            val existing = current[address] ?: BleConnectionState(deviceAddress = address)
+            current + (address to reducer(existing))
+        }
+    }
+
+    private fun removeConnectionState(address: String?) {
+        if (address.isNullOrBlank()) {
+            _connectionStates.value = emptyMap()
+            return
+        }
+        _connectionStates.update { current -> current - address }
+    }
+
+    private fun adapterFor(address: String?): BleProtocolAdapter? {
+        if (address.isNullOrBlank()) return activeAdapter
+        return protocolAdapters[address] ?: activeAdapter
     }
 
     @Volatile
@@ -182,9 +217,10 @@ class MassagerBluetoothService @Inject constructor(
                             isProtocolReady = false
                         )
                     }
+                    putConnectionState(gatt.device.address, _connectionState.value)
                     notifyConnected(gatt.device)
                     boostConnectionPriority(gatt)
-                    val mtuRequested = activeAdapter?.let { adapter ->
+                    val mtuRequested = adapterFor(gatt.device.address)?.let { adapter ->
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                             val requested = if (hasConnectPermission()) {
                                 try {
@@ -229,6 +265,7 @@ class MassagerBluetoothService @Inject constructor(
                         errorMessage = "Service discovery failed ($status)"
                     )
                 }
+                putConnectionState(gatt.device.address, _connectionState.value)
                 notifyConnectionFailed(gatt.device, "Service discovery failed")
                 return
             }
@@ -248,7 +285,7 @@ class MassagerBluetoothService @Inject constructor(
                 cancelPendingServiceRetry()
                 Log.d(TAG, "onServicesDiscovered: received ${services.size} service(s)")
             }
-            val adapter = activeAdapter ?: run {
+            val adapter = adapterFor(gatt.device.address) ?: run {
                 Log.w(TAG, "onServicesDiscovered: activeAdapter is null")
                 return
             }
@@ -290,6 +327,7 @@ class MassagerBluetoothService @Inject constructor(
                     Log.w(TAG, "onDescriptorWrite: CCC write failed status=$status")
                     _connectionState.update { it.copy(isProtocolReady = false) }
                 }
+                putConnectionState(gatt.device.address, _connectionState.value)
             }
         }
 
@@ -322,7 +360,7 @@ class MassagerBluetoothService @Inject constructor(
             value: ByteArray
         ) {
             Log.d(TAG, "onCharacteristicChanged: mac=${gatt.device.address} value=${value.toDebugHexString()}")
-            handleProtocolPayload(value)
+            handleProtocolPayload(gatt.device.address, value)
         }
 
         @Suppress("DEPRECATION")
@@ -331,7 +369,7 @@ class MassagerBluetoothService @Inject constructor(
             characteristic: BluetoothGattCharacteristic
         ) {
             Log.d(TAG, "onCharacteristicChanged: mac=${gatt.device.address}")
-            characteristic.value?.let(::handleProtocolPayload)
+            characteristic.value?.let { payload -> handleProtocolPayload(gatt.device.address, payload) }
         }
 
         override fun onCharacteristicRead(
@@ -341,7 +379,7 @@ class MassagerBluetoothService @Inject constructor(
         ) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.d(TAG, "onCharacteristicRead: mac=${gatt.device.address}")
-                characteristic.value?.let(::handleProtocolPayload)
+                characteristic.value?.let { payload -> handleProtocolPayload(gatt.device.address, payload) }
             }
         }
     }
@@ -464,7 +502,7 @@ class MassagerBluetoothService @Inject constructor(
                 isProtocolReady = false
             )
         }
-        disposeGatt()
+        putConnectionState(device.address, _connectionState.value)
         val productId = cachedEntry?.productId
         val resolvedAdapter = protocolRegistry.findAdapter(productId) ?: run {
             Log.w(
@@ -484,7 +522,8 @@ class MassagerBluetoothService @Inject constructor(
             return false
         }
         activeAdapter = resolvedAdapter
-        resetPayloadBuffer(resolvedAdapter)
+        protocolAdapters[address] = resolvedAdapter
+        resetPayloadBuffer(resolvedAdapter, address)
         activeServiceUuid = null
         activeWriteCharacteristicUuid = null
         activeNotifyCharacteristicUuid = null
@@ -502,9 +541,10 @@ class MassagerBluetoothService @Inject constructor(
                     errorMessage = "Unable to connect"
                 )
             }
+            putConnectionState(device.address, _connectionState.value)
             connectedAddress = null
             activeAdapter = null
-            resetPayloadBuffer(null)
+            resetPayloadBuffer(null, device.address)
             scanCoordinator.updateConnectedAddress(null)
             notifyConnectionFailed(device, "Unable to connect")
             return false
@@ -514,29 +554,40 @@ class MassagerBluetoothService @Inject constructor(
 
     @SuppressLint("MissingPermission")
     // 主动断开：清理会话状态、重置适配器并关闭 GATT。
-    fun disconnect() {
-        connectedAddress = null
-        activeAdapter = null
-        resetPayloadBuffer(null)
-        activeServiceUuid = null
-        activeWriteCharacteristicUuid = null
-        activeNotifyCharacteristicUuid = null
-        awaitingInitialMtu = false
-        pendingMtuTimeout?.let(mainHandler::removeCallbacks)
-        pendingMtuTimeout = null
-        pendingNotifyEnableCharacteristicUuid = null
-        failPendingWrites()
-        currentGatt?.disconnect()
-        disposeGatt()
-        cancelPendingServiceRetry()
-        _connectionState.update {
-            it.copy(
-                status = BleConnectionState.Status.Disconnected,
-                deviceAddress = null,
-                deviceName = null
-            )
+    fun disconnect(address: String? = null) {
+        val targetAddress = address ?: connectedAddress
+        val sameAsActive = targetAddress == connectedAddress || targetAddress == null
+        if (sameAsActive) {
+            connectedAddress = null
+            activeAdapter = null
+            resetPayloadBuffer(null, targetAddress)
+            activeServiceUuid = null
+            activeWriteCharacteristicUuid = null
+            activeNotifyCharacteristicUuid = null
+            awaitingInitialMtu = false
+            pendingMtuTimeout?.let(mainHandler::removeCallbacks)
+            pendingMtuTimeout = null
+            pendingNotifyEnableCharacteristicUuid = null
+            failPendingWrites()
+            currentGatt?.disconnect()
+            disposeGatt()
+            cancelPendingServiceRetry()
+            _connectionState.update {
+                it.copy(
+                    status = BleConnectionState.Status.Disconnected,
+                    deviceAddress = null,
+                    deviceName = null
+                )
+            }
+            removeConnectionState(targetAddress)
+            scanCoordinator.updateConnectedAddress(null)
+        } else {
+            removeConnectionState(targetAddress)
         }
-        scanCoordinator.updateConnectedAddress(null)
+        if (targetAddress == null) {
+            protocolAdapters.clear()
+            payloadBuffers.clear()
+        }
     }
 
     // 关闭服务：停止扫描、断开连接并取消协程。
@@ -661,10 +712,19 @@ class MassagerBluetoothService @Inject constructor(
     // 发送协议命令：若缺少句柄则尝试重新解析，编码后写入当前特征。
     suspend fun sendProtocolCommand(
         command: ProtocolCommand,
-        writeType: Int = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        writeType: Int = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT,
+        address: String? = connectedAddress
     ): Boolean {
         val adapter = activeAdapter ?: run {
             Log.w(TAG, "sendProtocolCommand: no active adapter, command=$command")
+            return false
+        }
+        val targetAddress = address ?: connectedAddress
+        if (targetAddress != null && currentGatt?.device?.address != targetAddress) {
+            Log.w(
+                TAG,
+                "sendProtocolCommand: active GATT does not match target=$targetAddress command=$command"
+            )
             return false
         }
         Log.d(TAG, "sendProtocolCommand: preparing command=$command writeType=$writeType")
@@ -732,23 +792,24 @@ class MassagerBluetoothService @Inject constructor(
     // 处理断开：重置会话、清理队列并更新 UI 状态，同时通知监听器。
     private fun handleDisconnection(device: BluetoothDevice, status: Int) {
         val failed = status != BluetoothGatt.GATT_SUCCESS
-        if (connectedAddress == device.address) {
+        val isActive = connectedAddress == device.address
+        if (isActive) {
             connectedAddress = null
             scanCoordinator.updateConnectedAddress(null)
+            activeAdapter = null
+            resetPayloadBuffer(null, device.address)
+            activeServiceUuid = null
+            activeWriteCharacteristicUuid = null
+            activeNotifyCharacteristicUuid = null
+            awaitingInitialMtu = false
+            pendingMtuTimeout?.let(mainHandler::removeCallbacks)
+            pendingMtuTimeout = null
+            pendingNotifyEnableCharacteristicUuid = null
+            failPendingWrites()
+            disposeGatt()
+            cancelPendingServiceRetry()
+            clearPriorityBoost()
         }
-        activeAdapter = null
-        resetPayloadBuffer(null)
-        activeServiceUuid = null
-        activeWriteCharacteristicUuid = null
-        activeNotifyCharacteristicUuid = null
-        awaitingInitialMtu = false
-        pendingMtuTimeout?.let(mainHandler::removeCallbacks)
-        pendingMtuTimeout = null
-        pendingNotifyEnableCharacteristicUuid = null
-        failPendingWrites()
-        disposeGatt()
-        cancelPendingServiceRetry()
-        clearPriorityBoost()
         _connectionState.update {
             it.copy(
                 status = if (failed) BleConnectionState.Status.Failed else BleConnectionState.Status.Disconnected,
@@ -761,6 +822,9 @@ class MassagerBluetoothService @Inject constructor(
                 errorMessage = if (failed) "Disconnected ($status)" else null
             )
         }
+        putConnectionState(device.address, _connectionState.value)
+        protocolAdapters.remove(device.address)
+        payloadBuffers.remove(device.address)
         if (failed) {
             notifyConnectionFailed(device, "Disconnected ($status)")
         } else {
@@ -910,12 +974,18 @@ class MassagerBluetoothService @Inject constructor(
     }
 
     // 处理协议负载：累积分片、解码帧并向上游分发协议消息。
-    private fun handleProtocolPayload(payload: ByteArray) {
+    private fun handleProtocolPayload(address: String, payload: ByteArray) {
         if (payload.isEmpty()) return
-        val adapter = activeAdapter ?: return
+        val adapter = protocolAdapters[address] ?: activeAdapter ?: return
+        val payloadBuffer = payloadBuffers[address] ?: ProtocolPayloadBuffer(
+            when (adapter.protocolKey) {
+                EmsV2ProtocolAdapter.PROTOCOL_KEY -> EmsFrameExtractor()
+                else -> EmsFrameExtractor()
+            }
+        ).also { buffer -> payloadBuffers[address] = buffer }
         Log.d(
             TAG,
-            "handleProtocolPayload: incoming raw=${payload.toDebugHexString()} length=${payload.size}"
+            "handleProtocolPayload: mac=$address incoming raw=${payload.toDebugHexString()} length=${payload.size}"
         )
         val frames = payloadBuffer.append(payload)
         if (frames.isEmpty()) {
@@ -942,7 +1012,10 @@ class MassagerBluetoothService @Inject constructor(
                     return@forEachIndexed
                 }
                 Log.d(TAG, "handleProtocolPayload: decoded ${messages.toString()} message(s)")
-                messages.forEach { _protocolMessages.tryEmit(it) }
+                messages.forEach { message ->
+                    _protocolMessages.tryEmit(message)
+                    _deviceProtocolMessages.tryEmit(DeviceProtocolMessage(address = address, message = message))
+                }
             }
         }
     }
@@ -1079,6 +1152,7 @@ class MassagerBluetoothService @Inject constructor(
                     }
                     if (updateConnectionState && notifyReady) {
                         _connectionState.update { it.copy(isProtocolReady = true) }
+                        putConnectionState(gatt.device.address, _connectionState.value)
                     }
                     return true
                 }
@@ -1093,6 +1167,7 @@ class MassagerBluetoothService @Inject constructor(
                 dumpGattServices(gatt)
                 if (updateConnectionState) {
                     _connectionState.update { it.copy(isProtocolReady = false) }
+                    putConnectionState(gatt.device.address, _connectionState.value)
                 }
                 return false
             }
@@ -1112,6 +1187,7 @@ class MassagerBluetoothService @Inject constructor(
                 dumpGattServices(gatt)
                 if (updateConnectionState) {
                     _connectionState.update { it.copy(isProtocolReady = false) }
+                    putConnectionState(gatt.device.address, _connectionState.value)
                 }
                 return false
             }
@@ -1135,6 +1211,7 @@ class MassagerBluetoothService @Inject constructor(
 
         if (updateConnectionState && notificationsReady) {
             _connectionState.update { it.copy(isProtocolReady = true) }
+            putConnectionState(gatt.device.address, _connectionState.value)
         }
 
         Log.d(

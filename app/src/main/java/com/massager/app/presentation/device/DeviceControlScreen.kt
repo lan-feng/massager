@@ -113,6 +113,8 @@ import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlin.math.roundToInt
 import kotlin.math.atan2
 import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 
 @Composable
@@ -502,6 +504,7 @@ private fun TimerRing(
     var isDragging by remember { mutableStateOf(false) }
     var selectedMinutes by remember { mutableStateOf(baseMinutes.coerceIn(0, 60)) }
     var committedMinutes by remember { mutableStateOf(baseMinutes.coerceIn(0, 60)) }
+    var lastDragMinutes by remember { mutableStateOf(selectedMinutes) }
 
     LaunchedEffect(isRunning, baseMinutes, remainingMinutes) {
         if (!isDragging) {
@@ -538,6 +541,7 @@ private fun TimerRing(
                     detectDragGestures(
                         onDragStart = {
                             isDragging = true
+                            lastDragMinutes = selectedMinutes
                         },
                         onDragEnd = {
                             isDragging = false
@@ -550,7 +554,13 @@ private fun TimerRing(
                             val vector = change.position - center
                             val angle = (Math.toDegrees(atan2(vector.y.toDouble(), vector.x.toDouble())) + 450.0) % 360.0
                             val minutes = (angle / 360.0 * 60.0).toInt().coerceIn(0, 60)
-                            selectedMinutes = minutes
+                            val clamped = when {
+                                // Prevent wrapping from max back to 0 when dragging past a full circle.
+                                lastDragMinutes >= 50 && minutes <= 5 -> 60
+                                else -> minutes
+                            }
+                            selectedMinutes = clamped
+                            lastDragMinutes = clamped
                         }
                     )
                 }
@@ -576,6 +586,19 @@ private fun TimerRing(
                 size = arcSize,
                 style = Stroke(width = stroke.toPx(), cap = StrokeCap.Round)
             )
+            if (interactionEnabled && progress > 0f) {
+                val radius = (diameter / 2f)
+                val endAngleRad = Math.toRadians((-90f + 360f * progress).toDouble()).toFloat()
+                val endPoint = Offset(
+                    x = center.x + radius * cos(endAngleRad),
+                    y = center.y + radius * sin(endAngleRad)
+                )
+                drawCircle(
+                    color = brand,
+                    radius = stroke.toPx() * 0.95f,
+                    center = endPoint
+                )
+            }
         }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

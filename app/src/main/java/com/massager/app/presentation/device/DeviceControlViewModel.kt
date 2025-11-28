@@ -88,6 +88,7 @@ class DeviceControlViewModel @Inject constructor(
         _uiState.update { it.copy(selectedDeviceSerial = selectedDeviceSerial) }
         buildDeviceCards()
         observeConnection()
+        observeConnectionStates()
         observeProtocolMessages()
         observeComboDevices()
         attemptInitialConnection()
@@ -345,10 +346,32 @@ class DeviceControlViewModel @Inject constructor(
         }
     }
 
+    private fun observeConnectionStates() {
+        viewModelScope.launch {
+            bluetoothService.connectionStates.collectLatest { states ->
+                _uiState.update { state ->
+                    var next = state
+                    states.forEach { (address, connection) ->
+                        val currentStatus = state.deviceStatuses[address] ?: DeviceStatus(address = address)
+                        val updated = currentStatus.copy(
+                            deviceName = currentStatus.deviceName ?: connection.deviceName,
+                            connectionStatus = connection.status,
+                            isProtocolReady = connection.isProtocolReady
+                        )
+                        next = next.copy(
+                            deviceStatuses = next.deviceStatuses + (address to updated)
+                        )
+                    }
+                    next
+                }
+            }
+        }
+    }
+
     private fun observeProtocolMessages() {
         viewModelScope.launch {
-            bluetoothService.protocolMessages.collectLatest { message ->
-                Log.d(tag, "observeProtocolMessages: received protocol message=$message")
+            bluetoothService.deviceProtocolMessages.collectLatest { payload ->
+                Log.d(tag, "observeProtocolMessages: received protocol message=${payload.message} mac=${payload.address}")
                 if (!hasProtocolSignal) {
                     hasProtocolSignal = true
                     protocolSignalTimeoutJob?.cancel()
@@ -356,8 +379,9 @@ class DeviceControlViewModel @Inject constructor(
                     // Re-evaluate connection state once we have seen protocol traffic.
                     processConnectionState(bluetoothService.connectionState.value)
                 }
-                val telemetry = mapTelemetry(message) ?: return@collectLatest
-                applyTelemetry(telemetry)
+                val telemetry = mapTelemetry(payload.message)?.copy(address = payload.address)
+                    ?: return@collectLatest
+                applyTelemetry(payload.address, telemetry)
             }
         }
     }
@@ -544,17 +568,38 @@ class DeviceControlViewModel @Inject constructor(
         _uiState.update { it.copy(transientMessage = message) }
     }
 
-    private fun applyTelemetry(telemetry: DeviceTelemetry) {
-        Log.d(tag, "applyTelemetry: telemetry=$telemetry")
-        if (awaitingStopAck && telemetry.isRunning == true) {
+    private fun applyTelemetry(address: String?, telemetry: DeviceTelemetry) {
+        Log.d(tag, "applyTelemetry: address=$address telemetry=$telemetry")
+        val targetAddress = address
+            ?: telemetry.address
+            ?: _uiState.value.selectedDeviceSerial
+            ?: _uiState.value.deviceAddress
+        val applyToSelected = targetAddress == null || targetAddress == _uiState.value.selectedDeviceSerial
+        if (applyToSelected && awaitingStopAck && telemetry.isRunning == true) {
             Log.v(tag, "applyTelemetry: awaiting stop ack, ignoring running telemetry")
             return
         }
-        if (awaitingStopAck && telemetry.isRunning == false) {
+        if (applyToSelected && awaitingStopAck && telemetry.isRunning == false) {
             awaitingStopAck = false
         }
         _uiState.update { state ->
             var next = state
+            val resolvedAddress = targetAddress ?: state.selectedDeviceSerial ?: state.deviceAddress
+            if (!resolvedAddress.isNullOrBlank()) {
+                val currentStatus = state.deviceStatuses[resolvedAddress] ?: DeviceStatus(address = resolvedAddress)
+                val updatedStatus = currentStatus.copy(
+                    deviceName = currentStatus.deviceName ?: state.deviceName,
+                    isRunning = telemetry.isRunning ?: currentStatus.isRunning,
+                    batteryPercent = telemetry.batteryPercent ?: currentStatus.batteryPercent,
+                    lastTelemetryAtMillis = System.currentTimeMillis()
+                )
+                next = next.copy(
+                    deviceStatuses = next.deviceStatuses + (resolvedAddress to updatedStatus)
+                )
+            }
+
+            if (!applyToSelected) return@update next
+
             telemetry.isRunning?.let { next = next.copy(isRunning = it) }
 
             val shouldUpdateControls = next.isRunning || telemetry.isRunning == true
@@ -751,6 +796,7 @@ data class DeviceControlUiState(
     val showConnectingOverlay: Boolean = false,
     val selectedDeviceSerial: String? = null,
     val deviceCards: List<DeviceCardState> = emptyList(),
+    val deviceStatuses: Map<String, DeviceStatus> = emptyMap(),
     val isComboUpdating: Boolean = false,
     val transientMessage: String? = null
 ) {
@@ -763,6 +809,19 @@ data class DeviceCardState(
     val isSelected: Boolean,
     val isMainDevice: Boolean
 )
+
+data class DeviceStatus(
+    val address: String,
+    val deviceName: String? = null,
+    val connectionStatus: BleConnectionState.Status = BleConnectionState.Status.Idle,
+    val isProtocolReady: Boolean = false,
+    val isRunning: Boolean = false,
+    val batteryPercent: Int = -1,
+    val lastTelemetryAtMillis: Long = 0L
+) {
+    val isConnected: Boolean
+        get() = connectionStatus == BleConnectionState.Status.Connected && isProtocolReady
+}
 
 enum class BodyZone(val index: Int, @StringRes val labelRes: Int) {
     SHOULDER(0, R.string.device_zone_shldr),

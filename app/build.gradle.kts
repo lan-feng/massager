@@ -30,6 +30,7 @@ android {
         create("dev") {
             dimension = "env"
             buildConfigField("String", "BASE_URL", "\"http://192.168.2.110:9100/iot/api/\"")
+            // buildConfigField("String", "BASE_URL", "\"http://192.168.2.11:8080/iot/api/\"")
         }
         // Flavor name不能以 "test" 开头，使用 qa 代替
         create("qa") {
