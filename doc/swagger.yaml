@@ -273,22 +273,22 @@
           }
         },
         "responses": {
-          "400": {
-            "description": "上传失败",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HttpResult"
-                }
-              }
-            }
-          },
           "200": {
             "description": "上传成功",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FileUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "上传失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResult"
                 }
               }
             }
@@ -874,18 +874,6 @@
           "required": true
         },
         "responses": {
-          "400": {
-            "description": "上传失败",
-            "content": {
-              "application/json": {
-                "example": {
-                  "code": 500,
-                  "success": false,
-                  "message": "参数错误"
-                }
-              }
-            }
-          },
           "200": {
             "description": "上传成功",
             "content": {
@@ -901,6 +889,18 @@
                     "timestamp": "2024-01-15T10:30:00",
                     "data": "{\"temperature\":37.8,\"mode\":\"oral\"}"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "上传失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "参数错误"
                 }
               }
             }
@@ -1063,18 +1063,6 @@
           "required": true
         },
         "responses": {
-          "400": {
-            "description": "密码修改失败",
-            "content": {
-              "application/json": {
-                "example": {
-                  "code": 500,
-                  "success": false,
-                  "message": "原密码错误"
-                }
-              }
-            }
-          },
           "200": {
             "description": "密码修改成功",
             "content": {
@@ -1084,6 +1072,18 @@
                   "success": true,
                   "message": "密码修改成功",
                   "data": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "密码修改失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "原密码错误"
                 }
               }
             }
@@ -1110,6 +1110,18 @@
           "required": true
         },
         "responses": {
+          "400": {
+            "description": "邮箱修改失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "success": false,
+                  "message": "原密码错误"
+                }
+              }
+            }
+          },
           "200": {
             "description": "邮箱修改成功",
             "content": {
@@ -1119,18 +1131,6 @@
                   "success": true,
                   "message": "邮箱修改成功",
                   "data": null
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "邮箱修改失败",
-            "content": {
-              "application/json": {
-                "example": {
-                  "code": 500,
-                  "success": false,
-                  "message": "原密码错误"
                 }
               }
             }
@@ -1484,6 +1484,38 @@
                   "code": 500,
                   "success": false,
                   "message": "密码错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/firebase": {
+      "post": {
+        "tags": [
+          "认证管理"
+        ],
+        "summary": "Firebase/Google 登录",
+        "description": "前端获取 Firebase idToken，后端校验并完成本地用户登录/注册",
+        "operationId": "firebaseLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirebaseLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultLoginResponse"
                 }
               }
             }
@@ -2927,16 +2959,6 @@
         "description": "获取当前用户的所有登录会话",
         "operationId": "getUserSessions",
         "responses": {
-          "401": {
-            "description": "未授权",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/HttpResultListUserSession"
-                }
-              }
-            }
-          },
           "200": {
             "description": "获取成功",
             "content": {
@@ -2953,6 +2975,16 @@
                       "lastUsedAt": "2024-01-15T10:30:00"
                     }
                   ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResultListUserSession"
                 }
               }
             }
@@ -3229,38 +3261,6 @@
           }
         }
       },
-      "HttpResult": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "description": "响应码，0表示成功，其他表示失败",
-            "format": "int32",
-            "example": 0
-          },
-          "success": {
-            "type": "boolean",
-            "description": "是否成功",
-            "example": true
-          },
-          "message": {
-            "type": "string",
-            "description": "响应消息",
-            "example": "操作成功"
-          },
-          "messageArgs": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "data": {
-            "type": "object",
-            "description": "响应数据"
-          }
-        },
-        "description": "统一响应格式"
-      },
       "FileUploadResponse": {
         "type": "object",
         "properties": {
@@ -3292,6 +3292,38 @@
           }
         },
         "description": "文件上传响应"
+      },
+      "HttpResult": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "data": {
+            "type": "object",
+            "description": "响应数据"
+          }
+        },
+        "description": "统一响应格式"
       },
       "HttpResultSystemConfig": {
         "type": "object",
@@ -3487,6 +3519,12 @@
             "type": "integer",
             "description": "用户ID",
             "format": "int64"
+          },
+          "firebaseUid": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string",
+            "description": "Firebase UID"
           },
           "email": {
             "maxLength": 254,
@@ -4075,6 +4113,104 @@
         },
         "description": "用户登录信息"
       },
+      "FirebaseLoginRequest": {
+        "required": [
+          "idToken"
+        ],
+        "type": "object",
+        "properties": {
+          "idToken": {
+            "type": "string"
+          },
+          "appid": {
+            "type": "string"
+          }
+        }
+      },
+      "HttpResultLoginResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "响应码，0表示成功，其他表示失败",
+            "format": "int32",
+            "example": 0
+          },
+          "success": {
+            "type": "boolean",
+            "description": "是否成功",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "响应消息",
+            "example": "操作成功"
+          },
+          "messageArgs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "data": {
+            "$ref": "#/components/schemas/LoginResponse"
+          }
+        },
+        "description": "统一响应格式"
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "tokenType": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "userInfo": {
+            "$ref": "#/components/schemas/UserInfo"
+          }
+        },
+        "description": "响应数据"
+      },
+      "UserInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "appid": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "firebaseUid": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "HttpResultPageDevice": {
         "type": "object",
         "properties": {
@@ -4109,13 +4245,13 @@
       "PageDevice": {
         "type": "object",
         "properties": {
-          "totalPages": {
-            "type": "integer",
-            "format": "int32"
-          },
           "totalElements": {
             "type": "integer",
             "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
           },
           "size": {
             "type": "integer",
@@ -4134,12 +4270,12 @@
           "sort": {
             "$ref": "#/components/schemas/SortObject"
           },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
-          },
           "numberOfElements": {
             "type": "integer",
             "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
           },
           "first": {
             "type": "boolean"
@@ -4429,13 +4565,13 @@
       "PageThing": {
         "type": "object",
         "properties": {
-          "totalPages": {
-            "type": "integer",
-            "format": "int32"
-          },
           "totalElements": {
             "type": "integer",
             "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
           },
           "size": {
             "type": "integer",
@@ -4454,12 +4590,12 @@
           "sort": {
             "$ref": "#/components/schemas/SortObject"
           },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
-          },
           "numberOfElements": {
             "type": "integer",
             "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
           },
           "first": {
             "type": "boolean"
@@ -4575,13 +4711,13 @@
       "PageRecord": {
         "type": "object",
         "properties": {
-          "totalPages": {
-            "type": "integer",
-            "format": "int32"
-          },
           "totalElements": {
             "type": "integer",
             "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
           },
           "size": {
             "type": "integer",
@@ -4600,12 +4736,12 @@
           "sort": {
             "$ref": "#/components/schemas/SortObject"
           },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
-          },
           "numberOfElements": {
             "type": "integer",
             "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
           },
           "first": {
             "type": "boolean"
@@ -4688,13 +4824,13 @@
       "PageMeasurement": {
         "type": "object",
         "properties": {
-          "totalPages": {
-            "type": "integer",
-            "format": "int32"
-          },
           "totalElements": {
             "type": "integer",
             "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
           },
           "size": {
             "type": "integer",
@@ -4713,12 +4849,12 @@
           "sort": {
             "$ref": "#/components/schemas/SortObject"
           },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
-          },
           "numberOfElements": {
             "type": "integer",
             "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
           },
           "first": {
             "type": "boolean"

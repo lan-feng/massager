@@ -172,6 +172,7 @@
     <string name="permission_bluetooth_title">允许使用蓝牙</string>
     <string name="permission_bluetooth_message">我们需要蓝牙扫描权限以发现附近的按摩设备，请授权后继续。</string>
     <string name="permission_bluetooth_grant">授权</string>
+    <string name="permission_bluetooth_settings">去设置</string>
     <string name="common_ok">确定</string>
     <string name="set_new_password_title">设置新密码</string>
     <string name="old_password_label">旧密码</string>

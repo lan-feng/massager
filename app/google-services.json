@@ -1,26 +1,51 @@
 {
   "project_info": {
-    "project_number": "983551378849",
-    "project_id": "massager-a6307",
-    "storage_bucket": "massager-a6307.firebasestorage.app"
+    "project_number": "950589863140",
+    "project_id": "theralink-45ce7",
+    "storage_bucket": "theralink-45ce7.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:983551378849:android:45d897f9a1eb824464f7e0",
+        "mobilesdk_app_id": "1:950589863140:android:57164e72328ecc91ffa8f1",
         "android_client_info": {
           "package_name": "com.massager.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "950589863140-vlkdmq56tcqn14ijoijhtht64mqfu6fb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.massager.app",
+            "certificate_hash": "373c995138ea53678adec6918a730e3383982581"
+          }
+        },
+        {
+          "client_id": "950589863140-9ed0rm561cn9eqv2hqjtpjurqths9bbg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyBeHo04DQqZ7C8Kw0Xxb2SzY3YV35LtW-M"
+          "current_key": "AIzaSyA8BSRUgBGFezdRHN94s0O6sA9WE_Lb5Eo"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "950589863140-9ed0rm561cn9eqv2hqjtpjurqths9bbg.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "950589863140-5vuqrst5rcko0g1fes2qiogk2alm24mh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.hyj.ems"
+              }
+            }
+          ]
         }
       }
     }

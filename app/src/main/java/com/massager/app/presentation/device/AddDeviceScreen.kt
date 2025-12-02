@@ -2,8 +2,11 @@ package com.massager.app.presentation.device
 
 // 文件说明：新增设备的扫描/输入界面。
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -27,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -55,6 +59,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -89,10 +94,12 @@ fun AddDeviceScreen(
 
     val runtimePermissions = remember {
         buildList {
-            add(Manifest.permission.ACCESS_FINE_LOCATION)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(Manifest.permission.BLUETOOTH_SCAN)
                 add(Manifest.permission.BLUETOOTH_CONNECT)
+            } else {
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+                add(Manifest.permission.ACCESS_COARSE_LOCATION)
             }
         }
     }
@@ -116,6 +123,8 @@ fun AddDeviceScreen(
         }
     }
 
+    val packageName = context.packageName
+
     LaunchedEffect(missingPermissions) {
         if (missingPermissions.isEmpty()) {
             if (!hasTriggeredScan) {
@@ -128,6 +137,32 @@ fun AddDeviceScreen(
                 autoPermissionRequested = true
                 permissionLauncher.launch(missingPermissions.toTypedArray())
             }
+        }
+    }
+
+    fun openAppSettings() {
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", packageName, null)
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
+
+    var permissionRetryLaunched by rememberSaveable { mutableStateOf(false) }
+    val permissionErrorText = stringResource(id = R.string.device_error_bluetooth_scan_permission)
+    val currentMissingPermissions by rememberUpdatedState(newValue = missingPermissions)
+    val showSettingsShortcut = permissionRetryLaunched && missingPermissions.isNotEmpty()
+    LaunchedEffect(uiState.errorMessage) {
+        if (
+            uiState.errorMessage == permissionErrorText &&
+            currentMissingPermissions.isNotEmpty() &&
+            !permissionRetryLaunched
+        ) {
+            permissionRetryLaunched = true
+            permissionLauncher.launch(currentMissingPermissions.toTypedArray())
+        }
+        if (uiState.errorMessage == null) {
+            permissionRetryLaunched = false
         }
     }
 
@@ -210,6 +245,11 @@ fun AddDeviceScreen(
                         .padding(top = 16.dp),
                     onRequestPermission = {
                         permissionLauncher.launch(missingPermissions.toTypedArray())
+                    },
+                    onOpenSettings = if (showSettingsShortcut) {
+                        { openAppSettings() }
+                    } else {
+                        null
                     }
                 )
                 Spacer(modifier = Modifier.weight(1f))
@@ -430,7 +470,8 @@ private fun AddDeviceEmptyState(
 @Composable
 private fun PermissionRequestCard(
     modifier: Modifier = Modifier,
-    onRequestPermission: () -> Unit
+    onRequestPermission: () -> Unit,
+    onOpenSettings: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier,
@@ -459,8 +500,19 @@ private fun PermissionRequestCard(
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
             )
-            TextButton(onClick = onRequestPermission) {
-                Text(text = stringResource(id = R.string.permission_bluetooth_grant))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                TextButton(onClick = onRequestPermission) {
+                    Text(text = stringResource(id = R.string.permission_bluetooth_grant))
+                }
+                if (onOpenSettings != null) {
+                    Spacer(modifier = Modifier.size(4.dp))
+                    TextButton(onClick = onOpenSettings) {
+                        Text(text = stringResource(id = R.string.permission_bluetooth_settings))
+                    }
+                }
             }
         }
     }

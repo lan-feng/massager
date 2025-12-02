@@ -1,6 +1,6 @@
 package com.massager.app.data.repository
 
-// 文件说明：处理登录注册、验证码、登出等身份认证流程并维护本地会话。
+// Handles login/registration, verification codes, logout, and session persistence for authentication flows.
 import com.massager.app.BuildConfig
 import androidx.room.withTransaction
 import com.massager.app.data.local.MassagerDatabase
@@ -56,16 +56,19 @@ class AuthRepository @Inject constructor(
         runCatching {
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             firebaseAuth.signInWithCredential(credential).await()
-            val firebaseUser = firebaseAuth.currentUser ?: error("无法获取 Firebase 用户")
+            val firebaseUser = firebaseAuth.currentUser ?: error("Unable to retrieve Firebase user")
+            // Pass the verified Firebase ID token to backend instead of the raw Google Sign-In token
+            val firebaseIdToken = firebaseUser.getIdToken(true).await().token
+                ?: error("Unable to retrieve Firebase ID token")
 
             val exchangeRequest = FirebaseLoginRequest(
-                idToken = idToken,
+                idToken = firebaseIdToken,
                 appId = sessionManager.appId() ?: BuildConfig.APP_ID
             )
             val envelope = api.loginWithFirebase(exchangeRequest)
-            val response = envelope.data ?: error(envelope.message ?: "Firebase 登录返回空数据")
+            val response = envelope.data ?: error(envelope.message ?: "Firebase login returned empty data")
             if (envelope.success.not()) {
-                error(envelope.message ?: "Firebase 登录失败")
+                error(envelope.message ?: "Firebase login failed")
             }
 
             sessionManager.saveAuthToken(response.token)
@@ -76,7 +79,7 @@ class AuthRepository @Inject constructor(
                 user = User(
                     id = response.user.id.toString(),
                     displayName = response.user.name.ifBlank {
-                        firebaseUser.displayName ?: firebaseUser.email ?: "Google 用户"
+                        firebaseUser.displayName ?: firebaseUser.email ?: "Google user"
                     },
                     email = response.user.email.ifBlank { firebaseUser.email.orEmpty() },
                     avatarUrl = response.user.avatarUrl ?: firebaseUser.photoUrl?.toString(),
@@ -84,7 +87,7 @@ class AuthRepository @Inject constructor(
                 )
             )
         }.getOrElse { throwable ->
-            AuthResult.Error(message = throwable.message ?: "Google 登录失败")
+            AuthResult.Error(message = throwable.message ?: "Google login failed")
         }
     }
 

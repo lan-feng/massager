@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.massager.app.data.local.SessionManager
 import com.massager.app.domain.model.AuthResult
 import com.massager.app.domain.usecase.auth.EnableGuestModeUseCase
+import com.massager.app.domain.usecase.auth.GoogleLoginUseCase
 import com.massager.app.domain.usecase.auth.LoginUseCase
 import com.massager.app.domain.usecase.auth.RegisterUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,6 +27,7 @@ data class AuthUiState(
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
+    private val googleLoginUseCase: GoogleLoginUseCase,
     private val registerUseCase: RegisterUseCase,
     private val enableGuestModeUseCase: EnableGuestModeUseCase,
     private val sessionManager: SessionManager
@@ -77,6 +79,42 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun beginGoogleLogin() {
+        sessionManager.disableGuestMode()
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            errorMessage = null,
+            isAuthenticated = false,
+            isGuest = false
+        )
+    }
+
+    fun loginWithGoogle(idToken: String) {
+        sessionManager.disableGuestMode()
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            errorMessage = null,
+            isAuthenticated = false,
+            isGuest = false
+        )
+        viewModelScope.launch {
+            when (val result = googleLoginUseCase(idToken)) {
+                is AuthResult.LoginSuccess -> _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = null,
+                    isAuthenticated = true,
+                    isGuest = false
+                )
+                is AuthResult.Error -> _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = result.message,
+                    isAuthenticated = false
+                )
+                else -> _uiState.value = AuthUiState()
+            }
+        }
+    }
+
     fun register(name: String, email: String, password: String, verificationCode: String) {
         sessionManager.disableGuestMode()
         _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
@@ -103,6 +141,14 @@ class AuthViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
+
+    fun onExternalAuthFailed(message: String) {
+        _uiState.value = _uiState.value.copy(
+            isLoading = false,
+            errorMessage = message,
+            isAuthenticated = false
+        )
     }
 
     fun clearRegistrationFlag() {

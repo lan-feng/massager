@@ -36,7 +36,7 @@ data class NearbyDevice(
 )
 
 data class AddDeviceUiState(
-    val isScanning: Boolean = true,
+    val isScanning: Boolean = false,
     val devices: List<NearbyDevice> = emptyList(),
     val showEmpty: Boolean = false,
     val connectingDeviceId: String? = null,
@@ -65,12 +65,11 @@ class AddDeviceViewModel @Inject constructor(
 
     init {
         observeBluetoothState()
-        startScan()
     }
 
     fun startScan() {
         Log.d(TAG, "startScan: resetting UI state and requesting BLE scan")
-        _uiState.value = AddDeviceUiState()
+        _uiState.value = AddDeviceUiState(isScanning = true)
         bluetoothService.restartScan()
         scheduleEmptyStateCheck()
     }

@@ -1,9 +1,12 @@
 package com.massager.app.presentation.navigation
 
 // 文件说明：构建应用导航图，连接各功能模块的路由。
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -41,6 +44,9 @@ import com.massager.app.presentation.settings.PersonalInformationViewModel
 import com.massager.app.presentation.settings.SettingsScreen
 import com.massager.app.presentation.settings.SettingsViewModel
 import com.massager.app.presentation.settings.WebDocumentScreen
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.flow.collectLatest
 
 private const val DEVICE_SCAN_RESULT_KEY = "device_scan_result_serial"
@@ -51,6 +57,39 @@ fun MassagerNavHost(
 ) {
     val authViewModel: AuthViewModel = hiltViewModel()
     val authState = authViewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    val googleSignInClient = remember {
+        val webClientId = context.getString(R.string.default_web_client_id)
+        GoogleSignIn.getClient(
+            context,
+            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(webClientId)
+                .requestEmail()
+                .build()
+        )
+    }
+
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            val idToken = account?.idToken
+            if (idToken.isNullOrBlank()) {
+                authViewModel.onExternalAuthFailed("Google sign-in failed: missing token")
+            } else {
+                authViewModel.loginWithGoogle(idToken)
+            }
+        } catch (exception: ApiException) {
+            authViewModel.onExternalAuthFailed(
+                "Google sign-in was cancelled or failed (${exception.statusCode})"
+            )
+        } catch (throwable: Throwable) {
+            authViewModel.onExternalAuthFailed(throwable.message ?: "Google sign-in failed")
+        }
+    }
 
     LaunchedEffect(authState.value.isAuthenticated) {
         if (authState.value.isAuthenticated) {
@@ -75,6 +114,10 @@ fun MassagerNavHost(
                 onNavigateToRegister = { navController.navigate(Screen.Register.route) },
                 onForgotPassword = { navController.navigate(Screen.ForgetPassword.route) },
                 onGuestLogin = { authViewModel.enterGuestMode() },
+                onGoogleLogin = {
+                    authViewModel.beginGoogleLogin()
+                    googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                },
                 onOpenUserAgreement = { navController.navigate(Screen.UserAgreement.route) },
                 onOpenPrivacyPolicy = { navController.navigate(Screen.PrivacyPolicy.route) }
             )

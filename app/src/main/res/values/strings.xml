@@ -191,6 +191,7 @@
     <string name="permission_bluetooth_title">Allow Bluetooth access</string>
     <string name="permission_bluetooth_message">We need Bluetooth scan permission to discover nearby massage devices. Please grant access to continue.</string>
     <string name="permission_bluetooth_grant">Grant permission</string>
+    <string name="permission_bluetooth_settings">Open settings</string>
     <string name="common_ok">OK</string>
     <string name="set_new_password_title">Set new password</string>
     <string name="old_password_label">Old Password</string>
