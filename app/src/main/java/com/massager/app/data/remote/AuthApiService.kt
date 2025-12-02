@@ -4,6 +4,7 @@ package com.massager.app.data.remote
 import com.massager.app.data.remote.dto.ApiEnvelope
 import com.massager.app.data.remote.dto.AuthRequest
 import com.massager.app.data.remote.dto.AuthResponse
+import com.massager.app.data.remote.dto.FirebaseLoginRequest
 import com.massager.app.data.remote.dto.RegisterRequest
 import com.massager.app.data.remote.dto.ResetPasswordRequest
 import com.massager.app.data.remote.dto.UserDto
@@ -26,4 +27,7 @@ interface AuthApiService {
 
     @POST("auth/v1/logout")
     suspend fun logout(): ApiEnvelope<Unit>
+
+    @POST("auth/v1/firebase")
+    suspend fun loginWithFirebase(@Body request: FirebaseLoginRequest): ApiEnvelope<AuthResponse>
 }

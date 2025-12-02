@@ -3,16 +3,19 @@ package com.massager.app.data.repository
 // 文件说明：处理登录注册、验证码、登出等身份认证流程并维护本地会话。
 import com.massager.app.BuildConfig
 import androidx.room.withTransaction
-import androidx.room.withTransaction
 import com.massager.app.data.local.MassagerDatabase
 import com.massager.app.data.local.SessionManager
 import com.massager.app.data.remote.AuthApiService
 import com.massager.app.data.remote.dto.AuthRequest
+import com.massager.app.data.remote.dto.FirebaseLoginRequest
 import com.massager.app.data.remote.dto.RegisterRequest
 import com.massager.app.data.remote.dto.ResetPasswordRequest
 import com.massager.app.domain.model.AuthResult
 import com.massager.app.domain.model.User
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,7 +24,8 @@ import javax.inject.Singleton
 class AuthRepository @Inject constructor(
     private val api: AuthApiService,
     private val sessionManager: SessionManager,
-    private val database: MassagerDatabase
+    private val database: MassagerDatabase,
+    private val firebaseAuth: FirebaseAuth
 ) {
 
     suspend fun login(email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
@@ -45,6 +49,42 @@ class AuthRepository @Inject constructor(
             )
         }.getOrElse {
             AuthResult.Error(message = it.message ?: "Login failed")
+        }
+    }
+
+    suspend fun loginWithGoogle(idToken: String): AuthResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val credential = GoogleAuthProvider.getCredential(idToken, null)
+            firebaseAuth.signInWithCredential(credential).await()
+            val firebaseUser = firebaseAuth.currentUser ?: error("无法获取 Firebase 用户")
+
+            val exchangeRequest = FirebaseLoginRequest(
+                idToken = idToken,
+                appId = sessionManager.appId() ?: BuildConfig.APP_ID
+            )
+            val envelope = api.loginWithFirebase(exchangeRequest)
+            val response = envelope.data ?: error(envelope.message ?: "Firebase 登录返回空数据")
+            if (envelope.success.not()) {
+                error(envelope.message ?: "Firebase 登录失败")
+            }
+
+            sessionManager.saveAuthToken(response.token)
+            sessionManager.saveUserId(response.user.id.toString())
+            sessionManager.saveAppId(response.user.appId ?: BuildConfig.APP_ID)
+
+            AuthResult.LoginSuccess(
+                user = User(
+                    id = response.user.id.toString(),
+                    displayName = response.user.name.ifBlank {
+                        firebaseUser.displayName ?: firebaseUser.email ?: "Google 用户"
+                    },
+                    email = response.user.email.ifBlank { firebaseUser.email.orEmpty() },
+                    avatarUrl = response.user.avatarUrl ?: firebaseUser.photoUrl?.toString(),
+                    appId = response.user.appId
+                )
+            )
+        }.getOrElse { throwable ->
+            AuthResult.Error(message = throwable.message ?: "Google 登录失败")
         }
     }
 

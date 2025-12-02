@@ -27,6 +27,11 @@ data class ResetPasswordRequest(
 )
 
 @Serializable
+data class FirebaseLoginRequest(
+    @SerialName("idToken") val idToken: String,
+    @SerialName("appid") val appId: String? = null
+)
+@Serializable
 data class AuthResponse(
     val token: String,
     @SerialName("tokenType") val tokenType: String? = null,
