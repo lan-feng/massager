@@ -67,6 +67,7 @@ class DeviceControlViewModel @Inject constructor(
     private var selectedDeviceSerial: String? = null
     private var hasProtocolSignal = false
     private var protocolSignalTimeoutJob: kotlinx.coroutines.Job? = null
+    private val deviceUiCache = mutableMapOf<String, DeviceSnapshot>()
 
     private val preferredName: String? =
         savedStateHandle.get<String>(Screen.DeviceControl.ARG_DEVICE_NAME)?.takeIf { it.isNotBlank() }
@@ -85,6 +86,7 @@ class DeviceControlViewModel @Inject constructor(
             _uiState.update { it.copy(deviceAddress = address) }
         }
         selectedDeviceSerial = targetAddress
+        bluetoothService.setPreferredAddress(selectedDeviceSerial)
         _uiState.update { it.copy(selectedDeviceSerial = selectedDeviceSerial) }
         buildDeviceCards()
         observeConnection()
@@ -95,7 +97,7 @@ class DeviceControlViewModel @Inject constructor(
     }
 
     private fun currentSession(): DeviceSession? =
-        sessionRegistry.sessionFor(bluetoothService.activeProtocolKey())
+        sessionRegistry.sessionFor(bluetoothService.activeProtocolKey(selectedDeviceSerial))
 
     private suspend fun withSession(block: suspend (DeviceSession) -> Boolean): Boolean =
         withContext(Dispatchers.IO) {
@@ -120,12 +122,10 @@ class DeviceControlViewModel @Inject constructor(
             state.status == BleConnectionState.Status.Connected && isProtocolReady
         val isConnecting = state.status == BleConnectionState.Status.Connecting ||
             (state.status == BleConnectionState.Status.Connected && !isProtocolReady)
-        if (!state.deviceAddress.isNullOrBlank()) {
-            selectedDeviceSerial = state.deviceAddress
-        }
         _uiState.update {
-            val resolvedAddress = state.deviceAddress ?: selectedDeviceSerial
-                ?: it.deviceAddress ?: targetAddress
+            val resolvedAddress = selectedDeviceSerial
+                ?: it.deviceAddress
+                ?: targetAddress
             val resolvedName = resolveDisplayName(
                 connectionName = state.deviceName,
                 currentName = it.deviceName,
@@ -286,30 +286,32 @@ class DeviceControlViewModel @Inject constructor(
         }
     }
 
-    fun reconnect() {
-        val address = _uiState.value.deviceAddress ?: targetAddress ?: return
+    fun reconnect(address: String? = null) {
+        val target = address ?: _uiState.value.selectedDeviceSerial ?: targetAddress ?: return
         viewModelScope.launch {
-            _uiState.update { it.copy(showConnectingOverlay = true, isConnecting = true) }
-            val overlayJob = launch {
-                delay(CONNECTING_OVERLAY_DURATION_MS)
-                _uiState.update { current ->
-                    current.copy(
-                        showConnectingOverlay = false,
-                        isConnecting = false
-                    )
-                }
+            bluetoothService.setPreferredAddress(target)
+            _uiState.update { state ->
+                val status = state.deviceStatuses[target] ?: DeviceStatus(address = target)
+                state.copy(
+                    deviceStatuses = state.deviceStatuses + (target to status.copy(
+                        connectionStatus = BleConnectionState.Status.Connecting,
+                        isProtocolReady = false
+                    ))
+                )
             }
-            Log.i(tag, "reconnect: attempting to reconnect to $address")
+            Log.i(tag, "reconnect: attempting to reconnect to $target")
             bluetoothService.clearError()
-            val success = bluetoothService.connect(address)
+            val success = bluetoothService.connect(target)
             if (!success) {
-                Log.w(tag, "reconnect: connect returned false for $address")
-                overlayJob.cancel()
-                _uiState.update {
-                    it.copy(
-                        message = DeviceMessage.CommandFailed(),
-                        showConnectingOverlay = false,
-                        isConnecting = false
+                Log.w(tag, "reconnect: connect returned false for $target")
+                _uiState.update { state ->
+                    val status = state.deviceStatuses[target] ?: DeviceStatus(address = target)
+                    state.copy(
+                        deviceStatuses = state.deviceStatuses + (target to status.copy(
+                            connectionStatus = BleConnectionState.Status.Failed,
+                            isProtocolReady = false
+                        )),
+                        message = DeviceMessage.CommandFailed()
                     )
                 }
             }
@@ -394,6 +396,7 @@ class DeviceControlViewModel @Inject constructor(
                 comboDevices = ComboInfoSerializer.parse(raw).devices
                 buildDeviceCards()
                 attemptPendingSelection()
+                ensureConnections()
             }
         }
     }
@@ -424,6 +427,22 @@ class DeviceControlViewModel @Inject constructor(
             }
         }
         _uiState.update { it.copy(deviceCards = cards) }
+        ensureConnections()
+    }
+
+    private fun ensureConnections() {
+        val addresses = buildSet {
+            targetAddress?.let { add(it) }
+            addAll(comboDevices.mapNotNull { it.deviceSerial })
+        }
+        addresses.forEach { addr ->
+            val state = bluetoothService.connectionStates.value[addr]
+            val alreadyActive = state?.status == BleConnectionState.Status.Connected ||
+                state?.status == BleConnectionState.Status.Connecting
+            if (!alreadyActive) {
+                bluetoothService.connect(addr)
+            }
+        }
     }
 
     private fun attemptPendingSelection() {
@@ -498,6 +517,7 @@ class DeviceControlViewModel @Inject constructor(
 
     private fun updateSelectedDevice(serial: String, shouldReconnect: Boolean) {
         if (isSerialSelected(serial)) return
+        cacheCurrentSelectedState()
         selectedDeviceSerial = serial
         val resolvedName = resolveDisplayName(
             connectionName = _uiState.value.deviceName,
@@ -512,10 +532,17 @@ class DeviceControlViewModel @Inject constructor(
                 deviceName = resolvedName
             )
         }
+        bluetoothService.setPreferredAddress(serial)
+        refreshConnectionState(serial)
+        applyCachedState(serial)
         buildDeviceCards()
         if (shouldReconnect) {
-            // 不断开其他设备，仅切换主动连接到新的 target
-            bluetoothService.connect(serial)
+            val existing = bluetoothService.connectionStates.value[serial]
+            val alreadyActive = existing?.status == BleConnectionState.Status.Connected ||
+                existing?.status == BleConnectionState.Status.Connecting
+            if (!alreadyActive) {
+                bluetoothService.connect(serial)
+            }
         }
     }
 
@@ -528,6 +555,75 @@ class DeviceControlViewModel @Inject constructor(
             preferredName
         } else {
             comboDevices.firstOrNull { it.deviceSerial.equals(address, ignoreCase = true) }?.nameAlias
+        }
+    }
+
+    private fun cacheCurrentSelectedState() {
+        val address = selectedDeviceSerial ?: return
+        cacheStateFor(address, _uiState.value)
+    }
+
+    private fun cacheStateFor(address: String, state: DeviceControlUiState) {
+        deviceUiCache[address] = DeviceSnapshot(
+            mode = state.mode,
+            level = state.level,
+            zone = state.zone,
+            timerMinutes = state.timerMinutes,
+            remainingSeconds = state.remainingSeconds,
+            isRunning = state.isRunning,
+            isMuted = state.isMuted,
+            batteryPercent = state.batteryPercent
+        )
+    }
+
+    private fun applyCachedState(address: String) {
+        val cached = deviceUiCache[address]
+        val status = _uiState.value.deviceStatuses[address]
+        val defaultBattery = status?.batteryPercent ?: -1
+        if (cached != null) {
+            _uiState.update {
+                it.copy(
+                    mode = cached.mode,
+                    level = cached.level,
+                    zone = cached.zone,
+                    timerMinutes = cached.timerMinutes,
+                    remainingSeconds = cached.remainingSeconds,
+                    isRunning = cached.isRunning,
+                    isMuted = cached.isMuted,
+                    batteryPercent = cached.batteryPercent
+                )
+            }
+        } else {
+            _uiState.update {
+                it.copy(
+                    mode = 0,
+                    level = 0,
+                    zone = BodyZone.SHOULDER,
+                    timerMinutes = DEFAULT_TIMER_MINUTES,
+                    remainingSeconds = 0,
+                    isRunning = false,
+                    isMuted = false,
+                    batteryPercent = defaultBattery
+                )
+            }
+        }
+    }
+
+    private fun refreshConnectionState(address: String?) {
+        if (address.isNullOrBlank()) {
+            _uiState.update { it.copy(isConnected = false, isProtocolReady = false, isConnecting = false) }
+            return
+        }
+        val connection = bluetoothService.connectionStates.value[address]
+        val isConnected = connection?.status == BleConnectionState.Status.Connected && connection.isProtocolReady
+        val isConnecting = connection?.status == BleConnectionState.Status.Connecting ||
+            (connection?.status == BleConnectionState.Status.Connected && connection?.isProtocolReady == false)
+        _uiState.update {
+            it.copy(
+                isConnected = isConnected,
+                isConnecting = isConnecting,
+                isProtocolReady = connection?.isProtocolReady ?: false
+            )
         }
     }
 
@@ -570,11 +666,8 @@ class DeviceControlViewModel @Inject constructor(
 
     private fun applyTelemetry(address: String?, telemetry: DeviceTelemetry) {
         Log.d(tag, "applyTelemetry: address=$address telemetry=$telemetry")
-        val targetAddress = address
-            ?: telemetry.address
-            ?: _uiState.value.selectedDeviceSerial
-            ?: _uiState.value.deviceAddress
-        val applyToSelected = targetAddress == null || targetAddress == _uiState.value.selectedDeviceSerial
+        val targetAddress = telemetry.address ?: address ?: return
+        val applyToSelected = targetAddress.equals(_uiState.value.selectedDeviceSerial, ignoreCase = true)
         if (applyToSelected && awaitingStopAck && telemetry.isRunning == true) {
             Log.v(tag, "applyTelemetry: awaiting stop ack, ignoring running telemetry")
             return
@@ -658,6 +751,11 @@ class DeviceControlViewModel @Inject constructor(
                 }
             }
             next
+        }
+        // 缓存选中设备的最新 UI 状态，便于切换时恢复
+        val addressKey = targetAddress ?: _uiState.value.selectedDeviceSerial
+        if (applyToSelected && addressKey != null) {
+            cacheStateFor(addressKey, _uiState.value)
         }
     }
 
@@ -848,3 +946,14 @@ sealed class DeviceMessage {
         val messageText: String? = null
     ) : DeviceMessage()
 }
+
+private data class DeviceSnapshot(
+    val mode: Int,
+    val level: Int,
+    val zone: BodyZone,
+    val timerMinutes: Int,
+    val remainingSeconds: Int,
+    val isRunning: Boolean,
+    val isMuted: Boolean,
+    val batteryPercent: Int
+)

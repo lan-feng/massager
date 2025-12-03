@@ -39,6 +39,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import com.massager.app.data.bluetooth.BleConnectionState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -176,7 +177,7 @@ private fun DeviceControlContent(
     state: DeviceControlUiState,
     onBack: () -> Unit,
     onAddDevice: (List<String>) -> Unit = {},
-    onReconnect: () -> Unit,
+    onReconnect: (String?) -> Unit,
     onSelectDevice: (String?) -> Unit,
     onSelectZone: (BodyZone) -> Unit,
     onSelectMode: (Int) -> Unit,
@@ -258,11 +259,9 @@ private fun DeviceControlContent(
                     }
                 },
                 onAddDevice = { onAddDevice(excludedSerials) },
-                batteryPercent = state.batteryPercent,
+                deviceStatuses = state.deviceStatuses,
                 isMuted = state.isMuted,
                 onToggleMute = onToggleMute,
-                isConnected = state.isConnected,
-                isConnecting = state.isConnecting,
                 onReconnect = onReconnect
             )
             AnimatedVisibility(visible = state.isComboUpdating) {
@@ -520,10 +519,8 @@ private fun TimerRing(
     val ringSize = 165.dp
     val stroke = 12.dp
     val displayMinutes = if (isRunning) remainingMinutes else selectedMinutes
-    val arcMinutes = when {
-        isDragging -> selectedMinutes
-        else -> committedMinutes
-    }.coerceIn(0, 60)
+    // 圆弧进度与中间数字保持一致
+    val arcMinutes = displayMinutes.coerceIn(0, 60)
     val progress = (arcMinutes.toFloat() / 60f).coerceIn(0f, 1f)
     val interactionEnabled = enabled && !isRunning
     val ringSizePx = with(LocalDensity.current) { ringSize.toPx() }
@@ -637,12 +634,10 @@ private fun DeviceSwitcherRow(
     onSelect: (String?) -> Unit,
     onLongPress: (DeviceCardState) -> Unit,
     onAddDevice: () -> Unit,
-    batteryPercent: Int,
+    deviceStatuses: Map<String, DeviceStatus>,
     isMuted: Boolean,
     onToggleMute: () -> Unit,
-    isConnected: Boolean,
-    isConnecting: Boolean,
-    onReconnect: () -> Unit
+    onReconnect: (String?) -> Unit
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val cardSpacing = 14.dp
@@ -663,19 +658,26 @@ private fun DeviceSwitcherRow(
         items(cards, key = { card ->
             card.deviceSerial ?: if (card.isMainDevice) "main-device" else card.displayName
         }) { card ->
+            val cardBattery = card.deviceSerial
+                ?.let { serial -> deviceStatuses[serial]?.batteryPercent }
+                ?: -1
+            val cardStatus = card.deviceSerial?.let { deviceStatuses[it] }
+            val cardConnected = cardStatus?.isConnected == true
+            val cardConnecting = cardStatus?.connectionStatus == BleConnectionState.Status.Connecting ||
+                (cardStatus?.connectionStatus == BleConnectionState.Status.Connected && cardStatus.isProtocolReady.not())
             DeviceSwitcherCard(
                 card = card,
-                batteryPercent = batteryPercent,
+                batteryPercent = cardBattery,
                 isMuted = isMuted,
                 onToggleMute = onToggleMute,
-                isConnected = isConnected,
-                isConnecting = isConnecting,
-                onReconnect = onReconnect,
+                isConnected = cardConnected,
+                isConnecting = cardConnecting,
+                onReconnect = { card.deviceSerial?.let(onReconnect) },
                 selectedWidth = selectedWidth,
                 unselectedWidth = unselectedWidth,
                 modifier = Modifier
                     .height(cardHeight),
-                onSelect = { onSelect(card.deviceSerial) },
+                onSelect = { card.deviceSerial?.let(onSelect) },
                 onLongPress = { onLongPress(card) }
             )
         }
