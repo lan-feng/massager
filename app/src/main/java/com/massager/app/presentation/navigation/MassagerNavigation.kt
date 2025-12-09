@@ -54,7 +54,8 @@ private const val DEVICE_SCAN_RESULT_KEY = "device_scan_result_serial"
 
 @Composable
 fun MassagerNavHost(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    pendingRoute: String? = null
 ) {
     val authViewModel: AuthViewModel = hiltViewModel()
     val authState = authViewModel.uiState.collectAsStateWithLifecycle()
@@ -96,6 +97,16 @@ fun MassagerNavHost(
         if (authState.value.isAuthenticated) {
             navController.navigate(Screen.Home.route) {
                 popUpTo(Screen.Login.route) { inclusive = true }
+            }
+        }
+    }
+
+    LaunchedEffect(pendingRoute) {
+        pendingRoute?.let { target ->
+            // Defer navigation until the graph is ready
+            navController.navigate(target) {
+                popUpTo(target) { inclusive = false }
+                launchSingleTop = true
             }
         }
     }
@@ -315,6 +326,8 @@ fun MassagerNavHost(
                     }
                 },
                 onToggleTemperature = viewModel::toggleTemperatureUnit,
+                onSelectTheme = viewModel::setTheme,
+                onSelectLanguage = viewModel::setLanguage,
                 onClearCache = viewModel::clearCache,
                 onUpdateName = viewModel::updateUserName,
                 onUpdateAvatar = viewModel::updateAvatar,

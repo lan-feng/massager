@@ -1,6 +1,12 @@
 package com.massager.app.presentation.device
 
 // 文件说明：展示扫描到的设备列表供选择连接。
+import android.bluetooth.BluetoothAdapter
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,10 +29,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -36,10 +42,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -74,11 +77,15 @@ fun DeviceScanScreen(
             add(android.Manifest.permission.ACCESS_COARSE_LOCATION)
         }
     }
-    var hasRequestedPermission by rememberSaveable { mutableStateOf(false) }
-    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         // no-op; viewModel will retry scan when permissions granted
+    }
+    val enableBtLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        viewModel.refreshScan()
     }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -87,6 +94,7 @@ fun DeviceScanScreen(
     val missingPermissions = runtimePermissions.filter {
         ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
     }
+    val isBluetoothOff = uiState.connectionState.status == BleConnectionState.Status.BluetoothUnavailable
 
     LaunchedEffect(errorMessage) {
         if (!errorMessage.isNullOrBlank()) {
@@ -165,6 +173,39 @@ fun DeviceScanScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
+            val showPermissionsFirst = missingPermissions.isNotEmpty()
+
+            if (!showPermissionsFirst && isBluetoothOff) {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = stringResource(id = R.string.device_error_bluetooth_disabled),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.massagerExtendedColors.textPrimary
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Button(onClick = {
+                                enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                            }) {
+                                Text(text = stringResource(id = R.string.try_again))
+                            }
+                            OutlinedButton(onClick = {
+                                val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            }) {
+                                Text(text = stringResource(id = R.string.permission_bluetooth_settings))
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             if (missingPermissions.isNotEmpty()) {
                 Card(
                     shape = RoundedCornerShape(12.dp),
@@ -184,13 +225,13 @@ fun DeviceScanScreen(
                                 Text(text = stringResource(id = R.string.try_again))
                             }
                             OutlinedButton(onClick = {
-                                val intent = android.content.Intent(
-                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                    android.net.Uri.fromParts("package", context.packageName, null)
-                                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                val intent = Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.fromParts("package", context.packageName, null)
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 context.startActivity(intent)
                             }) {
-                                Text(text = "Open settings")
+                                Text(text = stringResource(id = R.string.permission_bluetooth_settings))
                             }
                         }
                     }

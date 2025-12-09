@@ -11,7 +11,10 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothStatusCodes
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
@@ -135,6 +138,16 @@ class MassagerBluetoothService @Inject constructor(
     private val sessions = mutableMapOf<String, GattSession>()
     private val lastEmptyDecodeLogAt = mutableMapOf<String, Long>()
     private var preferredAddress: String? = null
+    private val bluetoothStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
+            when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
+                BluetoothAdapter.STATE_TURNING_OFF,
+                BluetoothAdapter.STATE_OFF -> handleBluetoothTurnedOff()
+                BluetoothAdapter.STATE_ON -> handleBluetoothTurnedOn()
+            }
+        }
+    }
 
     val scanResults: StateFlow<List<BleScanResult>> = scanCoordinator.scanResults
 
@@ -165,6 +178,11 @@ class MassagerBluetoothService @Inject constructor(
 
     init {
         scanCoordinator.addFailureListener(scanFailureListener)
+        @Suppress("DEPRECATION")
+        context.registerReceiver(
+            bluetoothStateReceiver,
+            IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+        )
     }
 
     private fun sessionFor(address: String?): GattSession? = address?.let { sessions[it] }
@@ -283,6 +301,7 @@ class MassagerBluetoothService @Inject constructor(
         targets.forEach { addr ->
             val session = sessions.remove(addr) ?: return@forEach
             runCatching { session.gatt.disconnect() }
+                .onFailure { Log.w(TAG, "disconnect: gatt.disconnect failed for $addr", it) }
             cleanupSession(session)
             updateState(addr, BleConnectionState(status = BleConnectionState.Status.Disconnected, deviceAddress = addr))
             scanCoordinator.updateConnectedAddress(null)
@@ -295,6 +314,7 @@ class MassagerBluetoothService @Inject constructor(
         disconnect()
         ioScope.cancel()
         scanCoordinator.removeFailureListener(scanFailureListener)
+        runCatching { context.unregisterReceiver(bluetoothStateReceiver) }
     }
 
     @SuppressLint("MissingPermission")
@@ -513,6 +533,60 @@ class MassagerBluetoothService @Inject constructor(
         session.writeQueue.clear()
         if (hasConnectPermission()) {
             runCatching { session.gatt.close() }
+                .onFailure { Log.w(TAG, "cleanupSession: gatt.close failed for ${session.address}", it) }
+        } else {
+            // Even without permission, best effort close to avoid leaking the Binder.
+            runCatching { session.gatt.close() }
+                .onFailure { Log.w(TAG, "cleanupSession: gatt.close without permission failed for ${session.address}", it) }
+        }
+    }
+
+    private fun handleBluetoothTurnedOff() {
+        Log.d(TAG, "handleBluetoothTurnedOff")
+        stopScan()
+        // Mark all sessions unavailable and clean them up.
+        val addresses = sessions.keys.toList()
+        addresses.forEach { addr ->
+            sessions.remove(addr)?.let { session ->
+                runCatching { session.gatt.disconnect() }
+                cleanupSession(session)
+            }
+        }
+        _connectionStates.update { map ->
+            map.mapValues { (_, state) ->
+                state.copy(
+                    status = BleConnectionState.Status.BluetoothUnavailable,
+                    errorMessage = context.getString(R.string.device_error_bluetooth_disabled),
+                    isProtocolReady = false
+                )
+            }
+        }
+        _connectionState.update {
+            it.copy(
+                status = BleConnectionState.Status.BluetoothUnavailable,
+                errorMessage = context.getString(R.string.device_error_bluetooth_disabled),
+                isProtocolReady = false
+            )
+        }
+    }
+
+    private fun handleBluetoothTurnedOn() {
+        Log.d(TAG, "handleBluetoothTurnedOn")
+        _connectionStates.update { map ->
+            map.mapValues { (_, state) ->
+                state.copy(
+                    status = BleConnectionState.Status.Disconnected,
+                    errorMessage = null,
+                    isProtocolReady = false
+                )
+            }
+        }
+        _connectionState.update {
+            it.copy(
+                status = BleConnectionState.Status.Idle,
+                errorMessage = null,
+                isProtocolReady = false
+            )
         }
     }
 

@@ -2,6 +2,7 @@ package com.massager.app.presentation.theme
 
 // 文件说明：封装 Massager 的主题装饰，注入颜色、排版并提供给全局界面。
 import android.app.Activity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -75,11 +76,17 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun MassagerTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme: ColorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-    val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
+    val mode = AppCompatDelegate.getDefaultNightMode()
+    val resolvedDark = when (mode) {
+        AppCompatDelegate.MODE_NIGHT_YES -> true
+        AppCompatDelegate.MODE_NIGHT_NO -> false
+        else -> isSystemInDarkTheme() || darkTheme
+    }
+    val colorScheme: ColorScheme = if (resolvedDark) DarkColorScheme else LightColorScheme
+    val extendedColors = if (resolvedDark) DarkExtendedColors else LightExtendedColors
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -89,12 +96,13 @@ fun MassagerTheme(
             window?.statusBarColor = barsColor
             window?.navigationBarColor = barsColor
             val controller = ViewCompat.getWindowInsetsController(view)
-            controller?.isAppearanceLightStatusBars = !darkTheme
-            controller?.isAppearanceLightNavigationBars = !darkTheme
+            controller?.isAppearanceLightStatusBars = !resolvedDark
+            controller?.isAppearanceLightNavigationBars = !resolvedDark
         }
     }
 
-    CompositionLocalProvider(LocalMassagerExtendedColors provides extendedColors) {
+    val extended = if (resolvedDark) DarkExtendedColors else LightExtendedColors
+    CompositionLocalProvider(LocalMassagerExtendedColors provides extended) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = MassagerTypography,

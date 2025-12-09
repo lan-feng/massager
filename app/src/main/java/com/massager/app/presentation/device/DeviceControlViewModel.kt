@@ -140,13 +140,24 @@ class DeviceControlViewModel @Inject constructor(
                 preferred = preferredNameFor(resolvedAddress),
                 address = resolvedAddress
             )
+            val updatedStatuses = if (!resolvedAddress.isNullOrBlank()) {
+                val existing = it.deviceStatuses[resolvedAddress] ?: DeviceStatus(address = resolvedAddress)
+                it.deviceStatuses + (resolvedAddress to existing.copy(
+                    deviceName = resolvedName.ifBlank { existing.deviceName },
+                    connectionStatus = state.status,
+                    isProtocolReady = isProtocolReady
+                ))
+            } else {
+                it.deviceStatuses
+            }
             it.copy(
                 deviceName = resolvedName,
                 deviceAddress = resolvedAddress,
                 selectedDeviceSerial = resolvedAddress,
                 isConnected = isConnected,
                 isConnecting = isConnecting,
-                isProtocolReady = isProtocolReady
+                isProtocolReady = isProtocolReady,
+                deviceStatuses = updatedStatuses
             )
         }
         if (!isConnecting) {
@@ -862,34 +873,14 @@ class DeviceControlViewModel @Inject constructor(
 
         viewModelScope.launch {
             val success = withSession { session ->
-                session.selectZone(zoneIndex) &&
-                    session.selectMode(current.mode) &&
-                    session.selectLevel(level) &&
-                    run {
-                        // Give the device a brief moment to apply zone/mode/level before run command.
-                        delay(80)
-                        true
-                    } &&
-                    session.runProgram(
-                        zone = zoneIndex,
-                        mode = current.mode,
-                        level = level,
-                        timerMinutes = timerMinutes
-                    )
+                session.runProgram(
+                    zone = zoneIndex,
+                    mode = current.mode,
+                    level = level,
+                    timerMinutes = timerMinutes
+                )
             }
             if (success) {
-                // Send a second run command shortly after to increase reliability on some firmware versions.
-                viewModelScope.launch {
-                    delay(120)
-                    withSession { session ->
-                        session.runProgram(
-                            zone = zoneIndex,
-                            mode = current.mode,
-                            level = level,
-                            timerMinutes = timerMinutes
-                        )
-                    }
-                }
                 currentAddress()?.let { addr ->
                     userTimerOverrides[addr] = timerMinutes
                     lastTelemetryRemainingSeconds[addr] = timerMinutes * 60

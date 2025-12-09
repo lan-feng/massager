@@ -105,6 +105,7 @@ fun LoginScreen(
     onOpenUserAgreement: () -> Unit = {},
     onOpenPrivacyPolicy: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -177,8 +178,8 @@ fun LoginScreen(
                         email = updated.trimEnd { ch -> ch.isWhitespace() }
                         emailError = null
                     },
-                    label = "Email",
-                    placeholder = "Please enter your email",
+                    label = stringResource(id = R.string.login_label_email),
+                    placeholder = stringResource(id = R.string.login_placeholder_email),
                     leadingIcon = Icons.Default.MailOutline,
                     isError = emailError != null,
                     supportingText = emailError,
@@ -202,8 +203,8 @@ fun LoginScreen(
                         password = updated.trimEnd { ch -> ch.isWhitespace() }
                         passwordError = null
                     },
-                    label = "Password",
-                    placeholder = "Please enter your password",
+                    label = stringResource(id = R.string.login_label_password),
+                    placeholder = stringResource(id = R.string.login_placeholder_password),
                     leadingIcon = Icons.Default.Person,
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
@@ -214,9 +215,9 @@ fun LoginScreen(
                                     Icons.Default.Visibility
                                 },
                                 contentDescription = if (passwordVisible) {
-                                    "Hide password"
+                                    stringResource(id = R.string.login_hide_password)
                                 } else {
-                                    "Show password"
+                                    stringResource(id = R.string.login_show_password)
                                 }
                             )
                         }
@@ -234,9 +235,10 @@ fun LoginScreen(
                         onDone = {
                             focusManager.clearFocus()
                             if (!state.isLoading) {
-                                attemptLogin(
-                                    email,
-                                    password,
+                                    attemptLogin(
+                                        context,
+                                        email,
+                                        password,
                                     onValidationFailed = { eError, pError ->
                                         emailError = eError
                                         passwordError = pError
@@ -263,7 +265,7 @@ fun LoginScreen(
                 ) {
                     TextButton(onClick = onNavigateToRegister) {
                         Text(
-                            text = "Sign Up",
+                            text = stringResource(id = R.string.login_action_signup),
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = brand,
                                 fontWeight = FontWeight.Medium
@@ -272,7 +274,7 @@ fun LoginScreen(
                     }
                     TextButton(onClick = onForgotPassword) {
                         Text(
-                            text = "Forget your password",
+                            text = stringResource(id = R.string.login_action_forgot),
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = brand,
                                 fontWeight = FontWeight.Medium
@@ -288,6 +290,7 @@ fun LoginScreen(
                     onClick = {
                         focusManager.clearFocus()
                         attemptLogin(
+                            context,
                             email,
                             password,
                             onValidationFailed = { eError, pError ->
@@ -325,7 +328,7 @@ fun LoginScreen(
                         )
                     } else {
                         Text(
-                            text = "Log In",
+                            text = stringResource(id = R.string.login_action_login),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 color = Color.White,
                                 fontWeight = FontWeight.SemiBold
@@ -352,12 +355,12 @@ fun LoginScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
-                        contentDescription = "Continue as Guest",
+                        contentDescription = stringResource(id = R.string.login_action_guest),
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Continue as Guest",
+                        text = stringResource(id = R.string.login_action_guest),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -375,7 +378,7 @@ fun LoginScreen(
                         color = MaterialTheme.colorScheme.outlineVariant
                     )
                     Text(
-                        text = "OR",
+                        text = stringResource(id = R.string.login_separator_or),
                         modifier = Modifier.padding(horizontal = 12.dp),
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -398,14 +401,14 @@ fun LoginScreen(
                 ) {
                     SocialIconButton(
                         icon = painterResource(id = R.drawable.ic_google),
-                        contentDescription = "Google",
+                        contentDescription = stringResource(id = R.string.login_google_desc),
                         onClick = onGoogleLogin,
                         enabled = !state.isLoading,
                         tint = null
                     )
                     SocialIconButton(
                         icon = rememberVectorPainter(image = Icons.Default.Facebook),
-                        contentDescription = "Facebook",
+                        contentDescription = stringResource(id = R.string.login_facebook_desc),
                         onClick = onFacebookLogin,
                         enabled = !state.isLoading,
                         tint = Color(0xFF1877F2)
@@ -597,7 +600,7 @@ fun RegisterScreen(
                 AuthLogo()
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Sign Up",
+                    text = stringResource(id = R.string.login_action_signup),
                     style = MaterialTheme.typography.headlineLarge.copy(
                         fontWeight = FontWeight.Bold
                     )
@@ -639,13 +642,13 @@ fun RegisterScreen(
                             name = ""
                         }
                         emailError = when {
-                            sanitized.isBlank() -> "Email cannot be empty"
-                            !Patterns.EMAIL_ADDRESS.matcher(sanitized).matches() -> "Please enter a valid email"
+                            sanitized.isBlank() -> context.getString(R.string.error_email_empty)
+                            !Patterns.EMAIL_ADDRESS.matcher(sanitized).matches() -> context.getString(R.string.error_email_invalid)
                             else -> null
                         }
                     },
-                    label = { Text("Email") },
-                    placeholder = { Text("Please enter your email") },
+                    label = { Text(stringResource(id = R.string.login_label_email)) },
+                    placeholder = { Text(stringResource(id = R.string.login_placeholder_email)) },
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Next
@@ -674,8 +677,8 @@ fun RegisterScreen(
                         onValueChange = { input ->
                             verificationCode = input.trimEnd { ch -> ch.isWhitespace() }
                         },
-                        label = { Text("Verification code") },
-                        placeholder = { Text("Please enter the verification code") },
+                        label = { Text(stringResource(id = R.string.register_label_verification_code)) },
+                        placeholder = { Text(stringResource(id = R.string.register_placeholder_verification_code)) },
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Number,
                             imeAction = ImeAction.Next
@@ -686,18 +689,18 @@ fun RegisterScreen(
                         onClick = {
                             focusManager.clearFocus()
                             if (email.isBlank() || emailError != null) {
-                                emailError = "Please enter a valid email"
+                                emailError = context.getString(R.string.error_email_invalid)
                                 return@OutlinedButton
                             }
                             coroutineScope.launch {
                                 val result = onSendVerificationCode(email.trim())
                                 if (result.isSuccess) {
                                     countdown = 60
-                                    Toast.makeText(context, "Verification code sent", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.verification_code_sent), Toast.LENGTH_SHORT).show()
                                 } else {
                                     Toast.makeText(
                                         context,
-                                        result.exceptionOrNull()?.message ?: "Failed to send verification code",
+                                        result.exceptionOrNull()?.message ?: context.getString(R.string.verification_code_failed),
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
@@ -706,7 +709,10 @@ fun RegisterScreen(
                         enabled = countdown == 0 && !state.isLoading,
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Text(if (countdown == 0) "Get code" else "${countdown}s")
+                        Text(
+                            if (countdown == 0) stringResource(id = R.string.register_send_code)
+                            else stringResource(id = R.string.register_send_code_countdown, countdown)
+                        )
                     }
                 }
 
@@ -718,10 +724,10 @@ fun RegisterScreen(
                     onValueChange = { input ->
                         val sanitized = input.trimEnd { ch -> ch.isWhitespace() }
                         password = sanitized
-                        passwordError = validatePassword(sanitized)
+                        passwordError = validatePassword(context, sanitized)
                     },
-                    label = { Text("Password") },
-                    placeholder = { Text("Please enter your password") },
+                    label = { Text(stringResource(id = R.string.login_label_password)) },
+                    placeholder = { Text(stringResource(id = R.string.login_placeholder_password)) },
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
@@ -731,9 +737,9 @@ fun RegisterScreen(
                                     Icons.Default.Visibility
                                 },
                                 contentDescription = if (passwordVisible) {
-                                    "Hide password"
+                                    stringResource(id = R.string.login_hide_password)
                                 } else {
-                                    "Show password"
+                                    stringResource(id = R.string.login_show_password)
                                 }
                             )
                         }
@@ -766,19 +772,19 @@ fun RegisterScreen(
                     onClick = {
                         focusManager.clearFocus()
                         if (name.isBlank()) {
-                            nameError = "Name cannot be empty"
+                            nameError = context.getString(R.string.error_name_empty)
                             return@Button
                         }
                         if (nameError != null) return@Button
                         if (email.isBlank()) {
-                            emailError = "Email cannot be empty"
+                            emailError = context.getString(R.string.error_email_empty)
                             return@Button
                         }
                         if (emailError != null) return@Button
-                        passwordError = validatePassword(password)
+                        passwordError = validatePassword(context, password)
                         if (passwordError != null) return@Button
                         if (verificationCode.isBlank()) {
-                            Toast.makeText(context, "Verification code cannot be empty", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.register_placeholder_verification_code), Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         onRegister(
@@ -1179,6 +1185,7 @@ private fun SocialButton(
 }
 
 private fun attemptLogin(
+    context: android.content.Context,
     email: String,
     password: String,
     onValidationFailed: (emailError: String?, passwordError: String?) -> Unit,
@@ -1191,13 +1198,13 @@ private fun attemptLogin(
     var passwordError: String? = null
 
     if (trimmedEmail.isBlank()) {
-        emailError = "Email cannot be empty"
+        emailError = context.getString(R.string.error_email_empty)
     } else if (!Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
-        emailError = "Please enter a valid email"
+        emailError = context.getString(R.string.error_email_invalid)
     }
 
     if (trimmedPassword.isBlank()) {
-        passwordError = "Password cannot be empty"
+        passwordError = context.getString(R.string.error_password_empty)
     }
 
     if (emailError == null && passwordError == null) {
@@ -1207,10 +1214,10 @@ private fun attemptLogin(
     }
 }
 
-private fun validatePassword(password: String): String? {
-    if (password.isBlank()) return "Password cannot be empty"
+private fun validatePassword(context: android.content.Context, password: String): String? {
+    if (password.isBlank()) return context.getString(R.string.error_password_empty)
     if (password.length !in 6..12) {
-        return "Password must be 6-12 characters"
+        return context.getString(R.string.error_new_password_invalid)
     }
     val hasLetter = password.any { it.isLetter() }
     val hasDigit = password.any { it.isDigit() }

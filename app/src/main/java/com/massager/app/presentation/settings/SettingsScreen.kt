@@ -36,7 +36,9 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.PersonOutline
@@ -59,6 +61,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -83,6 +86,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.ripple.rememberRipple
+import com.massager.app.presentation.settings.AppTheme
+import com.massager.app.presentation.settings.AppLanguage
 import coil.compose.rememberAsyncImagePainter
 import com.massager.app.R
 import kotlinx.coroutines.delay
@@ -102,6 +107,8 @@ fun SettingsScreen(
     currentTab: AppBottomTab,
     onTabSelected: (AppBottomTab) -> Unit,
     onToggleTemperature: () -> Unit,
+    onSelectTheme: (AppTheme) -> Unit,
+    onSelectLanguage: (AppLanguage) -> Unit,
     onClearCache: () -> Unit,
     onUpdateName: (String) -> Unit,
     onUpdateAvatar: (ByteArray) -> Unit,
@@ -120,6 +127,8 @@ fun SettingsScreen(
     val guestRestrictionMessage = stringResource(id = R.string.guest_mode_cloud_restricted)
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showAvatarDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var showThemeDialog by remember { mutableStateOf(false) }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
@@ -213,6 +222,26 @@ fun SettingsScreen(
                                 title = stringResource(R.string.settings_clear_cache),
                                 trailingText = state.user.cacheSize,
                                 onClick = onClearCache
+                            )
+                        )
+                    )
+                }
+
+                item {
+                    SettingsGroup(
+                        title = stringResource(R.string.settings_preferences_section),
+                        items = listOf(
+                            SettingsItem(
+                                icon = Icons.Filled.Language,
+                                title = stringResource(id = R.string.settings_language_title),
+                                trailingText = languageLabel(state.appLanguage),
+                                onClick = { showLanguageDialog = true }
+                            ),
+                            SettingsItem(
+                                icon = Icons.Filled.LightMode,
+                                title = stringResource(id = R.string.settings_theme_title),
+                                trailingText = themeLabel(state.appTheme),
+                                onClick = { showThemeDialog = true }
                             )
                         )
                     )
@@ -314,6 +343,40 @@ fun SettingsScreen(
                     showAvatarDialog = false
                     galleryLauncher.launch("image/*")
                 }
+            )
+        }
+
+        if (showLanguageDialog) {
+            PreferenceDialog(
+                title = stringResource(id = R.string.settings_language_title),
+                options = listOf(
+                    OptionEntry(AppLanguage.System, stringResource(id = R.string.settings_language_system)),
+                    OptionEntry(AppLanguage.Chinese, stringResource(id = R.string.settings_language_chinese)),
+                    OptionEntry(AppLanguage.English, stringResource(id = R.string.settings_language_english))
+                ),
+                selected = state.appLanguage,
+                onSelect = {
+                    onSelectLanguage(it)
+                    showLanguageDialog = false
+                },
+                onDismiss = { showLanguageDialog = false }
+            )
+        }
+
+        if (showThemeDialog) {
+            PreferenceDialog(
+                title = stringResource(id = R.string.settings_theme_title),
+                options = listOf(
+                    OptionEntry(AppTheme.System, stringResource(id = R.string.settings_theme_system)),
+                    OptionEntry(AppTheme.Light, stringResource(id = R.string.settings_theme_light)),
+                    OptionEntry(AppTheme.Dark, stringResource(id = R.string.settings_theme_dark))
+                ),
+                selected = state.appTheme,
+                onSelect = {
+                    onSelectTheme(it)
+                    showThemeDialog = false
+                },
+                onDismiss = { showThemeDialog = false }
             )
         }
     }
@@ -455,6 +518,7 @@ private fun HeaderSection(
             }
         }
     }
+
 }
 
 private data class SettingsItem(
@@ -464,6 +528,115 @@ private data class SettingsItem(
     val trailingContent: (@Composable () -> Unit)? = null,
     val onClick: (() -> Unit)? = null
 )
+
+private data class OptionEntry<T>(
+    val value: T,
+    val label: String
+)
+
+@Composable
+private fun SettingsItemRow(item: SettingsItem) {
+    val interaction = remember(item.title) { MutableInteractionSource() }
+    val hasNavigation = item.onClick != null || item.trailingContent != null
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(
+                enabled = hasNavigation,
+                interactionSource = interaction,
+                indication = if (hasNavigation) {
+                    rememberRipple(color = MaterialTheme.massagerExtendedColors.success.copy(alpha = 0.16f))
+                } else null
+            ) { item.onClick?.invoke() }
+            .padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(
+            imageVector = item.icon,
+            contentDescription = item.title,
+            tint = MaterialTheme.massagerExtendedColors.success
+        )
+        Text(
+            text = item.title,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f)
+        )
+        when {
+            item.trailingContent != null -> item.trailingContent.invoke()
+            item.trailingText != null -> Text(
+                text = item.trailingText,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (hasNavigation) {
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun <T> PreferenceDialog(
+    title: String,
+    options: List<OptionEntry<T>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                options.forEach { option ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onSelect(option.value) }
+                            .padding(vertical = 8.dp)
+                    ) {
+                        RadioButton(
+                            selected = option.value == selected,
+                            onClick = { onSelect(option.value) }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = option.label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.close))
+            }
+        }
+    )
+}
+
+@Composable
+private fun languageLabel(language: AppLanguage): String = when (language) {
+    AppLanguage.System -> stringResource(id = R.string.settings_language_system)
+    AppLanguage.Chinese -> stringResource(id = R.string.settings_language_chinese)
+    AppLanguage.English -> stringResource(id = R.string.settings_language_english)
+}
+
+@Composable
+private fun themeLabel(theme: AppTheme): String = when (theme) {
+    AppTheme.System -> stringResource(id = R.string.settings_theme_system)
+    AppTheme.Light -> stringResource(id = R.string.settings_theme_light)
+    AppTheme.Dark -> stringResource(id = R.string.settings_theme_dark)
+}
 
 @Composable
 private fun SettingsGroup(
@@ -491,52 +664,7 @@ private fun SettingsGroup(
             Spacer(modifier = Modifier.height(16.dp))
 
             items.forEachIndexed { index, item ->
-                val hasNavigation = item.onClick != null
-                val interaction = remember(item.title) { MutableInteractionSource() }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .clickable(
-                            enabled = hasNavigation,
-                            interactionSource = interaction,
-                            indication = if (hasNavigation) {
-                                rememberRipple(color = MaterialTheme.massagerExtendedColors.success.copy(alpha = 0.16f))
-                            } else null
-                        ) { item.onClick?.invoke() }
-                        .padding(vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Icon(
-                        imageVector = item.icon,
-                        contentDescription = item.title,
-                        tint = MaterialTheme.massagerExtendedColors.success
-                    )
-                    Text(
-                        text = item.title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    when {
-                        item.trailingContent != null -> item.trailingContent.invoke()
-                        item.trailingText != null -> Text(
-                            text = item.trailingText,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (hasNavigation) {
-                        Icon(
-                            imageVector = Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                        )
-                    }
-                }
+                SettingsItemRow(item)
                 if (index != items.lastIndex) {
                     Divider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
                 }

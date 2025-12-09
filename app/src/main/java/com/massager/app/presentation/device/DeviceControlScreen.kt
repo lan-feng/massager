@@ -1,6 +1,12 @@
 package com.massager.app.presentation.device
 
 // 文件说明：设备控制 UI，提供模式、强度等交互。
+import android.bluetooth.BluetoothAdapter
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -48,6 +54,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.ToggleOn
 import androidx.compose.material.icons.filled.ToggleOff
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
@@ -75,6 +83,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,6 +106,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -106,11 +116,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.math.atan2
 import kotlin.math.PI
@@ -191,6 +203,57 @@ private fun DeviceControlContent(
     snackbarHostState: SnackbarHostState
 ) {
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val runtimePermissions = remember {
+        buildList {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                add(android.Manifest.permission.BLUETOOTH_SCAN)
+                add(android.Manifest.permission.BLUETOOTH_CONNECT)
+            }
+            add(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            add(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ -> }
+    val enableBtLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { }
+    val missingPermissions = runtimePermissions.filter {
+        ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+    val isBluetoothOff = (BluetoothAdapter.getDefaultAdapter()?.isEnabled == false) ||
+        state.deviceStatuses.values.any {
+            it.connectionStatus == BleConnectionState.Status.BluetoothUnavailable
+        }
+    val handleReconnect: (String?) -> Unit = { serial ->
+        val currentMissingPermissions = runtimePermissions.filter {
+            ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        val bluetoothDisabled = (BluetoothAdapter.getDefaultAdapter()?.isEnabled == false) ||
+            state.deviceStatuses.values.any { it.connectionStatus == BleConnectionState.Status.BluetoothUnavailable }
+        when {
+            currentMissingPermissions.isNotEmpty() -> {
+                permissionLauncher.launch(currentMissingPermissions.toTypedArray())
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.device_error_bluetooth_scan_permission)
+                    )
+                }
+            }
+            bluetoothDisabled -> {
+                enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.device_error_bluetooth_disabled)
+                    )
+                }
+            }
+            else -> onReconnect(serial)
+        }
+    }
     val brand = Color(0xFF2BA39D)
     val brandSoft = Color(0xFF3FB6AE)
     var showInfoDialog by remember { mutableStateOf(false) }
@@ -207,7 +270,9 @@ private fun DeviceControlContent(
                 title = {
                     Text(
                         text = state.deviceName.ifBlank { stringResource(id = R.string.device_title) },
-                        style = MaterialTheme.typography.titleLarge
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 },
                 navigationIcon = {
@@ -236,10 +301,77 @@ private fun DeviceControlContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (isBluetoothOff) {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.device_error_bluetooth_disabled),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.massagerExtendedColors.textPrimary
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            TextButton(onClick = {
+                                enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                            }) {
+                                Text(text = stringResource(id = R.string.try_again))
+                            }
+                            TextButton(onClick = {
+                                val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            }) {
+                                Text(text = stringResource(id = R.string.permission_bluetooth_settings))
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (missingPermissions.isNotEmpty()) {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.device_error_bluetooth_scan_permission),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.massagerExtendedColors.textPrimary
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            TextButton(onClick = {
+                                permissionLauncher.launch(missingPermissions.toTypedArray())
+                            }) {
+                                Text(text = stringResource(id = R.string.try_again))
+                            }
+                            TextButton(onClick = {
+                                val intent = Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.fromParts("package", context.packageName, null)
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            }) {
+                                Text(text = stringResource(id = R.string.permission_bluetooth_settings))
+                            }
+                        }
+                    }
+                }
+            }
             val excludedSerials = remember(state.deviceCards) {
                 val hostSerial = state.deviceCards.firstOrNull { it.isMainDevice }?.deviceSerial
                 val combos = state.deviceCards
@@ -262,7 +394,7 @@ private fun DeviceControlContent(
                 deviceStatuses = state.deviceStatuses,
                 isMuted = state.isMuted,
                 onToggleMute = onToggleMute,
-                onReconnect = onReconnect
+                onReconnect = handleReconnect
             )
             AnimatedVisibility(visible = state.isComboUpdating) {
                 LinearProgressIndicator(
@@ -525,8 +657,8 @@ private fun TimerRing(
         }
     }
 
-    val ringSize = 140.dp
-    val stroke = 10.dp
+    val ringSize = 150.dp
+    val stroke = 14.dp
     val displayMinutes = when {
         isRunning && isDragging -> selectedMinutes
         isRunning && pendingTargetMinutes != null -> pendingTargetMinutes!!.coerceIn(0, 60)
@@ -609,7 +741,7 @@ private fun TimerRing(
                 )
                 drawCircle(
                     color = brand,
-                    radius = stroke.toPx() * 0.95f,
+                    radius = stroke.toPx() * 1.2f,
                     center = endPoint
                 )
             }
@@ -662,7 +794,7 @@ private fun DeviceSwitcherRow(
     val availableWidth = (screenWidth - horizontalPadding * 2 - cardSpacing*2).coerceAtLeast(200.dp)
     val selectedWidth = availableWidth * 0.6f
     val unselectedWidth = availableWidth * 0.35f
-    val cardHeight = 120.dp
+    val cardHeight = 104.dp
     val hasAttached = cards.any { !it.isMainDevice }
     LazyRow(
         modifier = Modifier
@@ -730,7 +862,6 @@ private fun DeviceSwitcherCard(
     val selectedColor = MaterialTheme.massagerExtendedColors.surfaceBright
     val unselectedColor = Color(0xFF2BA39D).copy(alpha = 0.12f)
     val accent = Color(0xFF2BA39D)
-    val displayText = if (batteryPercent < 0) "--%" else "${batteryPercent}%"
     val width by animateDpAsState(
         targetValue = if (card.isSelected) selectedWidth else unselectedWidth,
         label = "device_switcher_width"
@@ -794,28 +925,28 @@ private fun DeviceSwitcherCard(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             BatteryIndicator5Level(batteryPercent = batteryPercent)
-                            Text(
-                                text = displayText,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
                         }
                         IconButton(
                             onClick = onToggleMute,
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.massagerExtendedColors.surfaceBright)
+                            modifier = Modifier.size(48.dp)
                         ) {
-                            Icon(
-                                imageVector = if (isMuted) Icons.Filled.ToggleOff else Icons.Filled.ToggleOn,
-                                contentDescription = if (isMuted) {
-                                    stringResource(id = R.string.device_mute_disabled)
-                                } else {
-                                    stringResource(id = R.string.device_mute_enabled)
-                                },
-                                tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else accent
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                                    contentDescription = null,
+                                    tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else accent
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = if (isMuted) Icons.Filled.ToggleOff else Icons.Filled.ToggleOn,
+                                    contentDescription = if (isMuted) {
+                                        stringResource(id = R.string.device_mute_disabled)
+                                    } else {
+                                        stringResource(id = R.string.device_mute_enabled)
+                                    },
+                                    tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else accent
+                                )
+                            }
                         }
                     }
                 } else if (isConnected) {
@@ -825,12 +956,6 @@ private fun DeviceSwitcherCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         BatteryIndicator5Level(batteryPercent = batteryPercent)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = displayText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
                     }
                 } else {
                     Row(
@@ -974,8 +1099,6 @@ private fun BatteryStatusRow(
     isMuted: Boolean,
     onToggleMute: () -> Unit
 ) {
-    val isUnknown = batteryPercent < 0
-    val displayText = if (isUnknown) "--%" else "${batteryPercent}%"
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -991,28 +1114,28 @@ private fun BatteryStatusRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         BatteryIndicator5Level(batteryPercent = batteryPercent)
-        Text(
-            text = displayText,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold
-        )
         Spacer(modifier = Modifier.weight(1f))
         IconButton(
             onClick = onToggleMute,
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.massagerExtendedColors.surfaceBright)
+            modifier = Modifier.size(48.dp)
         ) {
-            Icon(
-                imageVector = if (isMuted) Icons.Filled.ToggleOff else Icons.Filled.ToggleOn,
-                contentDescription = if (isMuted) {
-                    stringResource(id = R.string.device_mute_disabled)
-                } else {
-                    stringResource(id = R.string.device_mute_enabled)
-                },
-                tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else MaterialTheme.massagerExtendedColors.success
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (isMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                    contentDescription = null,
+                    tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else MaterialTheme.massagerExtendedColors.success
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = if (isMuted) Icons.Filled.ToggleOff else Icons.Filled.ToggleOn,
+                    contentDescription = if (isMuted) {
+                        stringResource(id = R.string.device_mute_disabled)
+                    } else {
+                        stringResource(id = R.string.device_mute_enabled)
+                    },
+                    tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else MaterialTheme.massagerExtendedColors.success
+                )
+            }
         }
     }
 }
@@ -1129,10 +1252,15 @@ private fun BodyZoneGrid(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
         )
         Spacer(modifier = Modifier.height(4.dp))
+        val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+        val maxVisibleTiles = 3.5f
+        val horizontalPadding = 10.dp * 2 + 10.dp * (maxVisibleTiles - 1)
+        val targetWidth = ((screenWidth - horizontalPadding) / maxVisibleTiles).coerceIn(80.dp, 118.dp)
+
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(100.dp),
+                .height(targetWidth + 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 10.dp)
         ) {
@@ -1145,8 +1273,8 @@ private fun BodyZoneGrid(
                     enabled = true,
                     brand = brand,
                     modifier = Modifier
-                        .width(92.dp)
-                        .height(90.dp),
+                        .width(targetWidth)
+                        .height(targetWidth),
                     onClick = { onSelectZone(zone) }
                 )
             }
@@ -1171,6 +1299,11 @@ private fun ModeSelectionGrid(
         Triple(6, stringResource(id = R.string.device_mode_6), R.drawable.ic_local_fire_department),
         Triple(7, stringResource(id = R.string.device_mode_7), R.drawable.ic_woman)
     )
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val maxVisibleTiles = 3.5f
+    val horizontalPadding = 10.dp * 2 + 10.dp * (maxVisibleTiles - 1)
+    val targetWidth = ((screenWidth - horizontalPadding) / maxVisibleTiles).coerceIn(80.dp, 118.dp)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1186,7 +1319,7 @@ private fun ModeSelectionGrid(
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(120.dp),
+                .height(targetWidth + 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 10.dp)
         ) {
@@ -1199,8 +1332,8 @@ private fun ModeSelectionGrid(
                     enabled = isEnabled,
                     brand = brand,
                     modifier = Modifier
-                        .width(92.dp)
-                        .height(100.dp),
+                        .width(targetWidth)
+                        .height(targetWidth),
                     onClick = { onSelectMode(id) }
                 )
             }
