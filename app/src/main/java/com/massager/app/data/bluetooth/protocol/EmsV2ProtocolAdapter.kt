@@ -76,9 +76,18 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
                     mode = body.getOrNull(2)?.toInt() ?: 0,
                     level = body.getOrNull(3)?.toInt() ?: 0,
                     zone = body.getOrNull(4)?.toInt() ?: 0,
-                    timerMinutes = body.getOrNull(5)?.toInt() ?: 0,
-                    isMuted = body.getOrNull(6)?.let { it.toInt() == 0 },
-                    chargeStatus = body.getOrNull(7)?.toInt()
+                    timerSeconds = when {
+                        body.size >= 8 -> toUInt16Be(body[5], body[6])
+                        else -> (body.getOrNull(5)?.toInt() ?: 0) * 60
+                    },
+                    isMuted = when {
+                        body.size >= 8 -> body.getOrNull(7)?.let { it.toInt() == 0 }
+                        else -> body.getOrNull(6)?.let { it.toInt() == 0 }
+                    },
+                    chargeStatus = when {
+                        body.size >= 9 -> body.getOrNull(8)?.toInt()
+                        else -> body.getOrNull(7)?.toInt()
+                    }
                 )
             }
             CommandId.MODE.value -> {
@@ -106,7 +115,10 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
                 EmsV2Message.TimerReport(
                     direction = direction,
                     commandId = commandId,
-                    minutes = body.firstOrNull()?.toInt() ?: 0
+                    seconds = when {
+                        body.size >= 2 -> toUInt16Be(body[0], body[1])
+                        else -> body.firstOrNull()?.toInt() ?: 0
+                    }
                 )
             }
             CommandId.BUZZER.value -> {
@@ -151,11 +163,36 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
                 body = byteArrayOf(command.level.toByte())
             )
 
-            is EmsV2Command.SetTimer -> buildFrame(
+            is EmsV2Command.SetTimer -> {
+                val seconds = command.seconds.coerceIn(0, 65_535)
+                val timerBytes = fromUInt16Be(seconds)
+                buildFrame(
+                    direction = FrameDirection.AppToDevice,
+                    commandId = CommandId.TIMER.value,
+                    body = byteArrayOf(timerBytes.first, timerBytes.second)
+                )
+            }
+
+            EmsV2Command.RequestHeartbeat -> buildFrame(
                 direction = FrameDirection.AppToDevice,
-                commandId = CommandId.TIMER.value,
-                body = byteArrayOf(command.minutes.coerceIn(0, 255).toByte())
+                commandId = 0x0A,
+                body = byteArrayOf()
             )
+
+            is EmsV2Command.SetRunState -> {
+                val seconds = command.durationSeconds.coerceIn(0, 65_535)
+                val durationBytes = fromUInt16Be(seconds)
+                val body = byteArrayOf(
+                    if (command.running) 0x01 else 0x00,
+                    durationBytes.first,
+                    durationBytes.second
+                )
+                buildFrame(
+                    direction = FrameDirection.AppToDevice,
+                    commandId = CommandId.RUN_STATE.value,
+                    body = body
+                )
+            }
 
             is EmsV2Command.RunProgram -> {
                 val body = byteArrayOf(
@@ -275,7 +312,8 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
         POWER(5),
         BATTERY(6),
         BUZZER(7),
-        TIMER(8)
+        TIMER(8),
+        RUN_STATE(11)
     }
 
     /**
@@ -293,7 +331,7 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
             val mode: Int,
             val level: Int,
             val zone: Int,
-            val timerMinutes: Int,
+            val timerSeconds: Int,
             val isMuted: Boolean?,
             val chargeStatus: Int?
         ) : EmsV2Message(direction, commandId)
@@ -319,7 +357,7 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
         data class TimerReport(
             override val direction: FrameDirection,
             override val commandId: Int,
-            val minutes: Int
+            val seconds: Int
         ) : EmsV2Message(direction, commandId)
 
         data class MuteReport(
@@ -343,7 +381,9 @@ class EmsV2ProtocolAdapter : BleProtocolAdapter {
         data class SetMode(val mode: Int) : EmsV2Command()
         data class SetBodyZone(val zone: Int) : EmsV2Command()
         data class SetLevel(val level: Int) : EmsV2Command()
-        data class SetTimer(val minutes: Int) : EmsV2Command()
+        data class SetTimer(val seconds: Int) : EmsV2Command()
+        object RequestHeartbeat : EmsV2Command()
+        data class SetRunState(val running: Boolean, val durationSeconds: Int) : EmsV2Command()
         data class RunProgram(
             val zone: Int,
             val mode: Int,

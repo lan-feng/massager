@@ -21,11 +21,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -68,6 +72,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -161,33 +166,13 @@ fun HomeDashboardScreen(
             if (state.devices.isEmpty()) {
                 EmptyDeviceState(modifier = Modifier.fillMaxSize())
             } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(
-                        items = state.devices,
-                        key = { it.id }
-                    ) { device ->
-                        DeviceCardItem(
-                            device = device,
-                            isSelected = state.selectedDeviceIds.contains(device.id),
-                            onClick = {
-                                if (state.isManagementActive) {
-                                    onDeviceToggle(device)
-                                } else {
-                                    onDeviceOpen(device)
-                                }
-                            },
-                            onLongPress = { onDeviceToggle(device) }
-                        )
-                    }
-                    item {
-                        Spacer(modifier = Modifier.height(120.dp))
-                    }
-                }
+                DeviceGrid(
+                    devices = state.devices,
+                    selectedIds = state.selectedDeviceIds,
+                    isManagementActive = state.isManagementActive,
+                    onDeviceToggle = onDeviceToggle,
+                    onDeviceOpen = onDeviceOpen
+                )
             }
         }
     }
@@ -209,6 +194,45 @@ fun HomeDashboardScreen(
             onDismiss = onRemoveDismiss,
             onConfirm = onRemoveConfirm
         )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DeviceGrid(
+    devices: List<DeviceMetadata>,
+    selectedIds: Set<String>,
+    isManagementActive: Boolean,
+    onDeviceToggle: (DeviceMetadata) -> Unit,
+    onDeviceOpen: (DeviceMetadata) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(
+            items = devices,
+            key = { it.id }
+        ) { device ->
+            DeviceCardItem(
+                device = device,
+                isSelected = selectedIds.contains(device.id),
+                onClick = {
+                    if (isManagementActive) {
+                        onDeviceToggle(device)
+                    } else {
+                        onDeviceOpen(device)
+                    }
+                },
+                onLongPress = { onDeviceToggle(device) }
+            )
+        }
+        item {
+            Spacer(modifier = Modifier.height(80.dp))
+        }
     }
 }
 
@@ -256,7 +280,7 @@ private fun HeaderSection(onAddDevice: () -> Unit) {
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = stringResource(id = R.string.home_management_add_device),
-                tint = MaterialTheme.massagerExtendedColors.danger
+                tint = MaterialTheme.massagerExtendedColors.success
             )
         }
     }
@@ -292,7 +316,7 @@ private fun DeviceCardItem(
                         .offset(x = (-12).dp, y = 12.dp)
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.massagerExtendedColors.danger),
+                        .background(MaterialTheme.massagerExtendedColors.success),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -317,9 +341,9 @@ private fun DeviceCard(
 ) {
     val scale = if (isSelected) 1.02f else 1f
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.surfaceBright),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
@@ -328,45 +352,48 @@ private fun DeviceCard(
                 onLongClick = onLongPress
             )
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.12f)),
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.massagerExtendedColors.success.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_massager_logo),
                     contentDescription = device.name,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(36.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(20.dp))
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = device.name,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.massagerExtendedColors.textPrimary
-                    )
-                )
-                Text(
-                    text = stringResource(id = R.string.home_management_device_subtitle),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = MaterialTheme.massagerExtendedColors.textMuted,
-                        fontSize = 13.sp
-                    )
-                )
-            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = device.name,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.massagerExtendedColors.textPrimary
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(id = R.string.home_management_device_subtitle),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = MaterialTheme.massagerExtendedColors.textMuted,
+                    fontSize = 12.sp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -424,7 +451,7 @@ private fun ManagementBottomBar(
                 onClick = onRemoveClick,
                 enabled = selectionCount > 0 && !isProcessing,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.massagerExtendedColors.danger,
+                    containerColor = MaterialTheme.massagerExtendedColors.success,
                     contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
                 ),
                 modifier = Modifier.weight(1f)
@@ -479,7 +506,7 @@ private fun RenameDeviceDialog(
                 if (errorRes != null) {
                     Text(
                         text = stringResource(id = errorRes),
-                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.massagerExtendedColors.danger),
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.massagerExtendedColors.success),
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -523,7 +550,7 @@ private fun RemoveDeviceDialog(
             ) {
                 Text(
                     text = stringResource(id = R.string.confirm),
-                    color = MaterialTheme.massagerExtendedColors.danger
+                    color = MaterialTheme.massagerExtendedColors.success
                 )
             }
         },

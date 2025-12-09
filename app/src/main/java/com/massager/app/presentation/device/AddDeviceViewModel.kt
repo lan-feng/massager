@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.data.bluetooth.BleConnectionState
 import com.massager.app.data.bluetooth.MassagerBluetoothService
+import com.massager.app.data.bluetooth.scan.BleScanCoordinator
 import com.massager.app.domain.usecase.device.BindDeviceUseCase
 import com.massager.app.core.logging.logTag
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -47,6 +48,7 @@ data class AddDeviceUiState(
 sealed interface AddDeviceEffect {
     data object NavigateHome : AddDeviceEffect
     data class ShowError(val message: String) : AddDeviceEffect
+    data object RequestPermissions : AddDeviceEffect
 }
 
 @HiltViewModel
@@ -69,9 +71,26 @@ class AddDeviceViewModel @Inject constructor(
 
     fun startScan() {
         Log.d(TAG, "startScan: resetting UI state and requesting BLE scan")
-        _uiState.value = AddDeviceUiState(isScanning = true)
-        bluetoothService.restartScan()
-        scheduleEmptyStateCheck()
+        val result = bluetoothService.restartScan()
+        when (result) {
+            is BleScanCoordinator.ScanStartResult.Started -> {
+                _uiState.value = AddDeviceUiState(isScanning = true)
+                scheduleEmptyStateCheck()
+            }
+            is BleScanCoordinator.ScanStartResult.Error -> {
+                _uiState.update {
+                    it.copy(
+                        isScanning = false,
+                        errorMessage = result.message,
+                        showEmpty = false
+                    )
+                }
+                // Trigger permission request if it's a permission-related failure.
+                if (result.message.contains("permission", ignoreCase = true)) {
+                    viewModelScope.launch { _effects.emit(AddDeviceEffect.RequestPermissions) }
+                }
+            }
+        }
     }
 
     fun retryScan() {

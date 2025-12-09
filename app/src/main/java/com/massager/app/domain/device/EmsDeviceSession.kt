@@ -24,24 +24,20 @@ class EmsDeviceSession @Inject constructor(
         bluetoothService.sendProtocolCommand(EmsV2Command.SetLevel(level))
 
     override suspend fun selectTimer(minutes: Int): Boolean =
-        bluetoothService.sendProtocolCommand(EmsV2Command.SetTimer(minutes))
+        bluetoothService.sendProtocolCommand(EmsV2Command.SetTimer(minutes * 60))
 
     override suspend fun runProgram(zone: Int, mode: Int, level: Int, timerMinutes: Int): Boolean =
-        bluetoothService.sendProtocolCommand(
-            EmsV2Command.RunProgram(
-                zone = zone,
-                mode = mode,
-                level = level,
-                timerMinutes = timerMinutes
-            )
-        )
+        bluetoothService.sendProtocolCommand(EmsV2Command.SetRunState(running = true, durationSeconds = timerMinutes * 60))
 
     override suspend fun stopProgram(): Boolean =
-        bluetoothService.sendProtocolCommand(EmsV2Command.SetLevel(0))
+        bluetoothService.sendProtocolCommand(EmsV2Command.SetRunState(running = false, durationSeconds = 0))
 
     override suspend fun toggleMute(enabled: Boolean): Boolean =
         bluetoothService.sendProtocolCommand(EmsV2Command.ToggleMute(enabled))
 
     override suspend fun requestStatus(): Boolean =
         bluetoothService.sendProtocolCommand(EmsV2Command.ReadStatus)
+
+    override suspend fun requestHeartbeat(): Boolean =
+        bluetoothService.sendProtocolCommand(EmsV2Command.RequestHeartbeat)
 }

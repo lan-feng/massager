@@ -46,9 +46,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.outlined.BatteryFull
-import androidx.compose.material.icons.outlined.VolumeOff
-import androidx.compose.material.icons.outlined.VolumeUp
+import androidx.compose.material.icons.filled.ToggleOn
+import androidx.compose.material.icons.filled.ToggleOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
@@ -88,6 +87,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -504,25 +504,39 @@ private fun TimerRing(
     var selectedMinutes by remember { mutableStateOf(baseMinutes.coerceIn(0, 60)) }
     var committedMinutes by remember { mutableStateOf(baseMinutes.coerceIn(0, 60)) }
     var lastDragMinutes by remember { mutableStateOf(selectedMinutes) }
+    var pendingTargetMinutes by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(isRunning, baseMinutes, remainingMinutes) {
-        if (!isDragging) {
-            if (!isRunning) {
-                committedMinutes = baseMinutes
-                selectedMinutes = baseMinutes
-            } else {
-                selectedMinutes = remainingMinutes
+        if (isDragging) return@LaunchedEffect
+        if (isRunning) {
+            pendingTargetMinutes?.let { target ->
+                if (remainingMinutes == target) {
+                    pendingTargetMinutes = null
+                } else {
+                    selectedMinutes = target
+                    return@LaunchedEffect
+                }
             }
+            selectedMinutes = remainingMinutes
+        } else {
+            committedMinutes = baseMinutes
+            selectedMinutes = baseMinutes
+            pendingTargetMinutes = null
         }
     }
 
-    val ringSize = 165.dp
-    val stroke = 12.dp
-    val displayMinutes = if (isRunning) remainingMinutes else selectedMinutes
+    val ringSize = 140.dp
+    val stroke = 10.dp
+    val displayMinutes = when {
+        isRunning && isDragging -> selectedMinutes
+        isRunning && pendingTargetMinutes != null -> pendingTargetMinutes!!.coerceIn(0, 60)
+        isRunning -> remainingMinutes
+        else -> selectedMinutes
+    }
     // 圆弧进度与中间数字保持一致
     val arcMinutes = displayMinutes.coerceIn(0, 60)
     val progress = (arcMinutes.toFloat() / 60f).coerceIn(0f, 1f)
-    val interactionEnabled = enabled && !isRunning
+    val interactionEnabled = enabled
     val ringSizePx = with(LocalDensity.current) { ringSize.toPx() }
     Box(
         modifier = Modifier
@@ -543,7 +557,10 @@ private fun TimerRing(
                         onDragEnd = {
                             isDragging = false
                             committedMinutes = selectedMinutes.coerceIn(0, 60)
-                            onSelectTimer(selectedMinutes.coerceIn(0, 60))
+                            val sanitized = selectedMinutes.coerceIn(0, 60)
+                            pendingTargetMinutes = sanitized
+                            selectedMinutes = sanitized
+                            onSelectTimer(sanitized)
                         },
                         onDragCancel = { isDragging = false },
                         onDrag = { change, _ ->
@@ -776,15 +793,7 @@ private fun DeviceSwitcherCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(
-                                imageVector = Icons.Outlined.BatteryFull,
-                                contentDescription = null,
-                                tint = when {
-                                    batteryPercent < 0 -> MaterialTheme.massagerExtendedColors.iconMuted
-                                    batteryPercent > 20 -> MaterialTheme.massagerExtendedColors.success
-                                    else -> accent
-                                }
-                            )
+                            BatteryIndicator5Level(batteryPercent = batteryPercent)
                             Text(
                                 text = displayText,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -799,13 +808,13 @@ private fun DeviceSwitcherCard(
                                 .background(MaterialTheme.massagerExtendedColors.surfaceBright)
                         ) {
                             Icon(
-                                imageVector = if (isMuted) Icons.Outlined.VolumeUp else Icons.Outlined.VolumeOff,
+                                imageVector = if (isMuted) Icons.Filled.ToggleOff else Icons.Filled.ToggleOn,
                                 contentDescription = if (isMuted) {
-                                    stringResource(id = R.string.device_mute_enabled)
-                                } else {
                                     stringResource(id = R.string.device_mute_disabled)
+                                } else {
+                                    stringResource(id = R.string.device_mute_enabled)
                                 },
-                                tint = accent
+                                tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else accent
                             )
                         }
                     }
@@ -815,15 +824,7 @@ private fun DeviceSwitcherCard(
                         horizontalArrangement = Arrangement.Start,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.BatteryFull,
-                            contentDescription = null,
-                            tint = when {
-                                batteryPercent < 0 -> MaterialTheme.massagerExtendedColors.iconMuted
-                                batteryPercent > 20 -> MaterialTheme.massagerExtendedColors.success
-                                else -> accent
-                            }
-                        )
+                        BatteryIndicator5Level(batteryPercent = batteryPercent)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = displayText,
@@ -989,15 +990,7 @@ private fun BatteryStatusRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Icon(
-            imageVector = Icons.Outlined.BatteryFull,
-            contentDescription = null,
-            tint = when {
-                isUnknown -> MaterialTheme.massagerExtendedColors.iconMuted
-                batteryPercent > 20 -> MaterialTheme.massagerExtendedColors.success
-                else -> MaterialTheme.massagerExtendedColors.danger
-            }
-        )
+        BatteryIndicator5Level(batteryPercent = batteryPercent)
         Text(
             text = displayText,
             style = MaterialTheme.typography.bodyMedium,
@@ -1012,13 +1005,87 @@ private fun BatteryStatusRow(
                 .background(MaterialTheme.massagerExtendedColors.surfaceBright)
         ) {
             Icon(
-                imageVector = if (isMuted) Icons.Outlined.VolumeUp else Icons.Outlined.VolumeOff,
+                imageVector = if (isMuted) Icons.Filled.ToggleOff else Icons.Filled.ToggleOn,
                 contentDescription = if (isMuted) {
-                    stringResource(id = R.string.device_mute_enabled)
-                } else {
                     stringResource(id = R.string.device_mute_disabled)
+                } else {
+                    stringResource(id = R.string.device_mute_enabled)
                 },
-                tint = MaterialTheme.massagerExtendedColors.danger
+                tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else MaterialTheme.massagerExtendedColors.success
+            )
+        }
+    }
+}
+
+@Composable
+private fun BatteryIndicator5Level(
+    batteryPercent: Int,
+    modifier: Modifier = Modifier
+) {
+    val level = when {
+        batteryPercent < 0 -> -1
+        batteryPercent >= 80 -> 4
+        batteryPercent >= 60 -> 3
+        batteryPercent >= 40 -> 2
+        batteryPercent >= 20 -> 1
+        else -> 0
+    }
+    val fillColor = when (level) {
+        -1 -> MaterialTheme.massagerExtendedColors.iconMuted
+        0 -> MaterialTheme.massagerExtendedColors.danger
+        1 -> Color(0xFFF6A609)
+        else -> MaterialTheme.massagerExtendedColors.success
+    }
+    val outlineColor = MaterialTheme.massagerExtendedColors.outline
+    val mutedFill = MaterialTheme.massagerExtendedColors.iconMuted.copy(alpha = 0.25f)
+    Canvas(
+        modifier = modifier
+            .width(34.dp)
+            .height(16.dp)
+    ) {
+        val strokeWidth = 1.8.dp.toPx()
+        val headWidth = 5.dp.toPx()
+        val bodyLeft = strokeWidth
+        val bodyTop = strokeWidth
+        val bodyWidth = size.width - headWidth - strokeWidth * 2
+        val bodyHeight = size.height - strokeWidth * 2
+        val corner = 3.dp.toPx()
+
+        // Outline
+        drawRoundRect(
+            color = outlineColor,
+            topLeft = Offset(bodyLeft, bodyTop),
+            size = Size(bodyWidth, bodyHeight),
+            cornerRadius = CornerRadius(corner, corner),
+            style = Stroke(width = strokeWidth)
+        )
+        // Battery head
+        val headHeight = bodyHeight / 2f
+        drawRoundRect(
+            color = outlineColor,
+            topLeft = Offset(bodyLeft + bodyWidth, (size.height - headHeight) / 2f),
+            size = Size(headWidth, headHeight),
+            cornerRadius = CornerRadius(corner / 2f, corner / 2f),
+            style = Fill
+        )
+
+        if (level >= 0) {
+            val segments = 5
+            val fillWidth = (bodyWidth - strokeWidth * 2) * (level + 1) / segments
+            drawRoundRect(
+                color = fillColor,
+                topLeft = Offset(bodyLeft + strokeWidth, bodyTop + strokeWidth),
+                size = Size(fillWidth, bodyHeight - strokeWidth * 2),
+                cornerRadius = CornerRadius(corner / 1.5f, corner / 1.5f),
+                style = Fill
+            )
+        } else {
+            drawRoundRect(
+                color = mutedFill,
+                topLeft = Offset(bodyLeft + strokeWidth, bodyTop + strokeWidth),
+                size = Size(bodyWidth - strokeWidth * 2, bodyHeight - strokeWidth * 2),
+                cornerRadius = CornerRadius(corner / 1.5f, corner / 1.5f),
+                style = Fill
             )
         }
     }
@@ -1053,23 +1120,21 @@ private fun BodyZoneGrid(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
     ) {
         Text(
             text = stringResource(id = R.string.body_part_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
+        Spacer(modifier = Modifier.height(4.dp))
+        LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp)
+                .height(100.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp)
         ) {
             items(zoneItems) { (zone, iconRes) ->
                 val isSelected = zone == selectedZone
@@ -1079,7 +1144,9 @@ private fun BodyZoneGrid(
                     selected = isSelected,
                     enabled = true,
                     brand = brand,
-                    modifier = Modifier.height(80.dp),
+                    modifier = Modifier
+                        .width(92.dp)
+                        .height(90.dp),
                     onClick = { onSelectZone(zone) }
                 )
             }
@@ -1107,23 +1174,21 @@ private fun ModeSelectionGrid(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
     ) {
         Text(
             text = stringResource(id = R.string.mode),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
+        Spacer(modifier = Modifier.height(4.dp))
+        LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp)
+                .height(120.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp)
         ) {
             items(modeItems) { (id, title, iconRes) ->
                 val isSelected = id == selectedMode
@@ -1133,7 +1198,9 @@ private fun ModeSelectionGrid(
                     selected = isSelected,
                     enabled = isEnabled,
                     brand = brand,
-                    modifier = Modifier.height(84.dp),
+                    modifier = Modifier
+                        .width(92.dp)
+                        .height(100.dp),
                     onClick = { onSelectMode(id) }
                 )
             }

@@ -24,8 +24,11 @@ class EmsDeviceTelemetryMapper @Inject constructor() : DeviceTelemetryMapper {
                 )
             is EmsV2ProtocolAdapter.EmsV2Message.ZoneReport ->
                 DeviceTelemetry(zone = message.zone, rawMessage = message)
-            is EmsV2ProtocolAdapter.EmsV2Message.TimerReport ->
-                DeviceTelemetry(timerMinutes = message.minutes, remainingSeconds = message.minutes * 60)
+            is EmsV2ProtocolAdapter.EmsV2Message.TimerReport -> {
+                val safeSeconds = message.seconds.coerceAtLeast(0)
+                val minutes = (safeSeconds + 59) / 60
+                DeviceTelemetry(timerMinutes = minutes, remainingSeconds = safeSeconds)
+            }
             is EmsV2ProtocolAdapter.EmsV2Message.MuteReport ->
                 DeviceTelemetry(isMuted = message.enabled, rawMessage = message)
             else -> null
@@ -38,10 +41,9 @@ class EmsDeviceTelemetryMapper @Inject constructor() : DeviceTelemetryMapper {
     }
 
     private fun fromHeartbeat(message: EmsV2ProtocolAdapter.EmsV2Message.Heartbeat): DeviceTelemetry {
-        val remaining = if (!message.isRunning && message.timerMinutes == 0) {
-            0
-        } else {
-            message.timerMinutes * 60
+        val remaining = when {
+            !message.isRunning && message.timerSeconds == 0 -> 0
+            else -> message.timerSeconds.coerceAtLeast(0)
         }
         val telemetryMessage = when {
             message.batteryPercent in 0..25 -> DeviceTelemetryMessage.BatteryLow
@@ -54,7 +56,7 @@ class EmsDeviceTelemetryMapper @Inject constructor() : DeviceTelemetryMapper {
             mode = message.mode,
             level = message.level,
             zone = message.zone,
-            timerMinutes = message.timerMinutes,
+            timerMinutes = (message.timerSeconds + 59) / 60,
             remainingSeconds = remaining,
             isMuted = message.isMuted,
             message = telemetryMessage

@@ -264,7 +264,7 @@ fun SettingsScreen(
                                         .height(48.dp),
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.massagerExtendedColors.danger,
+                                        containerColor = MaterialTheme.massagerExtendedColors.success,
                                         contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
                                     )
                                 ) {
@@ -501,7 +501,7 @@ private fun SettingsGroup(
                             enabled = hasNavigation,
                             interactionSource = interaction,
                             indication = if (hasNavigation) {
-                                rememberRipple(color = MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.16f))
+                                rememberRipple(color = MaterialTheme.massagerExtendedColors.success.copy(alpha = 0.16f))
                             } else null
                         ) { item.onClick?.invoke() }
                         .padding(vertical = 16.dp),
@@ -511,7 +511,7 @@ private fun SettingsGroup(
                     Icon(
                         imageVector = item.icon,
                         contentDescription = item.title,
-                        tint = MaterialTheme.massagerExtendedColors.danger
+                        tint = MaterialTheme.massagerExtendedColors.success
                     )
                     Text(
                         text = item.title,
@@ -560,7 +560,7 @@ private fun TemperatureToggle(
             onCheckedChange = { onToggle() },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = MaterialTheme.massagerExtendedColors.textOnAccent,
-                checkedTrackColor = MaterialTheme.massagerExtendedColors.danger,
+                checkedTrackColor = MaterialTheme.massagerExtendedColors.success,
                 uncheckedThumbColor = MaterialTheme.massagerExtendedColors.surfaceBright,
                 uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
             )

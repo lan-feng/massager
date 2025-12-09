@@ -17,6 +17,7 @@ import com.massager.app.domain.device.DeviceSessionRegistry
 import com.massager.app.domain.device.DeviceTelemetry
 import com.massager.app.domain.device.DeviceTelemetryMapper
 import com.massager.app.domain.device.DeviceTelemetryMessage
+import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter.EmsV2Command
 import com.massager.app.domain.model.ComboDeviceInfo
 import com.massager.app.domain.model.ComboInfoPayload
 import com.massager.app.domain.model.ComboInfoSerializer
@@ -39,7 +40,7 @@ import kotlinx.coroutines.withContext
 
 private const val MAX_LEVEL = 19
 private const val MIN_LEVEL = 0
-private const val DEFAULT_TIMER_MINUTES = 15
+private const val DEFAULT_TIMER_MINUTES = 30
 private const val CONNECTING_OVERLAY_DURATION_MS = 3_000L
 private const val PROTOCOL_SIGNAL_TIMEOUT_MS = 1_200L
 
@@ -68,6 +69,10 @@ class DeviceControlViewModel @Inject constructor(
     private var hasProtocolSignal = false
     private var protocolSignalTimeoutJob: kotlinx.coroutines.Job? = null
     private val deviceUiCache = mutableMapOf<String, DeviceSnapshot>()
+    private val heartbeatRequested = mutableSetOf<String>()
+    private val lastHeartbeatSentAt = mutableMapOf<String, Long>()
+    private val userTimerOverrides = mutableMapOf<String, Int>()
+    private val lastTelemetryRemainingSeconds = mutableMapOf<String, Int>()
 
     private val preferredName: String? =
         savedStateHandle.get<String>(Screen.DeviceControl.ARG_DEVICE_NAME)?.takeIf { it.isNotBlank() }
@@ -95,6 +100,9 @@ class DeviceControlViewModel @Inject constructor(
         observeComboDevices()
         attemptInitialConnection()
     }
+
+    private fun currentAddress(): String? =
+        _uiState.value.selectedDeviceSerial ?: targetAddress
 
     private fun currentSession(): DeviceSession? =
         sessionRegistry.sessionFor(bluetoothService.activeProtocolKey(selectedDeviceSerial))
@@ -161,10 +169,7 @@ class DeviceControlViewModel @Inject constructor(
             }
         }
         if (isConnected && isProtocolReady) {
-            if (!initialStatusRequested) {
-                initialStatusRequested = true
-                requestStatus()
-            }
+            state.deviceAddress?.let { addr -> maybeRequestHeartbeat(addr) }
         } else {
             initialStatusRequested = false
         }
@@ -179,12 +184,24 @@ class DeviceControlViewModel @Inject constructor(
             Log.d(tag, "scheduleProtocolSignalTimeout: waiting ${timeoutMs}ms for protocol traffic")
             delay(timeoutMs)
             if (!hasProtocolSignal) {
-                Log.w(tag, "scheduleProtocolSignalTimeout: no protocol traffic received, keeping connected but will request status")
+                Log.w(tag, "scheduleProtocolSignalTimeout: no protocol traffic received, keeping connected but will request heartbeat")
                 protocolSignalTimeoutJob = null
-                requestStatus()
+                _uiState.value.deviceAddress?.let { addr -> maybeRequestHeartbeat(addr, force = true) }
             } else {
                 protocolSignalTimeoutJob = null
             }
+        }
+    }
+
+    private fun maybeRequestHeartbeat(address: String, force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val last = lastHeartbeatSentAt[address] ?: 0L
+        if (!force && heartbeatRequested.contains(address)) return
+        if (!force && now - last < PROTOCOL_SIGNAL_TIMEOUT_MS) return
+        heartbeatRequested.add(address)
+        lastHeartbeatSentAt[address] = now
+        viewModelScope.launch {
+            bluetoothService.sendProtocolCommand(EmsV2Command.RequestHeartbeat, address = address)
         }
     }
 
@@ -226,8 +243,26 @@ class DeviceControlViewModel @Inject constructor(
 
     fun selectTimer(minutes: Int) {
         val current = _uiState.value
-        if (current.isRunning) return
-        _uiState.update { it.copy(timerMinutes = minutes.coerceAtLeast(1)) }
+        val sanitized = minutes.coerceAtLeast(1)
+        if (current.isRunning) {
+            viewModelScope.launch {
+                val success = withSession { session -> session.selectTimer(sanitized) }
+                if (success) {
+                    currentAddress()?.let { address -> userTimerOverrides[address] = sanitized }
+                    _uiState.update {
+                        it.copy(
+                            timerMinutes = sanitized,
+                            remainingSeconds = sanitized * 60
+                        )
+                    }
+                } else {
+                    _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
+                }
+            }
+        } else {
+            currentAddress()?.let { address -> userTimerOverrides[address] = sanitized }
+            _uiState.update { it.copy(timerMinutes = sanitized, remainingSeconds = 0) }
+        }
     }
 
     fun toggleMute() {
@@ -572,7 +607,9 @@ class DeviceControlViewModel @Inject constructor(
             remainingSeconds = state.remainingSeconds,
             isRunning = state.isRunning,
             isMuted = state.isMuted,
-            batteryPercent = state.batteryPercent
+            batteryPercent = state.batteryPercent,
+            userTimerMinutes = userTimerOverrides[address],
+            telemetryRemainingSeconds = lastTelemetryRemainingSeconds[address]
         )
     }
 
@@ -581,26 +618,40 @@ class DeviceControlViewModel @Inject constructor(
         val status = _uiState.value.deviceStatuses[address]
         val defaultBattery = status?.batteryPercent ?: -1
         if (cached != null) {
+            cached.userTimerMinutes?.let { userTimerOverrides[address] = it }
+            cached.telemetryRemainingSeconds?.let { lastTelemetryRemainingSeconds[address] = it }
+            val (resolvedTimer, resolvedRemaining) = resolveTimerDisplay(
+                address = address,
+                incomingTimerMinutes = cached.timerMinutes,
+                incomingRemainingSeconds = cached.remainingSeconds,
+                isRunning = cached.isRunning
+            )
             _uiState.update {
                 it.copy(
                     mode = cached.mode,
                     level = cached.level,
                     zone = cached.zone,
-                    timerMinutes = cached.timerMinutes,
-                    remainingSeconds = cached.remainingSeconds,
+                    timerMinutes = resolvedTimer,
+                    remainingSeconds = resolvedRemaining,
                     isRunning = cached.isRunning,
                     isMuted = cached.isMuted,
                     batteryPercent = cached.batteryPercent
                 )
             }
         } else {
+            val (resolvedTimer, resolvedRemaining) = resolveTimerDisplay(
+                address = address,
+                incomingTimerMinutes = DEFAULT_TIMER_MINUTES,
+                incomingRemainingSeconds = lastTelemetryRemainingSeconds[address],
+                isRunning = false
+            )
             _uiState.update {
                 it.copy(
                     mode = 0,
                     level = 0,
                     zone = BodyZone.SHOULDER,
-                    timerMinutes = DEFAULT_TIMER_MINUTES,
-                    remainingSeconds = 0,
+                    timerMinutes = resolvedTimer,
+                    remainingSeconds = resolvedRemaining,
                     isRunning = false,
                     isMuted = false,
                     batteryPercent = defaultBattery
@@ -668,6 +719,9 @@ class DeviceControlViewModel @Inject constructor(
         Log.d(tag, "applyTelemetry: address=$address telemetry=$telemetry")
         val targetAddress = telemetry.address ?: address ?: return
         val applyToSelected = targetAddress.equals(_uiState.value.selectedDeviceSerial, ignoreCase = true)
+        telemetry.remainingSeconds?.let { remaining ->
+            lastTelemetryRemainingSeconds[targetAddress] = remaining.coerceAtLeast(0)
+        }
         if (applyToSelected && awaitingStopAck && telemetry.isRunning == true) {
             Log.v(tag, "applyTelemetry: awaiting stop ack, ignoring running telemetry")
             return
@@ -702,14 +756,6 @@ class DeviceControlViewModel @Inject constructor(
                 telemetry.level?.let { level ->
                     next = next.copy(level = level.coerceIn(MIN_LEVEL, MAX_LEVEL))
                 }
-                telemetry.timerMinutes?.let { minutes ->
-                    next = next.copy(timerMinutes = minutes.coerceAtLeast(0))
-                }
-                telemetry.remainingSeconds?.let { seconds ->
-                    next = next.copy(remainingSeconds = seconds.coerceAtLeast(0))
-                }
-            } else if (telemetry.isRunning == false) {
-                next = next.copy(remainingSeconds = 0)
             }
 
             val batteryPercent = telemetry.batteryPercent
@@ -750,12 +796,52 @@ class DeviceControlViewModel @Inject constructor(
                     next = next.copy(message = messageToShow)
                 }
             }
+
+            if (applyToSelected) {
+                val addressKey = targetAddress
+                telemetry.remainingSeconds?.let { remaining ->
+                    lastTelemetryRemainingSeconds[addressKey] = remaining.coerceAtLeast(0)
+                }
+                val (resolvedTimer, resolvedRemaining) = resolveTimerDisplay(
+                    address = addressKey,
+                    incomingTimerMinutes = telemetry.timerMinutes,
+                    incomingRemainingSeconds = telemetry.remainingSeconds,
+                    isRunning = next.isRunning
+                )
+                next = next.copy(timerMinutes = resolvedTimer, remainingSeconds = resolvedRemaining)
+            }
             next
         }
         // 缓存选中设备的最新 UI 状态，便于切换时恢复
         val addressKey = targetAddress ?: _uiState.value.selectedDeviceSerial
         if (applyToSelected && addressKey != null) {
             cacheStateFor(addressKey, _uiState.value)
+        }
+    }
+
+    private fun resolveTimerDisplay(
+        address: String?,
+        incomingTimerMinutes: Int?,
+        incomingRemainingSeconds: Int?,
+        isRunning: Boolean
+    ): Pair<Int, Int> {
+        val userTimer = address?.let { userTimerOverrides[it] }
+        val telemetryRemaining = address?.let { lastTelemetryRemainingSeconds[it] }
+        val remaining = incomingRemainingSeconds ?: telemetryRemaining
+        return if (isRunning) {
+            val safeRemaining = (remaining ?: (incomingTimerMinutes ?: DEFAULT_TIMER_MINUTES) * 60)
+                .coerceAtLeast(0)
+            val minutes = max(1, (safeRemaining + 59) / 60)
+            minutes to safeRemaining
+        } else {
+            val preferredRemaining = remaining?.takeIf { it > 0 }
+            val minutes = when {
+                userTimer != null -> userTimer
+                preferredRemaining != null -> (preferredRemaining + 59) / 60
+                incomingTimerMinutes != null && incomingTimerMinutes > 0 -> incomingTimerMinutes
+                else -> DEFAULT_TIMER_MINUTES
+            }
+            minutes to (preferredRemaining ?: 0)
         }
     }
 
@@ -779,7 +865,11 @@ class DeviceControlViewModel @Inject constructor(
                 session.selectZone(zoneIndex) &&
                     session.selectMode(current.mode) &&
                     session.selectLevel(level) &&
-                    session.selectTimer(timerMinutes) &&
+                    run {
+                        // Give the device a brief moment to apply zone/mode/level before run command.
+                        delay(80)
+                        true
+                    } &&
                     session.runProgram(
                         zone = zoneIndex,
                         mode = current.mode,
@@ -788,6 +878,22 @@ class DeviceControlViewModel @Inject constructor(
                     )
             }
             if (success) {
+                // Send a second run command shortly after to increase reliability on some firmware versions.
+                viewModelScope.launch {
+                    delay(120)
+                    withSession { session ->
+                        session.runProgram(
+                            zone = zoneIndex,
+                            mode = current.mode,
+                            level = level,
+                            timerMinutes = timerMinutes
+                        )
+                    }
+                }
+                currentAddress()?.let { addr ->
+                    userTimerOverrides[addr] = timerMinutes
+                    lastTelemetryRemainingSeconds[addr] = timerMinutes * 60
+                }
                 _uiState.update {
                     it.copy(
                         isRunning = true,
@@ -812,8 +918,9 @@ class DeviceControlViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     isRunning = false,
-                    level = 0,
-                    remainingSeconds = 0,
+                    // 保留当前档位与剩余时间，避免停止后重置到 0。
+                    level = current.level,
+                    remainingSeconds = current.remainingSeconds,
                     message = if (success) DeviceMessage.SessionStopped else DeviceMessage.CommandFailed()
                 )
             }
@@ -825,7 +932,9 @@ class DeviceControlViewModel @Inject constructor(
 
     private fun requestStatus() {
         viewModelScope.launch {
-            withSession { session -> session.requestStatus() }
+            withSession { session ->
+                session.requestHeartbeat()
+            }
         }
     }
 
@@ -955,5 +1064,7 @@ private data class DeviceSnapshot(
     val remainingSeconds: Int,
     val isRunning: Boolean,
     val isMuted: Boolean,
-    val batteryPercent: Int
+    val batteryPercent: Int,
+    val userTimerMinutes: Int?,
+    val telemetryRemainingSeconds: Int?
 )

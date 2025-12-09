@@ -12,4 +12,5 @@ interface DeviceSession {
     suspend fun stopProgram(): Boolean
     suspend fun toggleMute(enabled: Boolean): Boolean
     suspend fun requestStatus(): Boolean
+    suspend fun requestHeartbeat(): Boolean
 }

@@ -39,6 +39,7 @@ import com.massager.app.presentation.settings.AccountSecurityScreen
 import com.massager.app.presentation.settings.AccountSecurityViewModel
 import com.massager.app.presentation.settings.ChangePasswordScreen
 import com.massager.app.presentation.settings.DeleteAccountConfirmScreen
+import com.massager.app.presentation.settings.DeleteAccountViewModel
 import com.massager.app.presentation.settings.PersonalInformationScreen
 import com.massager.app.presentation.settings.PersonalInformationViewModel
 import com.massager.app.presentation.settings.SettingsScreen
@@ -422,9 +423,17 @@ fun MassagerNavHost(
             )
         }
         composable(Screen.DeleteAccount.route) {
+            val viewModel: DeleteAccountViewModel = hiltViewModel()
             DeleteAccountConfirmScreen(
+                viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onConfirm = { navController.popBackStack() }
+                onSuccess = {
+                    authViewModel.clearAuthenticationFlag()
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
     }

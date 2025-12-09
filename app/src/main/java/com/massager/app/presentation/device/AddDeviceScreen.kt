@@ -97,10 +97,10 @@ fun AddDeviceScreen(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(Manifest.permission.BLUETOOTH_SCAN)
                 add(Manifest.permission.BLUETOOTH_CONNECT)
-            } else {
-                add(Manifest.permission.ACCESS_FINE_LOCATION)
-                add(Manifest.permission.ACCESS_COARSE_LOCATION)
             }
+            // 兼容部分机型扫描仍需位置信息
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
     }
     val missingPermissions = runtimePermissions.filter {
@@ -126,18 +126,18 @@ fun AddDeviceScreen(
     val packageName = context.packageName
 
     LaunchedEffect(missingPermissions) {
-        if (missingPermissions.isEmpty()) {
-            if (!hasTriggeredScan) {
-                hasTriggeredScan = true
-                viewModel.startScan()
+            if (missingPermissions.isEmpty()) {
+                if (!hasTriggeredScan) {
+                    hasTriggeredScan = true
+                    viewModel.startScan()
+                }
+            } else {
+                hasTriggeredScan = false
+                if (!autoPermissionRequested) {
+                    autoPermissionRequested = true
+                    permissionLauncher.launch(missingPermissions.toTypedArray())
+                }
             }
-        } else {
-            hasTriggeredScan = false
-            if (!autoPermissionRequested) {
-                autoPermissionRequested = true
-                permissionLauncher.launch(missingPermissions.toTypedArray())
-            }
-        }
     }
 
     fun openAppSettings() {
@@ -172,6 +172,17 @@ fun AddDeviceScreen(
                 AddDeviceEffect.NavigateHome -> onNavigateHome()
                 is AddDeviceEffect.ShowError -> {
                     snackbarHostState.showSnackbar(effect.message)
+                }
+                AddDeviceEffect.RequestPermissions -> {
+                    val stillMissing = runtimePermissions.filter {
+                        ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+                    }
+                    if (stillMissing.isNotEmpty()) {
+                        permissionLauncher.launch(stillMissing.toTypedArray())
+                    } else {
+                        hasTriggeredScan = false
+                        viewModel.startScan()
+                    }
                 }
             }
         }
@@ -246,11 +257,7 @@ fun AddDeviceScreen(
                     onRequestPermission = {
                         permissionLauncher.launch(missingPermissions.toTypedArray())
                     },
-                    onOpenSettings = if (showSettingsShortcut) {
-                        { openAppSettings() }
-                    } else {
-                        null
-                    }
+                    onOpenSettings = { openAppSettings() }
                 )
                 Spacer(modifier = Modifier.weight(1f))
             } else if (uiState.devices.isNotEmpty()) {

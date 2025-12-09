@@ -193,19 +193,21 @@ class MassagerBluetoothService @Inject constructor(
     }
 
     @SuppressLint("MissingPermission")
-    fun startScan() {
-        when (val result = scanCoordinator.startScan()) {
+    fun startScan(): BleScanCoordinator.ScanStartResult {
+        val result = scanCoordinator.startScan()
+        when (result) {
             is BleScanCoordinator.ScanStartResult.Started -> _connectionState.update {
                 it.copy(status = BleConnectionState.Status.Scanning, errorMessage = null, isProtocolReady = false)
             }
             is BleScanCoordinator.ScanStartResult.Error -> _connectionState.value =
                 BleConnectionState(status = result.status, errorMessage = result.message)
         }
+        return result
     }
 
-    fun restartScan() {
+    fun restartScan(): BleScanCoordinator.ScanStartResult {
         scanCoordinator.clearCache()
-        startScan()
+        return startScan()
     }
 
     fun stopScan() {
@@ -381,7 +383,8 @@ class MassagerBluetoothService @Inject constructor(
                     return
                 }
                 val adapter = session.adapter
-                if (!resolveProtocolHandles(session, gatt, adapter, enableNotifications = true)) {
+                val resolveResult = resolveProtocolHandles(session, gatt, adapter, enableNotifications = true)
+                if (!resolveResult.ready && resolveResult.missingHandles) {
                     Log.e(TAG, "onServicesDiscovered: unable to resolve protocol handles for ${gatt.device.address}")
                 }
             }
@@ -391,7 +394,7 @@ class MassagerBluetoothService @Inject constructor(
                 session.awaitingInitialMtu = false
                 session.pendingMtuTimeout?.let(mainHandler::removeCallbacks)
                 session.pendingMtuTimeout = null
-                queueServiceDiscovery(session, "mtu_changed")
+                queueServiceDiscovery(session, "mtu_changed", delayMs = 0L)
             }
 
             override fun onDescriptorWrite(
@@ -483,7 +486,7 @@ class MassagerBluetoothService @Inject constructor(
             session.pendingMtuTimeout = timeoutRunnable
             mainHandler.postDelayed(timeoutRunnable, INITIAL_MTU_TIMEOUT_MS)
         } else {
-            queueServiceDiscovery(session, "initial_connect_no_mtu")
+            queueServiceDiscovery(session, "initial_connect_no_mtu", delayMs = 0L)
         }
     }
 
@@ -513,25 +516,41 @@ class MassagerBluetoothService @Inject constructor(
         }
     }
 
+    private data class ResolveResult(
+        val ready: Boolean,
+        val missingHandles: Boolean
+    )
+
     private fun resolveProtocolHandles(
         session: GattSession,
         gatt: BluetoothGatt,
         adapter: BleProtocolAdapter,
         enableNotifications: Boolean
-    ): Boolean {
+    ): ResolveResult {
         val notifyUuid = adapter.notifyCharacteristicUuidCandidates.firstOrNull()
         val writeUuid = adapter.writeCharacteristicUuidCandidates.firstOrNull()
         val serviceUuid = adapter.serviceUuidCandidates.firstOrNull()
 
-        val writeCharacteristic = when {
+        var writeCharacteristic = when {
             writeUuid != null -> gatt.findCharacteristic(writeUuid)
             serviceUuid != null -> gatt.getService(serviceUuid)?.characteristics?.firstOrNull { it.hasWriteProperty() }
             else -> null
         }
-        val notifyCharacteristic = when {
+        var notifyCharacteristic = when {
             notifyUuid != null -> gatt.findCharacteristic(notifyUuid)
             serviceUuid != null -> gatt.getService(serviceUuid)?.characteristics?.firstOrNull { it.hasNotifyProperty() }
             else -> null
+        }
+
+        if (writeCharacteristic == null) {
+            // Fallback: scan all services for the first writable characteristic
+            gatt.services.forEach { service ->
+                service.characteristics.firstOrNull { it.hasWriteProperty() }?.let { candidate ->
+                    writeCharacteristic = candidate
+                    notifyCharacteristic = notifyCharacteristic ?: service.characteristics.firstOrNull { it.hasNotifyProperty() }
+                    return@forEach
+                }
+            }
         }
 
         val resolvedService = writeCharacteristic?.service ?: notifyCharacteristic?.service
@@ -539,13 +558,16 @@ class MassagerBluetoothService @Inject constructor(
         session.activeWriteCharacteristicUuid = writeCharacteristic?.uuid
         session.activeNotifyCharacteristicUuid = notifyCharacteristic?.uuid
 
-        val notificationsReady = if (enableNotifications && notifyCharacteristic != null) {
-            enableNotifications(gatt, notifyCharacteristic, session)
+        val notifyChar = notifyCharacteristic
+        val notificationsReady = if (enableNotifications && notifyChar != null) {
+            enableNotifications(gatt, notifyChar, session)
         } else true
 
         val ready = session.activeWriteCharacteristicUuid != null && notificationsReady
         updateState(session.address, session.connectionState.copy(isProtocolReady = ready))
-        return ready
+        val missingHandles = session.activeWriteCharacteristicUuid == null ||
+            (enableNotifications && notifyChar == null)
+        return ResolveResult(ready = ready, missingHandles = missingHandles)
     }
 
     private fun BluetoothGatt.findCharacteristic(uuid: UUID): BluetoothGattCharacteristic? {
@@ -590,7 +612,7 @@ class MassagerBluetoothService @Inject constructor(
         return true
     }
 
-    private fun queueServiceDiscovery(session: GattSession, reason: String) {
+    private fun queueServiceDiscovery(session: GattSession, reason: String, delayMs: Long = SERVICE_DISCOVERY_RETRY_DELAY_MS) {
         if (session.serviceDiscoveryRetries >= MAX_SERVICE_DISCOVERY_RETRIES) return
         session.serviceDiscoveryRetries += 1
         session.pendingServiceRetry?.let(mainHandler::removeCallbacks)
@@ -601,7 +623,11 @@ class MassagerBluetoothService @Inject constructor(
             }
         }
         session.pendingServiceRetry = runnable
-        mainHandler.postDelayed(runnable, SERVICE_DISCOVERY_RETRY_DELAY_MS)
+        if (delayMs <= 0L) {
+            mainHandler.post(runnable)
+        } else {
+            mainHandler.postDelayed(runnable, delayMs)
+        }
     }
 
     private fun scheduleServiceRediscovery(session: GattSession, reason: String): Boolean {

@@ -136,8 +136,8 @@ fun AboutScreen(
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(
-                                    MaterialTheme.massagerExtendedColors.danger,
-                                    MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.8f)
+                                    MaterialTheme.massagerExtendedColors.success,
+                                    MaterialTheme.massagerExtendedColors.success.copy(alpha = 0.8f)
                                 )
                             )
                         ),
@@ -253,7 +253,7 @@ private fun InfoListItem(
             Icon(
                 imageVector = leadingIcon,
                 contentDescription = null,
-                tint = MaterialTheme.massagerExtendedColors.danger
+                tint = MaterialTheme.massagerExtendedColors.success
             )
             Text(
                 text = title,

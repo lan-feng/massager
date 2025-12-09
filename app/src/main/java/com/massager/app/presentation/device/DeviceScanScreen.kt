@@ -23,6 +23,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,17 +36,22 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
 import com.massager.app.data.bluetooth.BleConnectionState
 import com.massager.app.presentation.navigation.DeviceScanSource
+import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,10 +62,31 @@ fun DeviceScanScreen(
     onNavigateHome: () -> Unit,
     onNavigateControl: (String?) -> Unit
 ) {
+    val context = LocalContext.current
+    val runtimePermissions = remember {
+        buildList {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                add(android.Manifest.permission.BLUETOOTH_SCAN)
+                add(android.Manifest.permission.BLUETOOTH_CONNECT)
+            }
+            // 兼容部分厂商仍要求位置权限
+            add(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            add(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+    }
+    var hasRequestedPermission by rememberSaveable { mutableStateOf(false) }
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        // no-op; viewModel will retry scan when permissions granted
+    }
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val errorMessage = uiState.connectionState.errorMessage
-    val context = LocalContext.current
+    val missingPermissions = runtimePermissions.filter {
+        ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
 
     LaunchedEffect(errorMessage) {
         if (!errorMessage.isNullOrBlank()) {
@@ -76,6 +103,14 @@ fun DeviceScanScreen(
                     val text = effect.messageRes?.let(context::getString) ?: effect.message
                     if (!text.isNullOrBlank()) {
                         snackbarHostState.showSnackbar(text)
+                    }
+                }
+                DeviceScanEffect.RequestPermissions -> {
+                    val missing = runtimePermissions.filter {
+                        ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                    }
+                    if (missing.isNotEmpty()) {
+                        permissionLauncher.launch(missing.toTypedArray())
                     }
                 }
             }
@@ -129,6 +164,40 @@ fun DeviceScanScreen(
                 isScanning = uiState.isScanning
             )
             Spacer(modifier = Modifier.height(12.dp))
+
+            if (missingPermissions.isNotEmpty()) {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = stringResource(id = R.string.device_error_bluetooth_scan_permission),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.massagerExtendedColors.textPrimary
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Button(onClick = {
+                                permissionLauncher.launch(missingPermissions.toTypedArray())
+                            }) {
+                                Text(text = stringResource(id = R.string.try_again))
+                            }
+                            OutlinedButton(onClick = {
+                                val intent = android.content.Intent(
+                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    android.net.Uri.fromParts("package", context.packageName, null)
+                                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            }) {
+                                Text(text = "Open settings")
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             val actionLabel = if (uiState.scanSource == DeviceScanSource.CONTROL) {
                 stringResource(id = R.string.device_scan_action_combo)
             } else {

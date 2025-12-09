@@ -53,6 +53,7 @@ sealed interface DeviceScanEffect {
         @StringRes val messageRes: Int? = null,
         val message: String? = null
     ) : DeviceScanEffect
+    data object RequestPermissions : DeviceScanEffect
 }
 
 @HiltViewModel
@@ -85,7 +86,7 @@ class DeviceViewModel @Inject constructor(
     val effects: SharedFlow<DeviceScanEffect> = _effects.asSharedFlow()
 
     init {
-        bluetoothService.startScan()
+        handleScanResult(bluetoothService.startScan())
         observeBluetooth()
     }
 
@@ -125,12 +126,12 @@ class DeviceViewModel @Inject constructor(
         if (_uiState.value.isScanning) {
             bluetoothService.stopScan()
         } else {
-            bluetoothService.startScan()
+            handleScanResult(bluetoothService.startScan())
         }
     }
 
     fun refreshScan() {
-        bluetoothService.restartScan()
+        handleScanResult(bluetoothService.restartScan())
     }
 
     fun onDeviceSelected(device: DeviceListItem) {
@@ -144,6 +145,16 @@ class DeviceViewModel @Inject constructor(
     fun clearErrorMessage() {
         bluetoothService.clearError()
         _uiState.update { it.copy(connectionState = it.connectionState.copy(errorMessage = null)) }
+    }
+
+    private fun handleScanResult(result: com.massager.app.data.bluetooth.scan.BleScanCoordinator.ScanStartResult) {
+        if (result is com.massager.app.data.bluetooth.scan.BleScanCoordinator.ScanStartResult.Error &&
+            result.message.contains("permission", ignoreCase = true)
+        ) {
+            viewModelScope.launch {
+                _effects.emit(DeviceScanEffect.RequestPermissions)
+            }
+        }
     }
 
     private fun bindDevice(device: DeviceListItem) {

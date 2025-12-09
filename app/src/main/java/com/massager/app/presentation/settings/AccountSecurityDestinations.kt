@@ -19,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -114,7 +115,7 @@ fun ChangePasswordScreen(
                         Text(
                             text = stringResource(id = R.string.submit_action),
                             color = if (uiState.isFormValid && !uiState.isSubmitting) {
-                                MaterialTheme.massagerExtendedColors.danger
+                                MaterialTheme.massagerExtendedColors.success
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             }
@@ -215,7 +216,7 @@ fun ChangePasswordScreen(
             ) {
                 Text(
                     text = stringResource(id = R.string.forgot_password_action),
-                    color = MaterialTheme.massagerExtendedColors.danger,
+                    color = MaterialTheme.massagerExtendedColors.success,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -226,9 +227,28 @@ fun ChangePasswordScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeleteAccountConfirmScreen(
+    viewModel: DeleteAccountViewModel = hiltViewModel(),
     onBack: () -> Unit,
-    onConfirm: () -> Unit
+    onSuccess: () -> Unit
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    LaunchedEffect(uiState.success) {
+        if (uiState.success) {
+            viewModel.consumeSuccess()
+            onSuccess()
+        }
+    }
+
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.takeIf { it.isNotBlank() }?.let { message ->
+            // Simple toast instead of snackbar to keep screen lightweight.
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+            viewModel.clearError()
+        }
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.massagerExtendedColors.surfaceSubtle
@@ -259,15 +279,24 @@ fun DeleteAccountConfirmScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
+                if (uiState.isLoading) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                    )
+                }
                 Button(
-                    onClick = onConfirm,
-                    modifier = Modifier.fillMaxWidth()
+                    onClick = { viewModel.deleteAccount() },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = uiState.isLoading.not()
                 ) {
                     Text(text = stringResource(id = R.string.delete_account_confirm_button))
                 }
                 Button(
                     onClick = onBack,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = uiState.isLoading.not()
                 ) {
                     Text(text = stringResource(id = R.string.delete_account_cancel_button))
                 }

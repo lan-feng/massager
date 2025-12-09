@@ -20,7 +20,7 @@ fun AppBottomNavigation(
     onTabSelected: (AppBottomTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val accent = MaterialTheme.massagerExtendedColors.danger
+    val accent = MaterialTheme.massagerExtendedColors.success
     NavigationBar(
         modifier = modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surface,
