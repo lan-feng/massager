@@ -86,8 +86,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.ripple.rememberRipple
-import com.massager.app.presentation.settings.AppTheme
-import com.massager.app.presentation.settings.AppLanguage
+import com.massager.app.core.preferences.AppTheme
+import com.massager.app.core.preferences.AppLanguage
 import coil.compose.rememberAsyncImagePainter
 import com.massager.app.R
 import kotlinx.coroutines.delay

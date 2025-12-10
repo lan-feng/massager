@@ -1,8 +1,7 @@
 package com.massager.app.presentation.theme
 
-// 文件说明：封装 Massager 的主题装饰，注入颜色、排版并提供给全局界面。
+// 文件说明：基于 StateFlow 状态驱动的主题封装，支持亮/暗/系统主题且无 Activity 重建。
 import android.app.Activity
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -15,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.ViewCompat
+import com.massager.app.core.preferences.AppTheme
 
 private val LightColorScheme = lightColorScheme(
     primary = PrimaryBlue40,
@@ -75,34 +75,40 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun MassagerTheme(
-    darkTheme: Boolean = false,
+fun MyAppTheme(
+    appTheme: AppTheme,
     content: @Composable () -> Unit
 ) {
-    val mode = AppCompatDelegate.getDefaultNightMode()
-    val resolvedDark = when (mode) {
-        AppCompatDelegate.MODE_NIGHT_YES -> true
-        AppCompatDelegate.MODE_NIGHT_NO -> false
-        else -> isSystemInDarkTheme() || darkTheme
+    val darkTheme = when (appTheme) {
+        AppTheme.Light -> false
+        AppTheme.Dark -> true
+        AppTheme.System -> isSystemInDarkTheme()
     }
-    val colorScheme: ColorScheme = if (resolvedDark) DarkColorScheme else LightColorScheme
-    val extendedColors = if (resolvedDark) DarkExtendedColors else LightExtendedColors
+    MyAppTheme(darkTheme = darkTheme, content = content)
+}
+
+@Composable
+fun MyAppTheme(
+    darkTheme: Boolean,
+    content: @Composable () -> Unit
+) {
+    val colorScheme: ColorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
     val view = LocalView.current
+
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as? Activity)?.window
-            // Use surface for both bars to ensure good contrast with icon appearance
             val barsColor = colorScheme.surface.toArgb()
             window?.statusBarColor = barsColor
             window?.navigationBarColor = barsColor
             val controller = ViewCompat.getWindowInsetsController(view)
-            controller?.isAppearanceLightStatusBars = !resolvedDark
-            controller?.isAppearanceLightNavigationBars = !resolvedDark
+            controller?.isAppearanceLightStatusBars = !darkTheme
+            controller?.isAppearanceLightNavigationBars = !darkTheme
         }
     }
 
-    val extended = if (resolvedDark) DarkExtendedColors else LightExtendedColors
-    CompositionLocalProvider(LocalMassagerExtendedColors provides extended) {
+    CompositionLocalProvider(LocalMassagerExtendedColors provides extendedColors) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = MassagerTypography,

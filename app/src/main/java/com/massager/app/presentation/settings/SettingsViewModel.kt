@@ -4,9 +4,11 @@ package com.massager.app.presentation.settings
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.os.LocaleListCompat
 import com.massager.app.R
+import com.massager.app.core.preferences.AppLanguage
+import com.massager.app.core.preferences.AppTheme
+import com.massager.app.core.preferences.LanguageManager
+import com.massager.app.core.preferences.ThemeManager
 import com.massager.app.data.local.AppCacheManager
 import com.massager.app.data.local.SessionManager
 import com.massager.app.domain.model.UserProfile
@@ -14,7 +16,6 @@ import com.massager.app.domain.usecase.profile.GetUserProfileUseCase
 import com.massager.app.domain.usecase.profile.UpdateUserProfileUseCase
 import com.massager.app.domain.usecase.profile.UploadAvatarUseCase
 import com.massager.app.domain.usecase.settings.LogoutUseCase
-import com.massager.app.presentation.navigation.Screen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -32,12 +33,13 @@ class SettingsViewModel @Inject constructor(
     private val getUserProfileUseCase: GetUserProfileUseCase,
     private val updateUserProfileUseCase: UpdateUserProfileUseCase,
     private val uploadAvatarUseCase: UploadAvatarUseCase,
-    private val cacheManager: AppCacheManager
+    private val cacheManager: AppCacheManager,
+    private val themeManager: ThemeManager,
+    private val languageManager: LanguageManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
-    private val prefs = appContext.getSharedPreferences("user_settings", Context.MODE_PRIVATE)
 
     init {
         if (isGuestMode()) {
@@ -49,19 +51,20 @@ class SettingsViewModel @Inject constructor(
             refreshProfile()
             refreshCacheSize()
         }
-        loadDisplayPreferences()
+        observeDisplayPreferences()
     }
 
-    private fun loadDisplayPreferences() {
-        val theme = prefs.getString(KEY_THEME, AppTheme.System.name)?.let {
-            runCatching { AppTheme.valueOf(it) }.getOrNull()
-        } ?: AppTheme.System
-        val language = prefs.getString(KEY_LANGUAGE, AppLanguage.System.name)?.let {
-            runCatching { AppLanguage.valueOf(it) }.getOrNull()
-        } ?: AppLanguage.System
-        applyTheme(theme, save = false)
-        applyLanguage(language, save = false)
-        _uiState.update { it.copy(appTheme = theme, appLanguage = language) }
+    private fun observeDisplayPreferences() {
+        viewModelScope.launch {
+            themeManager.appTheme.collect { theme ->
+                _uiState.update { it.copy(appTheme = theme) }
+            }
+        }
+        viewModelScope.launch {
+            languageManager.appLanguage.collect { language ->
+                _uiState.update { it.copy(appLanguage = language) }
+            }
+        }
     }
 
     fun refreshProfile() {
@@ -132,37 +135,16 @@ class SettingsViewModel @Inject constructor(
 
     fun setTheme(theme: AppTheme) {
         _uiState.update { it.copy(appTheme = theme) }
-        applyTheme(theme, save = true)
-        prefs.edit().putString(KEY_PENDING_ROUTE, Screen.Settings.route).apply()
+        viewModelScope.launch {
+            themeManager.setTheme(theme)
+        }
     }
 
     fun setLanguage(language: AppLanguage) {
         _uiState.update { it.copy(appLanguage = language) }
-        applyLanguage(language, save = true)
-        prefs.edit().putString(KEY_PENDING_ROUTE, Screen.Settings.route).apply()
-    }
-
-    private fun applyTheme(theme: AppTheme, save: Boolean) {
-        val mode = when (theme) {
-            AppTheme.System -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-            AppTheme.Light -> AppCompatDelegate.MODE_NIGHT_NO
-            AppTheme.Dark -> AppCompatDelegate.MODE_NIGHT_YES
+        viewModelScope.launch {
+            languageManager.setLanguage(language)
         }
-        AppCompatDelegate.setDefaultNightMode(mode)
-        if (save) prefs.edit().putString(KEY_THEME, theme.name).apply()
-    }
-
-    private fun applyLanguage(language: AppLanguage, save: Boolean) {
-        val locales = when (language) {
-            AppLanguage.System -> LocaleListCompat.getEmptyLocaleList()
-            AppLanguage.Chinese -> LocaleListCompat.create(java.util.Locale.SIMPLIFIED_CHINESE)
-            AppLanguage.English -> LocaleListCompat.create(java.util.Locale.ENGLISH)
-        }
-        val current = AppCompatDelegate.getApplicationLocales()
-        if (current != locales) {
-            AppCompatDelegate.setApplicationLocales(locales)
-        }
-        if (save) prefs.edit().putString(KEY_LANGUAGE, language.name).apply()
     }
 
     fun updateUserName(newName: String) {
@@ -306,18 +288,6 @@ enum class TemperatureUnit(val display: String) {
 
     fun toggle(): TemperatureUnit = if (this == Celsius) Fahrenheit else Celsius
 }
-
-enum class AppTheme {
-    System, Light, Dark
-}
-
-enum class AppLanguage {
-    System, Chinese, English
-}
-
-private const val KEY_THEME = "pref_app_theme"
-private const val KEY_LANGUAGE = "pref_app_language"
-const val KEY_PENDING_ROUTE = "pref_pending_route"
 
 
 
