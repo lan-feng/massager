@@ -83,7 +83,7 @@ fun DeviceSwitchCard(
     onLongPress: (() -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(20.dp)
-    val brand = MaterialTheme.massagerExtendedColors.success
+    val brand = MaterialTheme.massagerExtendedColors.band
     val outline = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
     val error = MaterialTheme.colorScheme.error
     val neutral = controlPanelBackground()
@@ -283,10 +283,10 @@ fun DeviceSwitchCard(
                                 .scale(0.8f)
                                 .size(width = 44.dp, height = 24.dp),
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = brand,
-                                checkedTrackColor = brand.copy(alpha = 0.3f),
-                                uncheckedThumbColor = brand.copy(alpha = 0.35f),
-                                uncheckedTrackColor = brand.copy(alpha = 0.15f),
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = brand,
+                                uncheckedThumbColor = Color.White,
+                                uncheckedTrackColor = brand.copy(alpha = 0.35f),
                                 uncheckedBorderColor = brand.copy(alpha = 0.4f),
                                 checkedBorderColor = brand.copy(alpha = 0.7f)
                             )

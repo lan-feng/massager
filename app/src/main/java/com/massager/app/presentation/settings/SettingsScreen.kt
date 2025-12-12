@@ -28,6 +28,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -184,7 +187,8 @@ fun SettingsScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = 88.dp),
+                    .padding(bottom = 88.dp)
+                    .windowInsetsPadding(WindowInsets.statusBars),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
@@ -293,7 +297,7 @@ fun SettingsScreen(
                                         .height(48.dp),
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.massagerExtendedColors.success,
+                                        containerColor = MaterialTheme.massagerExtendedColors.band,
                                         contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
                                     )
                                 ) {
@@ -546,7 +550,7 @@ private fun SettingsItemRow(item: SettingsItem) {
                 enabled = hasNavigation,
                 interactionSource = interaction,
                 indication = if (hasNavigation) {
-                    rememberRipple(color = MaterialTheme.massagerExtendedColors.success.copy(alpha = 0.16f))
+                    rememberRipple(color = MaterialTheme.massagerExtendedColors.band.copy(alpha = 0.16f))
                 } else null
             ) { item.onClick?.invoke() }
             .padding(vertical = 16.dp),
@@ -556,7 +560,7 @@ private fun SettingsItemRow(item: SettingsItem) {
         Icon(
             imageVector = item.icon,
             contentDescription = item.title,
-            tint = MaterialTheme.massagerExtendedColors.success
+            tint = MaterialTheme.massagerExtendedColors.band
         )
         Text(
             text = item.title,
@@ -688,7 +692,7 @@ private fun TemperatureToggle(
             onCheckedChange = { onToggle() },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = MaterialTheme.massagerExtendedColors.textOnAccent,
-                checkedTrackColor = MaterialTheme.massagerExtendedColors.success,
+                checkedTrackColor = MaterialTheme.massagerExtendedColors.band,
                 uncheckedThumbColor = MaterialTheme.massagerExtendedColors.surfaceBright,
                 uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
             )
@@ -805,4 +809,3 @@ private fun compressBitmap(source: Bitmap): ByteArray {
     scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, stream)
     return stream.toByteArray()
 }
-

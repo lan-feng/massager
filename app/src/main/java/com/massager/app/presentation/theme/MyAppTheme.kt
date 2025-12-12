@@ -13,7 +13,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
-import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import com.massager.app.core.preferences.AppTheme
 
 private val LightColorScheme = lightColorScheme(
@@ -98,11 +98,11 @@ fun MyAppTheme(
 
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as? Activity)?.window
-            val barsColor = colorScheme.surface.toArgb()
-            window?.statusBarColor = barsColor
-            window?.navigationBarColor = barsColor
-            val controller = ViewCompat.getWindowInsetsController(view)
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            window.statusBarColor = Color.Transparent.toArgb()
+            window.navigationBarColor = colorScheme.surface.toArgb()
+            val controller = WindowCompat.getInsetsController(window, view)
             controller?.isAppearanceLightStatusBars = !darkTheme
             controller?.isAppearanceLightNavigationBars = !darkTheme
         }

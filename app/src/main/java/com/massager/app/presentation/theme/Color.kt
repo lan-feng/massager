@@ -4,6 +4,10 @@ package com.massager.app.presentation.theme
 import androidx.compose.ui.graphics.Color
 
 // Brand palette
+val BandPrimary = Color(0xFF3AA1A0)
+val BandSoft = Color(0xFF3FB6AE)
+val BandDeep = Color(0xFF238C86)
+
 val PrimaryBlue40 = Color(0xFF0057B8)
 val PrimaryBlue35 = Color(0xFF004D9E)
 val PrimaryBlue30 = Color(0xFF00418B)

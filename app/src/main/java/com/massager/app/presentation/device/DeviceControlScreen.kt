@@ -242,8 +242,8 @@ private fun DeviceControlContent(
             else -> onReconnect(serial)
         }
     }
-    val brand = Color(0xFF2BA39D)
-    val brandSoft = Color(0xFF3FB6AE)
+    val brand = MaterialTheme.massagerExtendedColors.band
+    val brandSoft = MaterialTheme.massagerExtendedColors.bandSoft
     var showInfoDialog by remember { mutableStateOf(false) }
     var manageTarget by remember { mutableStateOf<DeviceCardState?>(null) }
     var renameTarget by remember { mutableStateOf<DeviceCardState?>(null) }

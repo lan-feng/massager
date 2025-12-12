@@ -10,6 +10,9 @@ import androidx.compose.ui.graphics.Color
 
 @Immutable
 data class MassagerExtendedColors(
+    val band: Color,
+    val bandSoft: Color,
+    val bandDeep: Color,
     val textPrimary: Color,
     val textSecondary: Color,
     val textMuted: Color,
@@ -30,6 +33,9 @@ data class MassagerExtendedColors(
 )
 
 internal val LightExtendedColors = MassagerExtendedColors(
+    band = BandPrimary,
+    bandSoft = BandSoft,
+    bandDeep = BandDeep,
     textPrimary = TextPrimaryLight,
     textSecondary = TextSecondaryLight,
     textMuted = TextMutedLight,
@@ -50,6 +56,9 @@ internal val LightExtendedColors = MassagerExtendedColors(
 )
 
 internal val DarkExtendedColors = MassagerExtendedColors(
+    band = BandPrimary,
+    bandSoft = BandSoft,
+    bandDeep = BandDeep,
     textPrimary = TextPrimaryDark,
     textSecondary = TextSecondaryDark,
     textMuted = TextMutedDark,

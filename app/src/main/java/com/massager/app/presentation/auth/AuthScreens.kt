@@ -125,8 +125,8 @@ fun LoginScreen(
         label = "login_button_scale"
     )
     val scrollState = rememberScrollState()
-    val brand = Color(0xFF2BA39D)
-    val brandDeep = Color(0xFF238C86)
+    val brand = MaterialTheme.massagerExtendedColors.band
+    val brandDeep = MaterialTheme.massagerExtendedColors.bandDeep
     val fieldShape = RoundedCornerShape(14.dp)
     val fieldBackground = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
     val fieldContent = MaterialTheme.colorScheme.onSurface
@@ -545,7 +545,7 @@ fun RegisterScreen(
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
-    val brand = Color(0xFF2BA39D)
+    val brand = MaterialTheme.massagerExtendedColors.band
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var verificationCode by remember { mutableStateOf("") }
@@ -855,7 +855,7 @@ fun ForgetPasswordScreen(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val brand = Color(0xFF2BA39D)
+    val brand = MaterialTheme.massagerExtendedColors.band
 
     var email by remember { mutableStateOf("") }
     var verificationCode by remember { mutableStateOf("") }
@@ -1226,7 +1226,4 @@ private fun validatePassword(context: android.content.Context, password: String)
     }
     return null
 }
-
-
-
 
