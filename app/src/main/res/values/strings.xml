@@ -131,6 +131,8 @@
     <string name="device_timer_select_title">Select duration</string>
     <string name="device_start">START</string>
     <string name="device_stop">STOP</string>
+    <string name="timer_start">Start</string>
+    <string name="timer_pause">Pause</string>
     <string name="device_session_started">Device started at Level %1$d, Mode %2$s</string>
     <string name="device_session_stopped">Session stopped</string>
     <string name="device_remote_level_changed">Device level changed on hardware: %1$d</string>
@@ -139,6 +141,8 @@
     <string name="device_status_connected">Connected</string>
     <string name="device_status_disconnected">Disconnected</string>
     <string name="device_status_waiting">Waiting for heartbeat…</string>
+    <string name="device_buzzer">Buzzer</string>
+    <string name="device_tap_to_reconnect">Tap to Reconnect</string>
     <string name="device_reconnect">Reconnect</string>
     <string name="device_current_zone">Zone</string>
     <string name="device_current_mode">Mode</string>

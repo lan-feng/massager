@@ -13,13 +13,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,7 +27,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,25 +35,22 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import com.massager.app.data.bluetooth.BleConnectionState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.ToggleOn
-import androidx.compose.material.icons.filled.ToggleOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -90,12 +84,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.Painter
@@ -103,11 +97,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -124,10 +116,6 @@ import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import kotlin.math.atan2
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 
 
 @Composable
@@ -301,9 +289,9 @@ private fun DeviceControlContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (isBluetoothOff) {
                 Card(
@@ -382,7 +370,7 @@ private fun DeviceControlContent(
                     addAll(combos)
                 }
             }
-            DeviceSwitcherRow(
+    DeviceSwitcherRow(
                 cards = state.deviceCards,
                 onSelect = onSelectDevice,
                 onLongPress = { card ->
@@ -401,7 +389,7 @@ private fun DeviceControlContent(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-            TimerRing(
+            TimerDashboard(
                 isRunning = state.isRunning,
                 remainingSeconds = state.remainingSeconds,
                 timerMinutes = state.timerMinutes,
@@ -620,164 +608,6 @@ private fun DeviceControlContent(
 }
 
 @Composable
-private fun TimerRing(
-    isRunning: Boolean,
-    remainingSeconds: Int,
-    timerMinutes: Int,
-    brand: Color,
-    brandSoft: Color,
-    enabled: Boolean,
-    onSelectTimer: (Int) -> Unit,
-    onToggleSession: () -> Unit
-) {
-    val baseMinutes = timerMinutes.coerceIn(0, 60)
-    val remainingMinutes = if (remainingSeconds > 0) (remainingSeconds + 59) / 60 else baseMinutes
-    var isDragging by remember { mutableStateOf(false) }
-    var selectedMinutes by remember { mutableStateOf(baseMinutes.coerceIn(0, 60)) }
-    var committedMinutes by remember { mutableStateOf(baseMinutes.coerceIn(0, 60)) }
-    var lastDragMinutes by remember { mutableStateOf(selectedMinutes) }
-    var pendingTargetMinutes by remember { mutableStateOf<Int?>(null) }
-
-    LaunchedEffect(isRunning, baseMinutes, remainingMinutes) {
-        if (isDragging) return@LaunchedEffect
-        if (isRunning) {
-            pendingTargetMinutes?.let { target ->
-                if (remainingMinutes == target) {
-                    pendingTargetMinutes = null
-                } else {
-                    selectedMinutes = target
-                    return@LaunchedEffect
-                }
-            }
-            selectedMinutes = remainingMinutes
-        } else {
-            committedMinutes = baseMinutes
-            selectedMinutes = baseMinutes
-            pendingTargetMinutes = null
-        }
-    }
-
-    val ringSize = 150.dp
-    val stroke = 14.dp
-    val displayMinutes = when {
-        isRunning && isDragging -> selectedMinutes
-        isRunning && pendingTargetMinutes != null -> pendingTargetMinutes!!.coerceIn(0, 60)
-        isRunning -> remainingMinutes
-        else -> selectedMinutes
-    }
-    // 圆弧进度与中间数字保持一致
-    val arcMinutes = displayMinutes.coerceIn(0, 60)
-    val progress = (arcMinutes.toFloat() / 60f).coerceIn(0f, 1f)
-    val interactionEnabled = enabled
-    val ringSizePx = with(LocalDensity.current) { ringSize.toPx() }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(
-            modifier = Modifier
-                .size(ringSize)
-                .pointerInput(interactionEnabled) {
-                    if (!interactionEnabled) return@pointerInput
-                    detectDragGestures(
-                        onDragStart = {
-                            isDragging = true
-                            lastDragMinutes = selectedMinutes
-                        },
-                        onDragEnd = {
-                            isDragging = false
-                            committedMinutes = selectedMinutes.coerceIn(0, 60)
-                            val sanitized = selectedMinutes.coerceIn(0, 60)
-                            pendingTargetMinutes = sanitized
-                            selectedMinutes = sanitized
-                            onSelectTimer(sanitized)
-                        },
-                        onDragCancel = { isDragging = false },
-                        onDrag = { change, _ ->
-                            val center = Offset(ringSizePx / 2f, ringSizePx / 2f)
-                            val vector = change.position - center
-                            val angle = (Math.toDegrees(atan2(vector.y.toDouble(), vector.x.toDouble())) + 450.0) % 360.0
-                            val minutes = (angle / 360.0 * 60.0).toInt().coerceIn(0, 60)
-                            val clamped = when {
-                                // Prevent wrapping from max back to 0 when dragging past a full circle.
-                                lastDragMinutes >= 50 && minutes <= 5 -> 60
-                                else -> minutes
-                            }
-                            selectedMinutes = clamped
-                            lastDragMinutes = clamped
-                        }
-                    )
-                }
-        ) {
-            val diameter = size.minDimension
-            val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
-            val arcSize = Size(diameter, diameter)
-            drawArc(
-                color = brand.copy(alpha = 0.12f),
-                startAngle = -90f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = Stroke(width = stroke.toPx(), cap = StrokeCap.Round)
-            )
-            drawArc(
-                color = brandSoft,
-                startAngle = -90f,
-                sweepAngle = 360f * progress,
-                useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = Stroke(width = stroke.toPx(), cap = StrokeCap.Round)
-            )
-            if (interactionEnabled && progress > 0f) {
-                val radius = (diameter / 2f)
-                val endAngleRad = Math.toRadians((-90f + 360f * progress).toDouble()).toFloat()
-                val endPoint = Offset(
-                    x = center.x + radius * cos(endAngleRad),
-                    y = center.y + radius * sin(endAngleRad)
-                )
-                drawCircle(
-                    color = brand,
-                    radius = stroke.toPx() * 1.2f,
-                    center = endPoint
-                )
-            }
-        }
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .size(ringSize * 0.7f)
-                .clip(CircleShape)
-                .clickable(
-                    enabled = enabled,
-                    onClick = onToggleSession
-                ),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "${displayMinutes.coerceAtLeast(0)} min",
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = if (isRunning) stringResource(id = R.string.device_stop) else stringResource(id = R.string.device_start),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = if (isRunning) {
-                        MaterialTheme.massagerExtendedColors.danger
-                    } else {
-                        brand
-                    },
-                    fontWeight = FontWeight.Bold
-                )
-            )
-        }
-    }
-}
-
-@Composable
 private fun DeviceSwitcherRow(
     cards: List<DeviceCardState>,
     onSelect: (String?) -> Unit,
@@ -789,12 +619,12 @@ private fun DeviceSwitcherRow(
     onReconnect: (String?) -> Unit
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-    val cardSpacing = 14.dp
-    val horizontalPadding = 8.dp
+    val cardSpacing = 12.dp
+    val horizontalPadding = 0.dp
     val availableWidth = (screenWidth - horizontalPadding * 2 - cardSpacing*2).coerceAtLeast(200.dp)
-    val selectedWidth = availableWidth * 0.6f
-    val unselectedWidth = availableWidth * 0.35f
-    val cardHeight = 104.dp
+    val selectedWidth = availableWidth * 0.7f
+    val unselectedWidth = availableWidth * 0.25f
+    val cardHeight = 100.dp
     val hasAttached = cards.any { !it.isMainDevice }
     LazyRow(
         modifier = Modifier
@@ -807,27 +637,34 @@ private fun DeviceSwitcherRow(
         items(cards, key = { card ->
             card.deviceSerial ?: if (card.isMainDevice) "main-device" else card.displayName
         }) { card ->
-            val cardBattery = card.deviceSerial
-                ?.let { serial -> deviceStatuses[serial]?.batteryPercent }
-                ?: -1
             val cardStatus = card.deviceSerial?.let { deviceStatuses[it] }
-            val cardConnected = cardStatus?.isConnected == true
-            val cardConnecting = cardStatus?.connectionStatus == BleConnectionState.Status.Connecting ||
-                (cardStatus?.connectionStatus == BleConnectionState.Status.Connected && cardStatus.isProtocolReady.not())
-            DeviceSwitcherCard(
-                card = card,
-                batteryPercent = cardBattery,
-                isMuted = isMuted,
-                onToggleMute = onToggleMute,
-                isConnected = cardConnected,
-                isConnecting = cardConnecting,
+            val cardWidth by animateDpAsState(
+                targetValue = if (card.isSelected) selectedWidth else unselectedWidth,
+                label = "device_switcher_width"
+            )
+            val connectionState = mapConnectionState(cardStatus)
+            val batteryPercent = cardStatus?.batteryPercent?.takeIf { it >= 0 }
+            DeviceSwitchCard(
+                name = card.displayName,
+                subtitle = stringResource(
+                    id = if (card.isMainDevice) {
+                        R.string.device_combo_main_label
+                    } else {
+                        R.string.device_combo_member_label
+                    }
+                ),
+                isSelected = card.isSelected,
+                connectionState = connectionState,
+                batteryPercent = batteryPercent,
+                buzzerOn = isMuted.not(),
+                isInteractive = cardStatus?.isProtocolReady == true,
                 onReconnect = { card.deviceSerial?.let(onReconnect) },
-                selectedWidth = selectedWidth,
-                unselectedWidth = unselectedWidth,
+                onBuzzerToggle = { _ -> onToggleMute() },
+                onCardTap = { card.deviceSerial?.let(onSelect) },
                 modifier = Modifier
-                    .height(cardHeight),
-                onSelect = { card.deviceSerial?.let(onSelect) },
-                onLongPress = { onLongPress(card) }
+                    .height(cardHeight)
+                    .width(cardWidth),
+                onLongPress = if (!card.isMainDevice) ({ onLongPress(card) }) else null
             )
         }
         if (!hasAttached) {
@@ -843,208 +680,17 @@ private fun DeviceSwitcherRow(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun DeviceSwitcherCard(
-    card: DeviceCardState,
-    batteryPercent: Int,
-    isMuted: Boolean,
-    onToggleMute: () -> Unit,
-    isConnected: Boolean,
-    isConnecting: Boolean,
-    onReconnect: () -> Unit,
-    selectedWidth: Dp,
-    unselectedWidth: Dp,
-    modifier: Modifier = Modifier,
-    onSelect: () -> Unit,
-    onLongPress: () -> Unit
-) {
-    val selectedColor = MaterialTheme.massagerExtendedColors.surfaceBright
-    val unselectedColor = Color(0xFF2BA39D).copy(alpha = 0.12f)
-    val accent = Color(0xFF2BA39D)
-    val width by animateDpAsState(
-        targetValue = if (card.isSelected) selectedWidth else unselectedWidth,
-        label = "device_switcher_width"
-    )
-    Box(
-        modifier = modifier.width(width)
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(20.dp))
-                .combinedClickable(
-                    onClick = onSelect,
-                    onLongClick = onLongPress
-                ),
-            color = if (card.isSelected) selectedColor else unselectedColor,
-            tonalElevation = if (card.isSelected) 8.dp else 0.dp,
-            shadowElevation = if (card.isSelected) 10.dp else 0.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(if (card.isSelected) accent else MaterialTheme.massagerExtendedColors.iconMuted)
-                    )
-                    Text(
-                        text = stringResource(
-                            id = if (card.isMainDevice) {
-                                R.string.device_combo_main_label
-                            } else {
-                                R.string.device_combo_member_label
-                            }
-                        ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.massagerExtendedColors.textMuted
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Icon(
-                        imageVector = Icons.Filled.Bluetooth,
-                        contentDescription = null,
-                        tint = if (isConnected) accent else MaterialTheme.massagerExtendedColors.iconMuted
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f, fill = true))
-                if (card.isSelected) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            BatteryIndicator5Level(batteryPercent = batteryPercent)
-                        }
-                        IconButton(
-                            onClick = onToggleMute,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = if (isMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-                                    contentDescription = null,
-                                    tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else accent
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = if (isMuted) Icons.Filled.ToggleOff else Icons.Filled.ToggleOn,
-                                    contentDescription = if (isMuted) {
-                                        stringResource(id = R.string.device_mute_disabled)
-                                    } else {
-                                        stringResource(id = R.string.device_mute_enabled)
-                                    },
-                                    tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else accent
-                                )
-                            }
-                        }
-                    }
-                } else if (isConnected) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Start,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        BatteryIndicator5Level(batteryPercent = batteryPercent)
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(
-                                imageVector = Icons.Filled.Bluetooth,
-                                contentDescription = null,
-                                tint = MaterialTheme.massagerExtendedColors.iconMuted
-                            )
-                            Text(
-                                text = stringResource(id = R.string.device_status_disconnected),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.massagerExtendedColors.textMuted
-                            )
-                        }
-                        IconButton(
-                            onClick = onReconnect,
-                            enabled = !isConnecting,
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.massagerExtendedColors.surfaceBright)
-                        ) {
-                            if (isConnecting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = accent
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Filled.Refresh,
-                                    contentDescription = stringResource(id = R.string.device_reconnect),
-                                    tint = accent
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        val showOverlay = card.isMainDevice && !isConnected
-        if (showOverlay) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
-                    .clickable(enabled = !isConnecting, onClick = onReconnect),
-                contentAlignment = Alignment.Center
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.massagerExtendedColors.surfaceBright,
-                    tonalElevation = 6.dp,
-                    shadowElevation = 4.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        if (isConnecting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = accent
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Filled.Bluetooth,
-                                contentDescription = null,
-                                tint = accent
-                            )
-                        }
-                        Text(
-                            text = stringResource(id = R.string.device_reconnect),
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-        }
-    }
+private fun mapConnectionState(status: DeviceStatus?): ConnectionState = when {
+    status == null -> ConnectionState.IDLE
+    status.connectionStatus == BleConnectionState.Status.Scanning -> ConnectionState.CONNECTING
+    status.connectionStatus == BleConnectionState.Status.Connecting -> ConnectionState.CONNECTING
+    status.connectionStatus == BleConnectionState.Status.Connected && status.isProtocolReady -> ConnectionState.READY
+    status.connectionStatus == BleConnectionState.Status.Connected && status.isProtocolReady.not() -> ConnectionState.CONNECTING
+    status.connectionStatus == BleConnectionState.Status.Disconnected ||
+        status.connectionStatus == BleConnectionState.Status.Failed ||
+        status.connectionStatus == BleConnectionState.Status.BluetoothUnavailable -> ConnectionState.DISCONNECTED
+    status.connectionStatus == BleConnectionState.Status.Idle -> ConnectionState.IDLE
+    else -> ConnectionState.IDLE
 }
 
 @Composable
@@ -1094,139 +740,6 @@ private fun validateLinkedDeviceName(value: String): Int? {
 }
 
 @Composable
-private fun BatteryStatusRow(
-    batteryPercent: Int,
-    isMuted: Boolean,
-    onToggleMute: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.massagerExtendedColors.surfaceBright)
-            .border(
-                1.dp,
-                MaterialTheme.massagerExtendedColors.surfaceStrong.copy(alpha = 0.35f),
-                RoundedCornerShape(16.dp)
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        BatteryIndicator5Level(batteryPercent = batteryPercent)
-        Spacer(modifier = Modifier.weight(1f))
-        IconButton(
-            onClick = onToggleMute,
-            modifier = Modifier.size(48.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = if (isMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-                    contentDescription = null,
-                    tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else MaterialTheme.massagerExtendedColors.success
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(
-                    imageVector = if (isMuted) Icons.Filled.ToggleOff else Icons.Filled.ToggleOn,
-                    contentDescription = if (isMuted) {
-                        stringResource(id = R.string.device_mute_disabled)
-                    } else {
-                        stringResource(id = R.string.device_mute_enabled)
-                    },
-                    tint = if (isMuted) MaterialTheme.massagerExtendedColors.iconMuted else MaterialTheme.massagerExtendedColors.success
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BatteryIndicator5Level(
-    batteryPercent: Int,
-    modifier: Modifier = Modifier
-) {
-    val level = when {
-        batteryPercent < 0 -> -1
-        batteryPercent >= 80 -> 4
-        batteryPercent >= 60 -> 3
-        batteryPercent >= 40 -> 2
-        batteryPercent >= 20 -> 1
-        else -> 0
-    }
-    val fillColor = when (level) {
-        -1 -> MaterialTheme.massagerExtendedColors.iconMuted
-        0 -> MaterialTheme.massagerExtendedColors.danger
-        1 -> Color(0xFFF6A609)
-        else -> MaterialTheme.massagerExtendedColors.success
-    }
-    val outlineColor = MaterialTheme.massagerExtendedColors.outline
-    val mutedFill = MaterialTheme.massagerExtendedColors.iconMuted.copy(alpha = 0.25f)
-    Canvas(
-        modifier = modifier
-            .width(34.dp)
-            .height(16.dp)
-    ) {
-        val strokeWidth = 1.8.dp.toPx()
-        val headWidth = 5.dp.toPx()
-        val bodyLeft = strokeWidth
-        val bodyTop = strokeWidth
-        val bodyWidth = size.width - headWidth - strokeWidth * 2
-        val bodyHeight = size.height - strokeWidth * 2
-        val corner = 3.dp.toPx()
-
-        // Outline
-        drawRoundRect(
-            color = outlineColor,
-            topLeft = Offset(bodyLeft, bodyTop),
-            size = Size(bodyWidth, bodyHeight),
-            cornerRadius = CornerRadius(corner, corner),
-            style = Stroke(width = strokeWidth)
-        )
-        // Battery head
-        val headHeight = bodyHeight / 2f
-        drawRoundRect(
-            color = outlineColor,
-            topLeft = Offset(bodyLeft + bodyWidth, (size.height - headHeight) / 2f),
-            size = Size(headWidth, headHeight),
-            cornerRadius = CornerRadius(corner / 2f, corner / 2f),
-            style = Fill
-        )
-
-        if (level >= 0) {
-            val segments = 5
-            val fillWidth = (bodyWidth - strokeWidth * 2) * (level + 1) / segments
-            drawRoundRect(
-                color = fillColor,
-                topLeft = Offset(bodyLeft + strokeWidth, bodyTop + strokeWidth),
-                size = Size(fillWidth, bodyHeight - strokeWidth * 2),
-                cornerRadius = CornerRadius(corner / 1.5f, corner / 1.5f),
-                style = Fill
-            )
-        } else {
-            drawRoundRect(
-                color = mutedFill,
-                topLeft = Offset(bodyLeft + strokeWidth, bodyTop + strokeWidth),
-                size = Size(bodyWidth - strokeWidth * 2, bodyHeight - strokeWidth * 2),
-                cornerRadius = CornerRadius(corner / 1.5f, corner / 1.5f),
-                style = Fill
-            )
-        }
-    }
-}
-
-@Composable
-private fun BodyZoneTabs(
-    selectedZone: BodyZone,
-    onSelectZone: (BodyZone) -> Unit
-) {
-    BodyZoneGrid(
-        selectedZone = selectedZone,
-        onSelectZone = onSelectZone,
-        brand = MaterialTheme.massagerExtendedColors.danger
-    )
-}
-
-@Composable
 private fun BodyZoneGrid(
     selectedZone: BodyZone,
     onSelectZone: (BodyZone) -> Unit,
@@ -1240,29 +753,35 @@ private fun BodyZoneGrid(
         BodyZone.JOINT to R.drawable.ic_settings_accessibility,
         BodyZone.BODY to R.drawable.ic_person
     )
+    val panelBackground = controlPanelBackground()
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 4.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(panelBackground)
+            .padding(vertical = 10.dp)
     ) {
         Text(
             text = stringResource(id = R.string.body_part_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         val screenWidth = LocalConfiguration.current.screenWidthDp.dp
         val maxVisibleTiles = 3.5f
         val horizontalPadding = 10.dp * 2 + 10.dp * (maxVisibleTiles - 1)
-        val targetWidth = ((screenWidth - horizontalPadding) / maxVisibleTiles).coerceIn(80.dp, 118.dp)
+        val targetWidth = ((screenWidth - horizontalPadding) / maxVisibleTiles).coerceIn(76.dp, 110.dp)
+        val tileHeight = (targetWidth - 20.dp).coerceAtLeast(60.dp)
 
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(targetWidth + 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(horizontal = 10.dp)
+                .height(tileHeight + 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp)
         ) {
             items(zoneItems) { (zone, iconRes) ->
                 val isSelected = zone == selectedZone
@@ -1274,7 +793,7 @@ private fun BodyZoneGrid(
                     brand = brand,
                     modifier = Modifier
                         .width(targetWidth)
-                        .height(targetWidth),
+                        .height(tileHeight),
                     onClick = { onSelectZone(zone) }
                 )
             }
@@ -1302,26 +821,31 @@ private fun ModeSelectionGrid(
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val maxVisibleTiles = 3.5f
     val horizontalPadding = 10.dp * 2 + 10.dp * (maxVisibleTiles - 1)
-    val targetWidth = ((screenWidth - horizontalPadding) / maxVisibleTiles).coerceIn(80.dp, 118.dp)
+    val targetWidth = ((screenWidth - horizontalPadding) / maxVisibleTiles).coerceIn(76.dp, 110.dp)
+    val panelBackground = controlPanelBackground()
+    val tileHeight = (targetWidth - 20.dp).coerceAtLeast(60.dp)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 4.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(panelBackground)
+            .padding(vertical = 12.dp)
     ) {
         Text(
             text = stringResource(id = R.string.mode),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(targetWidth + 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(horizontal = 10.dp)
+                .height(tileHeight + 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp)
         ) {
             items(modeItems) { (id, title, iconRes) ->
                 val isSelected = id == selectedMode
@@ -1333,7 +857,7 @@ private fun ModeSelectionGrid(
                     brand = brand,
                     modifier = Modifier
                         .width(targetWidth)
-                        .height(targetWidth),
+                        .height(tileHeight),
                     onClick = { onSelectMode(id) }
                 )
             }
@@ -1406,7 +930,7 @@ private fun SelectionTile(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun                                            LevelControlSection(
+private fun  LevelControlSection(
     level: Int,
     isConnected: Boolean,
     brand: Color,
@@ -1424,39 +948,52 @@ private fun                                            LevelControlSection(
     }
 
     val displayValue = sliderValue.roundToInt().coerceIn(0, 19)
-    Column(
+    val panelBackground = controlPanelBackground()
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(panelBackground)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(
-                text = stringResource(id = R.string.device_level_label),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+            Column(
+                modifier = Modifier.widthIn(min = 60.dp, max = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.device_level_label),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = MaterialTheme.massagerExtendedColors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "$displayValue / 0-19",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = brand,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            LevelAdjustButton(
+                icon = Icons.Filled.Remove,
+                tint = brand,
+                enabled = isConnected,
+                onClick = {
+                    val next = (displayValue - 1).coerceIn(0, 19)
+                    sliderValue = next.toFloat()
+                    onPreviewLevel(next)
+                    onCommitLevel(next)
+                }
             )
-            Text(
-                text = "${stringResource(id = R.string.device_level_label)}: $displayValue",
-                style = MaterialTheme.typography.titleMedium,
-                color = brand,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "0",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.massagerExtendedColors.textMuted
-            )
-            Spacer(modifier = Modifier.width(12.dp))
             Slider(
                 value = sliderValue,
                 onValueChange = { next ->
@@ -1483,21 +1020,27 @@ private fun                                            LevelControlSection(
                 track = { positions ->
                     LevelSliderTrack(
                         sliderPositions = positions,
-                        enabled = isConnected
+                        enabled = isConnected,
+                        activeColor = brand
                     )
                 },
                 colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.massagerExtendedColors.surfaceBright,
+                    thumbColor = Color.White,
                     activeTrackColor = Color.Transparent,
                     inactiveTrackColor = Color.Transparent,
-                    disabledThumbColor = MaterialTheme.massagerExtendedColors.surfaceSubtle
+                    disabledThumbColor = Color.White.copy(alpha = 0.6f)
                 )
             )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "19",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.massagerExtendedColors.textMuted
+            LevelAdjustButton(
+                icon = Icons.Filled.Add,
+                tint = brand,
+                enabled = isConnected,
+                onClick = {
+                    val next = (displayValue + 1).coerceIn(0, 19)
+                    sliderValue = next.toFloat()
+                    onPreviewLevel(next)
+                    onCommitLevel(next)
+                }
             )
         }
     }
@@ -1507,14 +1050,14 @@ private fun                                            LevelControlSection(
 @OptIn(ExperimentalMaterial3Api::class)
 private fun LevelSliderTrack(
     sliderPositions: SliderPositions,
-    enabled: Boolean
+    enabled: Boolean,
+    activeColor: Color
 ) {
-    val trackHeight = 12.dp
+    val trackHeight = 8.dp
     val cornerRadius = trackHeight / 2
-    val baseActive = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-    val baseInactive = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
-    val activeColor = if (enabled) baseActive else baseActive.copy(alpha = 0.4f)
-    val inactiveColor = if (enabled) baseInactive else baseInactive.copy(alpha = 0.5f)
+    val baseInactive = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
+    val activeColorFinal = if (enabled) activeColor else activeColor.copy(alpha = 0.35f)
+    val inactiveColor = if (enabled) baseInactive else baseInactive.copy(alpha = 0.35f)
 
     Canvas(
         modifier = Modifier
@@ -1531,7 +1074,7 @@ private fun LevelSliderTrack(
         val activeStart = sliderPositions.activeRange.start * size.width
         val activeEnd = sliderPositions.activeRange.endInclusive * size.width
         drawRoundRect(
-            color = activeColor,
+            color = activeColorFinal,
             topLeft = Offset(activeStart, 0f),
             size = Size((activeEnd - activeStart).coerceAtLeast(0f), trackHeightPx),
             cornerRadius = CornerRadius(corner, corner)
@@ -1545,30 +1088,38 @@ private fun LevelSliderThumb(
     enabled: Boolean,
     interactionSource: MutableInteractionSource
 ) {
-    val thumbColor = Color(0xFF2BA39D)
     SliderDefaults.Thumb(
         interactionSource = interactionSource,
         colors = SliderDefaults.colors(
-            thumbColor = if (enabled) thumbColor else thumbColor.copy(alpha = 0.4f),
-            disabledThumbColor = thumbColor.copy(alpha = 0.4f)
+            thumbColor = Color.White,
+            disabledThumbColor = Color.White.copy(alpha = 0.6f)
         )
     )
 }
 
-@StringRes
-private fun modeLabelRes(mode: Int): Int = when (mode.coerceIn(0, 7)) {
-    0 -> R.string.device_mode_0
-    1 -> R.string.device_mode_1
-    2 -> R.string.device_mode_2
-    3 -> R.string.device_mode_3
-    4 -> R.string.device_mode_4
-    5 -> R.string.device_mode_5
-    6 -> R.string.device_mode_6
-    else -> R.string.device_mode_7
+@Composable
+private fun LevelAdjustButton(
+    icon: ImageVector,
+    tint: Color,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(40.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (enabled) tint else tint.copy(alpha = 0.4f)
+        )
+    }
 }
 
-private fun formatDuration(remainingSeconds: Int): String {
-    val minutes = remainingSeconds / 60
-    val seconds = remainingSeconds % 60
-    return "%02d:%02d".format(minutes, seconds)
+@Composable
+fun controlPanelBackground(): Color = if (isSystemInDarkTheme()) {
+    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.90f)
+} else {
+    MaterialTheme.massagerExtendedColors.surfaceBright.copy(alpha = 0.90f)
 }
