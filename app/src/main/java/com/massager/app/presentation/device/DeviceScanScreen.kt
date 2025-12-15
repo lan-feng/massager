@@ -1,38 +1,53 @@
 package com.massager.app.presentation.device
 
-// 文件说明：展示扫描到的设备列表供选择连接。
+// 文件说明：展示扫描到的设备列表供选择连接。UI 重构仅影响展示，不改动 BLE 逻辑。
 import android.bluetooth.BluetoothAdapter
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -42,18 +57,31 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
 import com.massager.app.data.bluetooth.BleConnectionState
-import com.massager.app.presentation.navigation.DeviceScanSource
+import com.massager.app.presentation.theme.BandDeep
+import com.massager.app.presentation.theme.BandPrimary
+import com.massager.app.presentation.theme.DangerDark
+import com.massager.app.presentation.theme.DangerLight
 import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlinx.coroutines.flow.collectLatest
 
@@ -80,7 +108,7 @@ fun DeviceScanScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
-        // no-op; viewModel will retry scan when permissions granted
+        // viewModel will retry scan when permissions granted
     }
     val enableBtLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -95,6 +123,9 @@ fun DeviceScanScreen(
         ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
     }
     val isBluetoothOff = uiState.connectionState.status == BleConnectionState.Status.BluetoothUnavailable
+    val isDark = isSystemInDarkTheme()
+    val accent = if (isDark) BandDeep else BandPrimary
+    val signalColor = if (isDark) DangerDark else DangerLight
 
     LaunchedEffect(errorMessage) {
         if (!errorMessage.isNullOrBlank()) {
@@ -128,7 +159,7 @@ fun DeviceScanScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = stringResource(id = R.string.device_scan_title)) },
+                title = { Text(text = stringResource(id = R.string.add_device_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -137,19 +168,8 @@ fun DeviceScanScreen(
                         )
                     }
                 },
-                actions = {
-                    IconButton(
-                        onClick = viewModel::refreshScan,
-                        enabled = !uiState.isScanning
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(id = R.string.device_scan_refresh)
-                        )
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = accent.copy(alpha = 0.08f)
                 )
             )
         },
@@ -159,91 +179,70 @@ fun DeviceScanScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(16.dp)
+                .background(MaterialTheme.massagerExtendedColors.surfaceSubtle)
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = stringResource(id = R.string.device_scan_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            Spacer(modifier = Modifier.height(8.dp))
+            RadarScanView(
+                isScanning = uiState.isScanning,
+                modifier = Modifier.clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) {
+                    if (uiState.isScanning) {
+                        viewModel.toggleScan()
+                    } else {
+                        viewModel.refreshScan()
+                    }
+                },
+                accent = accent
             )
-            Spacer(modifier = Modifier.height(12.dp))
-            DeviceStatusRow(
-                connectionState = uiState.connectionState,
-                isScanning = uiState.isScanning
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = if (uiState.isScanning) {
+                    stringResource(id = R.string.device_scanning_status)
+                } else {
+                    stringResource(id = R.string.device_found_count, uiState.devices.size)
+                },
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(12.dp))
 
             val showPermissionsFirst = missingPermissions.isNotEmpty()
 
             if (!showPermissionsFirst && isBluetoothOff) {
-                Card(
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = stringResource(id = R.string.device_error_bluetooth_disabled),
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.massagerExtendedColors.textPrimary
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(onClick = {
-                                enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
-                            }) {
-                                Text(text = stringResource(id = R.string.try_again))
-                            }
-                            OutlinedButton(onClick = {
-                                val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
-                            }) {
-                                Text(text = stringResource(id = R.string.permission_bluetooth_settings))
-                            }
-                        }
+                BluetoothOffCard(
+                    onEnableBluetooth = {
+                        enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                    },
+                    onOpenSettings = {
+                        val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
                     }
-                }
+                )
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
             if (missingPermissions.isNotEmpty()) {
-                Card(
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = stringResource(id = R.string.device_error_bluetooth_scan_permission),
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.massagerExtendedColors.textPrimary
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(onClick = {
-                                permissionLauncher.launch(missingPermissions.toTypedArray())
-                            }) {
-                                Text(text = stringResource(id = R.string.try_again))
-                            }
-                            OutlinedButton(onClick = {
-                                val intent = Intent(
-                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                    Uri.fromParts("package", context.packageName, null)
-                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
-                            }) {
-                                Text(text = stringResource(id = R.string.permission_bluetooth_settings))
-                            }
-                        }
+                PermissionCard(
+                    onRequestPermission = {
+                        permissionLauncher.launch(missingPermissions.toTypedArray())
+                    },
+                    onOpenSettings = {
+                        val intent = Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", context.packageName, null)
+                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
                     }
-                }
+                )
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            val actionLabel = if (uiState.scanSource == DeviceScanSource.CONTROL) {
-                stringResource(id = R.string.device_scan_action_combo)
-            } else {
-                stringResource(id = R.string.device_scan_action_bind)
-            }
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -255,164 +254,320 @@ fun DeviceScanScreen(
                         Text(
                             text = stringResource(id = R.string.device_scan_empty),
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(top = 24.dp)
+                            color = MaterialTheme.massagerExtendedColors.textMuted,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp),
+                            textAlign = TextAlign.Center
                         )
                     }
                 } else {
                     items(uiState.devices, key = { it.address }) { device ->
-                        DeviceScanListItem(
+                        DeviceCard(
                             device = device,
-                            actionLabel = actionLabel,
                             isProcessing = uiState.processingAddress == device.address,
-                            onAction = { viewModel.onDeviceSelected(device) }
+                            signalColor = signalColor,
+                            onClick = { viewModel.onDeviceSelected(device) }
                         )
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Button(
-                    onClick = viewModel::refreshScan,
-                    modifier = Modifier.weight(1f),
-                    enabled = !uiState.isScanning
-                ) {
-                    Text(text = stringResource(id = R.string.device_scan_refresh))
-                }
-                Button(
-                    onClick = viewModel::toggleScan,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (uiState.isScanning) {
-                            MaterialTheme.colorScheme.secondary
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        }
-                    )
-                ) {
-                    Text(
-                        text = stringResource(
-                            id = if (uiState.isScanning) {
-                                R.string.device_scan_stop
-                            } else {
-                                R.string.device_scan_scan
-                            }
-                        )
-                    )
-                }
-            }
+            Spacer(modifier = Modifier.height(12.dp))
+            // 按钮移除，交互已收敛至雷达中心
         }
     }
 }
 
 @Composable
-private fun DeviceStatusRow(
-    connectionState: BleConnectionState,
-    isScanning: Boolean
+private fun RadarScanView(
+    isScanning: Boolean,
+    modifier: Modifier = Modifier,
+    accent: Color = Color(0xFF3AA1A0)
 ) {
-    val statusText = when (connectionState.status) {
-        BleConnectionState.Status.Connected -> {
-            val name = connectionState.deviceName ?: connectionState.deviceAddress.orEmpty()
-            stringResource(id = R.string.device_scan_status_connected, name)
-        }
-
-        BleConnectionState.Status.Connecting -> stringResource(id = R.string.device_scan_status_connecting)
-        BleConnectionState.Status.Scanning -> stringResource(id = R.string.device_scan_status_scanning)
-        BleConnectionState.Status.Disconnected -> stringResource(id = R.string.device_scan_status_disconnected)
-        BleConnectionState.Status.BluetoothUnavailable -> stringResource(id = R.string.device_scan_error_bluetooth_off)
-        else -> stringResource(id = R.string.device_scan_status_idle)
+    val infiniteTransition = rememberInfiniteTransition(label = "radar_transition")
+    val sweepAngleState = if (isScanning) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 3000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "radar_sweep"
+        )
+    } else {
+        remember { mutableFloatStateOf(0f) }
     }
+    val sweepAngle by sweepAngleState
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    val primary = accent
+    val dashEffect = remember { PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f) }
+
+    Box(
+        modifier = modifier.size(270.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = statusText,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val radius = size.minDimension / 2
+            val outerStrokeWidth = 1.5.dp.toPx()
+            val innerStrokeWidth = 1.dp.toPx()
+            val crosshairStroke = 0.8.dp.toPx()
+
+            // Outer circle
+            drawCircle(
+                color = primary.copy(alpha = 0.5f),
+                radius = radius,
+                style = Stroke(width = outerStrokeWidth)
             )
-            AnimatedVisibility(visible = !connectionState.errorMessage.isNullOrBlank()) {
-                Text(
-                    text = connectionState.errorMessage.orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
+
+            // Inner dashed circle
+            drawCircle(
+                color = primary.copy(alpha = 0.35f),
+                radius = radius * 0.68f,
+                style = Stroke(width = innerStrokeWidth, pathEffect = dashEffect)
+            )
+
+            // Crosshair lines
+            drawLine(
+                color = primary.copy(alpha = 0.25f),
+                start = Offset(0f, center.y),
+                end = Offset(size.width, center.y),
+                strokeWidth = crosshairStroke
+            )
+            drawLine(
+                color = primary.copy(alpha = 0.25f),
+                start = Offset(center.x, 0f),
+                end = Offset(center.x, size.height),
+                strokeWidth = crosshairStroke
+            )
+            // Concentric rings for tap target (gap ≈ 4dp)
+            val innerRingRadius = radius * 0.30f
+            val ringGap = 8.dp.toPx()
+            drawCircle(
+                color = primary.copy(alpha = 0.30f),
+                radius = innerRingRadius,
+                style = Stroke(width = 2.dp.toPx())
+            )
+            drawCircle(
+                color = primary.copy(alpha = 0.20f),
+                radius = innerRingRadius + ringGap,
+                style = Stroke(width = 1.5.dp.toPx())
+            )
+
+            // Sweep: gradient fade from center to edge, visible only when scanning
+            if (isScanning) {
+                val sweepBrush = Brush.sweepGradient(
+                    colorStops = arrayOf(
+                        0f to Color.Transparent,
+                        0.4f to primary.copy(alpha = 0.18f),
+                        0.75f to primary.copy(alpha = 0.38f),
+                        1f to primary.copy(alpha = 0.68f)
+                    ),
+                    center = center
+                )
+                rotate(degrees = sweepAngle, pivot = center) {
+                    drawArc(
+                        brush = sweepBrush,
+                        startAngle = 0f,
+                        sweepAngle = 180f,
+                        useCenter = true
+                    )
+                }
+            }
+
+        }
+        // Center content: square when scanning, search icon when idle
+        Box(
+            modifier = Modifier
+                .size(88.dp)
+                .background(
+                    color = if (isScanning) primary.copy(alpha = 0.14f) else MaterialTheme.massagerExtendedColors.surfaceBright,
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isScanning) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .background(primary, shape = RoundedCornerShape(4.dp))
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(30.dp)
                 )
             }
         }
-        AnimatedVisibility(visible = isScanning) {
-            CircularProgressIndicator(modifier = Modifier.size(24.dp))
-        }
     }
 }
 
 @Composable
-private fun DeviceScanListItem(
-    device: DeviceListItem,
-    actionLabel: String,
-    isProcessing: Boolean,
-    onAction: () -> Unit
+private fun PermissionCard(
+    onRequestPermission: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = device.name,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = device.address,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            Text(
+                text = stringResource(id = R.string.device_error_bluetooth_scan_permission),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.massagerExtendedColors.textPrimary
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = onRequestPermission) {
+                    Text(text = stringResource(id = R.string.try_again))
                 }
-                Text(
-                    text = stringResource(
-                        id = R.string.device_scan_signal_strength,
-                        device.signalStrength
-                    ),
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Button(
-                onClick = onAction,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isProcessing,
-                colors = if (device.isConnected) {
-                    ButtonDefaults.buttonColors(
+                Button(
+                    onClick = onOpenSettings,
+                    colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondary
                     )
-                } else {
-                    ButtonDefaults.buttonColors()
+                ) {
+                    Text(text = stringResource(id = R.string.permission_bluetooth_settings))
                 }
-            ) {
-                if (isProcessing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
+            }
+        }
+    }
+}
+
+@Composable
+private fun BluetoothOffCard(
+    onEnableBluetooth: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(id = R.string.device_error_bluetooth_disabled),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.massagerExtendedColors.textPrimary
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = onEnableBluetooth) {
+                    Text(text = stringResource(id = R.string.try_again))
+                }
+                Button(
+                    onClick = onOpenSettings,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
                     )
-                } else {
-                    Text(text = actionLabel)
+                ) {
+                    Text(text = stringResource(id = R.string.permission_bluetooth_settings))
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeviceCard(
+    device: DeviceListItem,
+    isProcessing: Boolean,
+    signalColor: Color,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(88.dp),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        RoundedCornerShape(16.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Bluetooth,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = device.name,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = stringResource(id = R.string.device_serial_label, device.uniqueId.toString()),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.bigtop_updates_24),
+                        contentDescription = null,
+                        tint = signalColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Text(
+                        text = "${device.signalStrength}",
+                        style = MaterialTheme.typography.labelMedium.copy(color = signalColor)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    if (isProcessing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
             }
         }
     }

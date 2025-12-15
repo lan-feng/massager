@@ -71,6 +71,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -114,6 +116,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
+import com.massager.app.presentation.navigation.DeviceScanSource
+import com.massager.app.presentation.device.DeviceViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -156,6 +161,7 @@ fun DeviceControlScreen(
         state = state,
         onBack = onBack,
         onAddDevice = onAddDevice,
+        onComboResult = viewModel::handleComboResult,
         onReconnect = viewModel::reconnect,
         onSelectDevice = viewModel::selectComboDevice,
         onSelectZone = viewModel::selectZone,
@@ -177,6 +183,7 @@ private fun DeviceControlContent(
     state: DeviceControlUiState,
     onBack: () -> Unit,
     onAddDevice: (List<String>) -> Unit = {},
+    onComboResult: (String?) -> Unit,
     onReconnect: (String?) -> Unit,
     onSelectDevice: (String?) -> Unit,
     onSelectZone: (BodyZone) -> Unit,
@@ -216,6 +223,16 @@ private fun DeviceControlContent(
         state.deviceStatuses.values.any {
             it.connectionStatus == BleConnectionState.Status.BluetoothUnavailable
         }
+    val hostSerial = state.deviceCards.firstOrNull { it.isMainDevice }?.deviceSerial
+    val excludedSerials = remember(state.deviceCards) {
+        val combos = state.deviceCards
+            .filterNot { it.isMainDevice }
+            .mapNotNull { it.deviceSerial }
+        buildList {
+            hostSerial?.let { add(it) }
+            addAll(combos)
+        }
+    }
     val handleReconnect: (String?) -> Unit = { serial ->
         val currentMissingPermissions = runtimePermissions.filter {
             ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -250,6 +267,7 @@ private fun DeviceControlContent(
     var renameValue by remember { mutableStateOf("") }
     var renameErrorRes by remember { mutableStateOf<Int?>(null) }
     var deleteTarget by remember { mutableStateOf<DeviceCardState?>(null) }
+    var showScanDialog by remember { mutableStateOf(false) }
 
 
     Scaffold(
@@ -360,17 +378,7 @@ private fun DeviceControlContent(
                     }
                 }
             }
-            val excludedSerials = remember(state.deviceCards) {
-                val hostSerial = state.deviceCards.firstOrNull { it.isMainDevice }?.deviceSerial
-                val combos = state.deviceCards
-                    .filterNot { it.isMainDevice }
-                    .mapNotNull { it.deviceSerial }
-                buildList {
-                    hostSerial?.let { add(it) }
-                    addAll(combos)
-                }
-            }
-    DeviceSwitcherRow(
+            DeviceSwitcherRow(
                 cards = state.deviceCards,
                 onSelect = onSelectDevice,
                 onLongPress = { card ->
@@ -378,7 +386,7 @@ private fun DeviceControlContent(
                         manageTarget = card
                     }
                 },
-                onAddDevice = { onAddDevice(excludedSerials) },
+                onAddDevice = { showScanDialog = true },
                 deviceStatuses = state.deviceStatuses,
                 isMuted = state.isMuted,
                 onToggleMute = onToggleMute,
@@ -604,6 +612,40 @@ private fun DeviceControlContent(
                 }
             }
         )
+    }
+
+    if (showScanDialog) {
+        Dialog(
+            onDismissRequest = { showScanDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.massagerExtendedColors.surfaceSubtle),
+                color = MaterialTheme.massagerExtendedColors.surfaceSubtle
+            ) {
+                val scanViewModel: DeviceViewModel = hiltViewModel()
+                LaunchedEffect(showScanDialog, hostSerial, excludedSerials) {
+                    if (showScanDialog) {
+                        scanViewModel.configureScanContext(
+                            source = DeviceScanSource.CONTROL,
+                            ownerId = hostSerial,
+                            excludedSerialsInput = excludedSerials
+                        )
+                    }
+                }
+                DeviceScanScreen(
+                    viewModel = scanViewModel,
+                    onBack = { showScanDialog = false },
+                    onNavigateHome = { showScanDialog = false },
+                    onNavigateControl = { serial ->
+                        onComboResult(serial)
+                        showScanDialog = false
+                    }
+                )
+            }
+        }
     }
 }
 

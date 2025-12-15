@@ -176,6 +176,13 @@
     <string name="home_add_device_content_desc">Add device</string>
     <string name="home_dismiss_action">Dismiss</string>
     <string name="add_device_title">Add Device</string>
+    <string name="device_scanning_status">Scanning for devices...</string>
+    <string name="device_found_count">Found %1$d devices</string>
+    <string name="device_stop_scan">Stop scanning</string>
+    <string name="device_rescan">Rescan</string>
+    <string name="device_serial_label">SerialNo: %1$s</string>
+    <string name="device_tap_to_connect">Tap to connect</string>
+    <string name="device_tap_to_link">Tap to link</string>
     <string name="searching_devices">Searching for nearby devices</string>
     <string name="add_manually">Add Manually</string>
     <string name="no_devices_found">No devices found</string>

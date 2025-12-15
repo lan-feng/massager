@@ -16,8 +16,11 @@ import com.massager.app.domain.usecase.device.GetDeviceComboInfoUseCase
 import com.massager.app.domain.usecase.device.UpdateDeviceComboInfoUseCase
 import com.massager.app.presentation.navigation.DeviceScanSource
 import com.massager.app.presentation.navigation.Screen
+import com.massager.app.data.bluetooth.scan.BleScanCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -66,12 +69,12 @@ class DeviceViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val scanSource = savedStateHandle.get<String>(Screen.DeviceScan.ARG_SOURCE)
+    private var scanSource = savedStateHandle.get<String>(Screen.DeviceScan.ARG_SOURCE)
         ?.let { raw -> runCatching { DeviceScanSource.valueOf(raw) }.getOrNull() }
         ?: DeviceScanSource.HOME
-    private val ownerDeviceId =
+    private var ownerDeviceId =
         savedStateHandle.get<String>(Screen.DeviceScan.ARG_OWNER_DEVICE_ID)?.takeIf { it.isNotBlank() }
-    private val excludedSerials =
+    private var excludedSerials =
         savedStateHandle.get<String>(Screen.DeviceScan.ARG_EXCLUDED)
             ?.takeIf { it.isNotBlank() }
             ?.split("|")
@@ -84,6 +87,8 @@ class DeviceViewModel @Inject constructor(
 
     private val _effects = MutableSharedFlow<DeviceScanEffect>()
     val effects: SharedFlow<DeviceScanEffect> = _effects.asSharedFlow()
+
+    private var scanTimeoutJob: Job? = null
 
     init {
         handleScanResult(bluetoothService.startScan())
@@ -125,6 +130,7 @@ class DeviceViewModel @Inject constructor(
     fun toggleScan() {
         if (_uiState.value.isScanning) {
             bluetoothService.stopScan()
+            scanTimeoutJob?.cancel()
         } else {
             handleScanResult(bluetoothService.startScan())
         }
@@ -147,12 +153,36 @@ class DeviceViewModel @Inject constructor(
         _uiState.update { it.copy(connectionState = it.connectionState.copy(errorMessage = null)) }
     }
 
+    fun configureScanContext(
+        source: DeviceScanSource,
+        ownerId: String?,
+        excludedSerialsInput: List<String>
+    ) {
+        val normalizedExcluded = excludedSerialsInput.mapNotNull { it.lowercase().takeIf(String::isNotBlank) }.toSet()
+        val needsRefresh = source != scanSource ||
+            ownerDeviceId != ownerId ||
+            normalizedExcluded != excludedSerials
+        scanSource = source
+        ownerDeviceId = ownerId
+        excludedSerials = normalizedExcluded
+        _uiState.update { it.copy(scanSource = scanSource) }
+        if (needsRefresh) {
+            refreshScan()
+        }
+    }
+
     private fun handleScanResult(result: com.massager.app.data.bluetooth.scan.BleScanCoordinator.ScanStartResult) {
-        if (result is com.massager.app.data.bluetooth.scan.BleScanCoordinator.ScanStartResult.Error &&
-            result.message.contains("permission", ignoreCase = true)
-        ) {
-            viewModelScope.launch {
-                _effects.emit(DeviceScanEffect.RequestPermissions)
+        when (result) {
+            is com.massager.app.data.bluetooth.scan.BleScanCoordinator.ScanStartResult.Started -> {
+                scheduleScanTimeout()
+            }
+            is com.massager.app.data.bluetooth.scan.BleScanCoordinator.ScanStartResult.Error -> {
+                scanTimeoutJob?.cancel()
+                if (result.message.contains("permission", ignoreCase = true)) {
+                    viewModelScope.launch {
+                        _effects.emit(DeviceScanEffect.RequestPermissions)
+                    }
+                }
             }
         }
     }
@@ -224,6 +254,16 @@ class DeviceViewModel @Inject constructor(
 
     override fun onCleared() {
         bluetoothService.stopScan()
+        scanTimeoutJob?.cancel()
         super.onCleared()
+    }
+
+    private fun scheduleScanTimeout() {
+        scanTimeoutJob?.cancel()
+        scanTimeoutJob = viewModelScope.launch {
+            delay(BleScanCoordinator.SCAN_RESULT_TTL_MS)
+            bluetoothService.stopScan()
+            _uiState.update { it.copy(isScanning = false) }
+        }
     }
 }

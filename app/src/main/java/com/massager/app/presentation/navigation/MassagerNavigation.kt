@@ -22,8 +22,6 @@ import com.massager.app.presentation.auth.LoginScreen
 import com.massager.app.presentation.auth.ForgetPasswordScreen
 import com.massager.app.presentation.auth.ForgetPasswordViewModel
 import com.massager.app.presentation.auth.RegisterScreen
-import com.massager.app.presentation.device.AddDeviceScreen
-import com.massager.app.presentation.device.AddDeviceViewModel
 import com.massager.app.presentation.device.DeviceControlScreen
 import com.massager.app.presentation.device.DeviceControlViewModel
 import com.massager.app.presentation.device.DeviceScanScreen
@@ -282,19 +280,6 @@ fun MassagerNavHost(
                             excludedSerials = excludedSerials
                         )
                     )
-                }
-            )
-        }
-        composable(Screen.AddDevice.route) {
-            val viewModel: AddDeviceViewModel = hiltViewModel()
-            AddDeviceScreen(
-                viewModel = viewModel,
-                onBack = { navController.popBackStack() },
-                onNavigateManual = { navController.navigate(Screen.ManualAddDevice.route) },
-                onNavigateHome = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
-                    }
                 }
             )
         }

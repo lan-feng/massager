@@ -7,7 +7,6 @@ import androidx.compose.ui.graphics.Color
 val BandPrimary = Color(0xFF3AA1A0)
 val BandSoft = Color(0xFF3FB6AE)
 val BandDeep = Color(0xFF238C86)
-
 val PrimaryBlue40 = Color(0xFF0057B8)
 val PrimaryBlue35 = Color(0xFF004D9E)
 val PrimaryBlue30 = Color(0xFF00418B)
@@ -74,3 +73,5 @@ val InfoLight = Color(0xFF2F8CFF)
 val InfoDark = Color(0xFF81B9FF)
 val AccentSoftLight = Color(0xFFFFF3F1)
 val AccentSoftDark = Color(0xFF3F1E1B)
+
+

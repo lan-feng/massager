@@ -43,7 +43,6 @@ sealed class Screen(val route: String) {
             return "device_control?$ARG_DEVICE_ID=$encodedId&$ARG_DEVICE_NAME=$encodedName&$ARG_DEVICE_MAC=$encodedMac"
         }
     }
-    data object AddDevice : Screen("add_device")
     data object ManualAddDevice : Screen("manual_add_device")
     data object Settings : Screen("settings")
     data object About : Screen("about")

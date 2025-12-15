@@ -323,8 +323,8 @@ class BleScanCoordinator @Inject constructor(
     }
 
     companion object {
+        const val SCAN_RESULT_TTL_MS = 20_000L
         private const val SCAN_TIMEOUT_MS = 15_000L
-        private const val SCAN_RESULT_TTL_MS = 20_000L
         private val TAG = logTag("BleScanCoordinator")
     }
 
