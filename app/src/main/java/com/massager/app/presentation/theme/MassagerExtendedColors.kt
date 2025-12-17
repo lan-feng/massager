@@ -7,6 +7,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import com.google.firebase.annotations.concurrent.Background
 
 @Immutable
 data class MassagerExtendedColors(
@@ -29,7 +30,8 @@ data class MassagerExtendedColors(
     val warning: Color,
     val danger: Color,
     val info: Color,
-    val accentSoft: Color
+    val accentSoft: Color,
+    val cardBackground: Color
 )
 
 internal val LightExtendedColors = MassagerExtendedColors(
@@ -52,7 +54,8 @@ internal val LightExtendedColors = MassagerExtendedColors(
     warning = WarningLight,
     danger = DangerLight,
     info = InfoLight,
-    accentSoft = AccentSoftLight
+    accentSoft = AccentSoftLight,
+    cardBackground = Color.White
 )
 
 internal val DarkExtendedColors = MassagerExtendedColors(
@@ -75,7 +78,8 @@ internal val DarkExtendedColors = MassagerExtendedColors(
     warning = WarningDark,
     danger = DangerDark,
     info = InfoDark,
-    accentSoft = AccentSoftDark
+    accentSoft = AccentSoftDark,
+    cardBackground = SurfaceStrongDark
 )
 
 val LocalMassagerExtendedColors = staticCompositionLocalOf { LightExtendedColors }

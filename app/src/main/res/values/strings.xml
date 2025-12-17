@@ -175,6 +175,10 @@
     <string name="home_device_empty_action">Add Device</string>
     <string name="home_add_device_content_desc">Add device</string>
     <string name="home_dismiss_action">Dismiss</string>
+    <string name="home_saved_devices_empty_title">Add Your First Device</string>
+    <string name="home_saved_devices_empty_subtitle">Tap to add your EMS device</string>
+    <string name="home_saved_devices_empty_getting_started_title">Getting Started</string>
+    <string name="home_saved_devices_empty_getting_started_body">1. Ensure the device is powered on\n2. A flashing blue light indicates the device is waiting for Bluetooth connection</string>
     <string name="add_device_title">Add Device</string>
     <string name="device_scanning_status">Scanning for devices...</string>
     <string name="device_found_count">Found %1$d devices</string>

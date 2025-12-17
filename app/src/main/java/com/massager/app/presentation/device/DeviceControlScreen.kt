@@ -110,6 +110,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -216,13 +217,71 @@ private fun DeviceControlContent(
     val enableBtLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { }
+    var permissionRequested by remember { mutableStateOf(false) }
+    var bluetoothRequested by remember { mutableStateOf(false) }
+    var settingsDialogMessage by remember { mutableStateOf<String?>(null) }
     val missingPermissions = runtimePermissions.filter {
         ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+    var permissionRequestFailed by remember { mutableStateOf(false) }
+    LaunchedEffect(missingPermissions) {
+        if (missingPermissions.isNotEmpty()) {
+            permissionRequested = true
+            runCatching {
+                permissionLauncher.launch(missingPermissions.toTypedArray())
+            }.onFailure {
+                permissionRequestFailed = true
+                settingsDialogMessage = context.getString(R.string.device_error_bluetooth_scan_permission)
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.device_error_bluetooth_scan_permission)
+                    )
+                }
+            }
+        } else {
+            permissionRequested = false
+            permissionRequestFailed = false
+            settingsDialogMessage = null
+        }
+    }
+    LaunchedEffect(missingPermissions, permissionRequested) {
+        if (missingPermissions.isNotEmpty() && permissionRequested) {
+            settingsDialogMessage = settingsDialogMessage
+                ?: context.getString(R.string.device_error_bluetooth_scan_permission)
+        }
     }
     val isBluetoothOff = (BluetoothAdapter.getDefaultAdapter()?.isEnabled == false) ||
         state.deviceStatuses.values.any {
             it.connectionStatus == BleConnectionState.Status.BluetoothUnavailable
         }
+    var btEnableFailed by remember { mutableStateOf(false) }
+    LaunchedEffect(isBluetoothOff) {
+        if (isBluetoothOff && missingPermissions.isEmpty()) {
+            bluetoothRequested = true
+            runCatching {
+                enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+            }.onFailure {
+                btEnableFailed = true
+                settingsDialogMessage = context.getString(R.string.device_error_bluetooth_disabled)
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.device_error_bluetooth_disabled)
+                    )
+                }
+            }
+        } else {
+            bluetoothRequested = false
+            btEnableFailed = false
+            if (!permissionRequestFailed) {
+                settingsDialogMessage = null
+            }
+        }
+    }
+    val selectedStatus = state.deviceCards.firstOrNull { it.isSelected }?.deviceSerial?.let { serial ->
+        state.deviceStatuses[serial]
+    }
+    val isDevicePoweredOff = selectedStatus?.connectionStatus == BleConnectionState.Status.Disconnected ||
+        selectedStatus?.connectionStatus == BleConnectionState.Status.Failed
     val hostSerial = state.deviceCards.firstOrNull { it.isMainDevice }?.deviceSerial
     val excludedSerials = remember(state.deviceCards) {
         val combos = state.deviceCards
@@ -311,73 +370,6 @@ private fun DeviceControlContent(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (isBluetoothOff) {
-                Card(
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.device_error_bluetooth_disabled),
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.massagerExtendedColors.textPrimary
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TextButton(onClick = {
-                                enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
-                            }) {
-                                Text(text = stringResource(id = R.string.try_again))
-                            }
-                            TextButton(onClick = {
-                                val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
-                            }) {
-                                Text(text = stringResource(id = R.string.permission_bluetooth_settings))
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (missingPermissions.isNotEmpty()) {
-                Card(
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.device_error_bluetooth_scan_permission),
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.massagerExtendedColors.textPrimary
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TextButton(onClick = {
-                                permissionLauncher.launch(missingPermissions.toTypedArray())
-                            }) {
-                                Text(text = stringResource(id = R.string.try_again))
-                            }
-                            TextButton(onClick = {
-                                val intent = Intent(
-                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                    Uri.fromParts("package", context.packageName, null)
-                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
-                            }) {
-                                Text(text = stringResource(id = R.string.permission_bluetooth_settings))
-                            }
-                        }
-                    }
-                }
-            }
             DeviceSwitcherRow(
                 cards = state.deviceCards,
                 onSelect = onSelectDevice,
@@ -429,6 +421,42 @@ private fun DeviceControlContent(
                 brand = brand
             )
         }
+            if (isDevicePoweredOff && settingsDialogMessage == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.massagerExtendedColors.cardBackground.copy(alpha = 0.94f)
+                        ),
+                        modifier = Modifier
+                            .widthIn(max = 520.dp)
+                            .shadow(10.dp, RoundedCornerShape(12.dp))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.home_saved_devices_empty_getting_started_title),
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.massagerExtendedColors.band
+                            )
+                            Text(
+                                text = stringResource(id = R.string.home_saved_devices_empty_getting_started_body),
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    color = MaterialTheme.massagerExtendedColors.textPrimary
+                                ),
+                                fontSize = 16.sp
+                            )
+                        }
+                    }
+                }
+            }
             AnimatedVisibility(
                 visible = state.showConnectingOverlay,
                 enter = fadeIn(),
@@ -467,6 +495,33 @@ private fun DeviceControlContent(
                 }
             }
         }
+    }
+
+    settingsDialogMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { settingsDialogMessage = null },
+            title = { Text(text = stringResource(id = R.string.permission_bluetooth_settings)) },
+            text = { Text(text = message) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        settingsDialogMessage = null
+                        val intent = Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", context.packageName, null)
+                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    }
+                ) {
+                    Text(text = stringResource(id = R.string.permission_bluetooth_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { settingsDialogMessage = null }) {
+                    Text(text = stringResource(id = R.string.cancel))
+                }
+            }
+        )
     }
 
     manageTarget?.let { target ->
@@ -1160,8 +1215,4 @@ private fun LevelAdjustButton(
 }
 
 @Composable
-fun controlPanelBackground(): Color = if (isSystemInDarkTheme()) {
-    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.90f)
-} else {
-    MaterialTheme.massagerExtendedColors.surfaceBright.copy(alpha = 0.90f)
-}
+fun controlPanelBackground(): Color = MaterialTheme.massagerExtendedColors.cardBackground

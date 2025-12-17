@@ -119,46 +119,60 @@ class DeviceControlViewModel @Inject constructor(
             "processConnectionState: status=${state.status} protocolReady=${state.isProtocolReady} " +
                 "device=${state.deviceAddress} name=${state.deviceName} hasSignal=$hasProtocolSignal"
         )
+        val activeStatus = state.deviceAddress?.let { address ->
+            bluetoothService.connectionStates.value[address]
+        }
+        val isConnectedAlready = activeStatus?.status == BleConnectionState.Status.Connected &&
+            activeStatus.isProtocolReady
+        if (isConnectedAlready && (state.status == BleConnectionState.Status.Scanning || state.status == BleConnectionState.Status.Idle)) {
+            // Ignore scan/idle state updates that reuse the active device address; keep the UI in the real connection state.
+            return
+        }
         if (state.status != BleConnectionState.Status.Connected) {
             hasProtocolSignal = false
             protocolSignalTimeoutJob?.cancel()
             protocolSignalTimeoutJob = null
         }
+        val eventAddress = state.deviceAddress
         val isProtocolReady = state.isProtocolReady
-        // 连接展示基于协议就绪，一旦 GATT 服务解析/通知开启完成即可认为“已连接”。
         val isConnected =
             state.status == BleConnectionState.Status.Connected && isProtocolReady
         val isConnecting = state.status == BleConnectionState.Status.Connecting ||
             (state.status == BleConnectionState.Status.Connected && !isProtocolReady)
-        _uiState.update {
-            val resolvedAddress = selectedDeviceSerial
-                ?: it.deviceAddress
-                ?: targetAddress
-            val resolvedName = resolveDisplayName(
-                connectionName = state.deviceName,
-                currentName = it.deviceName,
-                preferred = preferredNameFor(resolvedAddress),
-                address = resolvedAddress
-            )
-            val updatedStatuses = if (!resolvedAddress.isNullOrBlank()) {
-                val existing = it.deviceStatuses[resolvedAddress] ?: DeviceStatus(address = resolvedAddress)
-                it.deviceStatuses + (resolvedAddress to existing.copy(
+
+        if (eventAddress != null) {
+            _uiState.update { current ->
+                val resolvedName = resolveDisplayName(
+                    connectionName = state.deviceName,
+                    currentName = current.deviceStatuses[eventAddress]?.deviceName
+                        ?: current.deviceName,
+                    preferred = preferredNameFor(eventAddress),
+                    address = eventAddress
+                )
+                val existing = current.deviceStatuses[eventAddress] ?: DeviceStatus(address = eventAddress)
+                val updatedStatuses = current.deviceStatuses + (eventAddress to existing.copy(
                     deviceName = resolvedName.ifBlank { existing.deviceName },
                     connectionStatus = state.status,
                     isProtocolReady = isProtocolReady
                 ))
-            } else {
-                it.deviceStatuses
+
+                val shouldBindToUi = current.selectedDeviceSerial == null ||
+                    current.selectedDeviceSerial.equals(eventAddress, ignoreCase = true)
+
+                current.copy(
+                    deviceName = if (shouldBindToUi) resolvedName else current.deviceName,
+                    deviceAddress = if (shouldBindToUi) eventAddress else current.deviceAddress,
+                    selectedDeviceSerial = if (current.selectedDeviceSerial == null && shouldBindToUi) {
+                        eventAddress
+                    } else {
+                        current.selectedDeviceSerial
+                    },
+                    isConnected = if (shouldBindToUi) isConnected else current.isConnected,
+                    isConnecting = if (shouldBindToUi) isConnecting else current.isConnecting,
+                    isProtocolReady = if (shouldBindToUi) isProtocolReady else current.isProtocolReady,
+                    deviceStatuses = updatedStatuses
+                )
             }
-            it.copy(
-                deviceName = resolvedName,
-                deviceAddress = resolvedAddress,
-                selectedDeviceSerial = resolvedAddress,
-                isConnected = isConnected,
-                isConnecting = isConnecting,
-                isProtocolReady = isProtocolReady,
-                deviceStatuses = updatedStatuses
-            )
         }
         if (!isConnecting) {
             _uiState.update { current -> current.copy(showConnectingOverlay = false) }

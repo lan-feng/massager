@@ -208,6 +208,10 @@
     <string name="home_management_rename_single_hint">请选择单个设备进行重命名。</string>
     <string name="home_management_empty_title">暂无设备</string>
     <string name="home_management_empty_message">添加设备以管理您的 Massager 配件。</string>
+    <string name="home_saved_devices_empty_title">添加您的第一个设备</string>
+    <string name="home_saved_devices_empty_subtitle">点击添加您的EMS设备</string>
+    <string name="home_saved_devices_empty_getting_started_title">开始使用</string>
+    <string name="home_saved_devices_empty_getting_started_body">1. 确保设备开机\n2. 蓝色灯闪烁说明设备等待蓝牙连接</string>
     <string name="rename">重命名</string>
     <string name="remove_device">移除设备</string>
     <string name="cancel">取消</string>

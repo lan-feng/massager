@@ -39,7 +39,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,13 +52,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -115,6 +118,10 @@ fun DeviceScanScreen(
     ) {
         viewModel.refreshScan()
     }
+    var permissionRequested by remember { mutableStateOf(false) }
+    var bluetoothRequested by remember { mutableStateOf(false) }
+    var permissionRequestFailed by remember { mutableStateOf(false) }
+    var btEnableFailed by remember { mutableStateOf(false) }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -122,7 +129,50 @@ fun DeviceScanScreen(
     val missingPermissions = runtimePermissions.filter {
         ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
     }
+    var settingsDialogMessage by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(missingPermissions) {
+        if (missingPermissions.isNotEmpty()) {
+            permissionRequested = true
+            runCatching {
+                permissionLauncher.launch(missingPermissions.toTypedArray())
+            }.onFailure {
+                permissionRequestFailed = true
+                val text = context.getString(R.string.device_error_bluetooth_scan_permission)
+                snackbarHostState.showSnackbar(text)
+                settingsDialogMessage = text
+            }
+        } else {
+            permissionRequested = false
+            permissionRequestFailed = false
+            settingsDialogMessage = null
+        }
+    }
+    LaunchedEffect(missingPermissions, permissionRequested) {
+        if (missingPermissions.isNotEmpty() && permissionRequested) {
+            settingsDialogMessage = settingsDialogMessage
+                ?: context.getString(R.string.device_error_bluetooth_scan_permission)
+        }
+    }
     val isBluetoothOff = uiState.connectionState.status == BleConnectionState.Status.BluetoothUnavailable
+    LaunchedEffect(isBluetoothOff) {
+        if (isBluetoothOff && missingPermissions.isEmpty()) {
+            bluetoothRequested = true
+            runCatching {
+                enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+            }.onFailure {
+                btEnableFailed = true
+                val text = context.getString(R.string.device_error_bluetooth_disabled)
+                snackbarHostState.showSnackbar(text)
+                settingsDialogMessage = text
+            }
+        } else {
+            bluetoothRequested = false
+            btEnableFailed = false
+            if (!permissionRequestFailed) {
+                settingsDialogMessage = null
+            }
+        }
+    }
     val isDark = isSystemInDarkTheme()
     val accent = if (isDark) BandDeep else BandPrimary
     val signalColor = if (isDark) DangerDark else DangerLight
@@ -211,36 +261,13 @@ fun DeviceScanScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            val showPermissionsFirst = missingPermissions.isNotEmpty()
-
-            if (!showPermissionsFirst && isBluetoothOff) {
-                BluetoothOffCard(
-                    onEnableBluetooth = {
-                        enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
-                    },
-                    onOpenSettings = {
-                        val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
-                    }
+            if ((isBluetoothOff && (bluetoothRequested || btEnableFailed)) ||
+                ((missingPermissions.isNotEmpty() && permissionRequested) || permissionRequestFailed)
+            ) {
+                settingsDialogMessage = settingsDialogMessage ?: context.getString(
+                    if (isBluetoothOff) R.string.device_error_bluetooth_disabled
+                    else R.string.device_error_bluetooth_scan_permission
                 )
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            if (missingPermissions.isNotEmpty()) {
-                PermissionCard(
-                    onRequestPermission = {
-                        permissionLauncher.launch(missingPermissions.toTypedArray())
-                    },
-                    onOpenSettings = {
-                        val intent = Intent(
-                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            Uri.fromParts("package", context.packageName, null)
-                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
-                    }
-                )
-                Spacer(modifier = Modifier.height(16.dp))
             }
 
             LazyColumn(
@@ -275,6 +302,33 @@ fun DeviceScanScreen(
             Spacer(modifier = Modifier.height(12.dp))
             // 按钮移除，交互已收敛至雷达中心
         }
+    }
+
+    settingsDialogMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { settingsDialogMessage = null },
+            title = { Text(text = stringResource(id = R.string.permission_bluetooth_settings)) },
+            text = { Text(text = message) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        settingsDialogMessage = null
+                        val intent = Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", context.packageName, null)
+                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    }
+                ) {
+                    Text(text = stringResource(id = R.string.permission_bluetooth_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { settingsDialogMessage = null }) {
+                    Text(text = stringResource(id = R.string.cancel))
+                }
+            }
+        )
     }
 }
 
@@ -399,82 +453,6 @@ private fun RadarScanView(
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(30.dp)
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PermissionCard(
-    onRequestPermission: () -> Unit,
-    onOpenSettings: () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = stringResource(id = R.string.device_error_bluetooth_scan_permission),
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = MaterialTheme.massagerExtendedColors.textPrimary
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onRequestPermission) {
-                    Text(text = stringResource(id = R.string.try_again))
-                }
-                Button(
-                    onClick = onOpenSettings,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
-                    )
-                ) {
-                    Text(text = stringResource(id = R.string.permission_bluetooth_settings))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BluetoothOffCard(
-    onEnableBluetooth: () -> Unit,
-    onOpenSettings: () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.accentSoft),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = stringResource(id = R.string.device_error_bluetooth_disabled),
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = MaterialTheme.massagerExtendedColors.textPrimary
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onEnableBluetooth) {
-                    Text(text = stringResource(id = R.string.try_again))
-                }
-                Button(
-                    onClick = onOpenSettings,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
-                    )
-                ) {
-                    Text(text = stringResource(id = R.string.permission_bluetooth_settings))
-                }
             }
         }
     }

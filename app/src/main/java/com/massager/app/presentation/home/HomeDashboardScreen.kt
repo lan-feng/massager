@@ -5,12 +5,10 @@ import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,15 +19,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -164,9 +158,12 @@ fun HomeDashboardScreen(
             )
             Spacer(modifier = Modifier.height(20.dp))
             if (state.devices.isEmpty()) {
-                EmptyDeviceState(modifier = Modifier.fillMaxSize())
+                EmptyDeviceState(
+                    modifier = Modifier.fillMaxSize(),
+                    onAddDevice = onAddDevice
+                )
             } else {
-                DeviceGrid(
+                DeviceList(
                     devices = state.devices,
                     selectedIds = state.selectedDeviceIds,
                     isManagementActive = state.isManagementActive,
@@ -197,21 +194,18 @@ fun HomeDashboardScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DeviceGrid(
+private fun DeviceList(
     devices: List<DeviceMetadata>,
     selectedIds: Set<String>,
     isManagementActive: Boolean,
     onDeviceToggle: (DeviceMetadata) -> Unit,
     onDeviceOpen: (DeviceMetadata) -> Unit
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+    LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(
             items = devices,
@@ -230,9 +224,7 @@ private fun DeviceGrid(
                 onLongPress = { onDeviceToggle(device) }
             )
         }
-        item {
-            Spacer(modifier = Modifier.height(80.dp))
-        }
+        item { Spacer(modifier = Modifier.height(80.dp)) }
     }
 }
 
@@ -340,10 +332,11 @@ private fun DeviceCard(
     onLongPress: () -> Unit
 ) {
     val scale = if (isSelected) 1.02f else 1f
+
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.surfaceBright),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor =  MaterialTheme.massagerExtendedColors.cardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
@@ -352,11 +345,13 @@ private fun DeviceCard(
                 onLongClick = onLongPress
             )
     ) {
-        Column(
+        Row(
             modifier = Modifier
+                .background(MaterialTheme.massagerExtendedColors.cardBackground)
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -372,28 +367,30 @@ private fun DeviceCard(
                     modifier = Modifier.size(36.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = device.name,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.massagerExtendedColors.textPrimary
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(id = R.string.home_management_device_subtitle),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.massagerExtendedColors.textMuted,
-                    fontSize = 12.sp
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = device.name,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.massagerExtendedColors.textPrimary
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(id = R.string.home_management_device_subtitle),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.massagerExtendedColors.textMuted,
+                        fontSize = 12.sp
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -566,23 +563,62 @@ private fun RemoveDeviceDialog(
 }
 
 @Composable
-private fun EmptyDeviceState(modifier: Modifier = Modifier) {
+private fun EmptyDeviceState(
+    modifier: Modifier = Modifier,
+    onAddDevice: (() -> Unit)? = null
+) {
     Column(
         modifier = modifier.padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = stringResource(id = R.string.home_management_empty_title),
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+            text = stringResource(id = R.string.home_saved_devices_empty_title),
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
             textAlign = TextAlign.Center,
             color = MaterialTheme.massagerExtendedColors.textSecondary
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = stringResource(id = R.string.home_management_empty_message),
+            text = stringResource(id = R.string.home_saved_devices_empty_subtitle),
             style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.massagerExtendedColors.textMuted),
             textAlign = TextAlign.Center
         )
+        Spacer(modifier = Modifier.height(16.dp))
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.cardBackground),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.Start,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.home_saved_devices_empty_getting_started_title),
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.massagerExtendedColors.textPrimary
+                )
+                Text(
+                    text = stringResource(id = R.string.home_saved_devices_empty_getting_started_body),
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.massagerExtendedColors.textMuted),
+                )
+            }
+        }
+        if (onAddDevice != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = onAddDevice,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.massagerExtendedColors.band,
+                    contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
+                )
+            ) {
+                Text(text = stringResource(id = R.string.home_device_empty_action))
+            }
+        }
     }
 }

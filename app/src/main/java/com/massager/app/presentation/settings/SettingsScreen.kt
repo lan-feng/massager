@@ -60,8 +60,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.RadioButton
@@ -75,9 +73,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -87,7 +82,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.material.ripple.rememberRipple
 import com.massager.app.core.preferences.AppTheme
 import com.massager.app.core.preferences.AppLanguage
@@ -173,7 +167,7 @@ fun SettingsScreen(
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.massagerExtendedColors.surfaceSubtle
+        color = MaterialTheme.colorScheme.background
     ) {
         Box {
             if (state.isLoading) {
@@ -416,14 +410,7 @@ private fun HeaderSection(
             .padding(horizontal = 20.dp, vertical = 12.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(32.dp))
-            .background(
-                brush = Brush.linearGradient(
-                    colors = listOf(
-                        MaterialTheme.massagerExtendedColors.surfaceBright,
-                        MaterialTheme.massagerExtendedColors.surfaceSubtle
-                    )
-                )
-            )
+            .background(MaterialTheme.massagerExtendedColors.cardBackground)
     ) {
         Column(
             modifier = Modifier
@@ -651,11 +638,12 @@ private fun SettingsGroup(
         modifier = Modifier
             .padding(horizontal = 20.dp, vertical = 8.dp),
         shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.surfaceBright),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.cardBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(
             modifier = Modifier
+                .background(MaterialTheme.massagerExtendedColors.cardBackground)
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 20.dp)
         ) {
@@ -674,29 +662,6 @@ private fun SettingsGroup(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun TemperatureToggle(
-    unit: TemperatureUnit,
-    onToggle: () -> Unit
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(text = unit.display, style = MaterialTheme.typography.bodySmall)
-        Switch(
-            checked = unit == TemperatureUnit.Fahrenheit,
-            onCheckedChange = { onToggle() },
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.massagerExtendedColors.textOnAccent,
-                checkedTrackColor = MaterialTheme.massagerExtendedColors.band,
-                uncheckedThumbColor = MaterialTheme.massagerExtendedColors.surfaceBright,
-                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        )
     }
 }
 
