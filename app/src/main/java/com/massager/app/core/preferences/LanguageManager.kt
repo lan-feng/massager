@@ -29,6 +29,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 private val Context.languageDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "language_preferences"
@@ -96,6 +98,11 @@ fun ProvideAppLocale(
     }
 
     SideEffect {
+        val locales = appLocaleState.locales
+        if (locales.size() > 0) {
+            LocaleList.setDefault(locales)
+            Locale.setDefault(locales[0])
+        }
         val resources = activity.resources
         val currentLocales = resources.configuration.locales
         if (currentLocales != appLocaleState.locales) {
@@ -164,5 +171,54 @@ class LanguageManager @Inject constructor(
 
     companion object {
         private val KEY_LANGUAGE = stringPreferencesKey("pref_app_language")
+
+        /**
+         * 提前应用持久化语言，避免第三方登录返回后被系统语言覆盖。
+         * 可在 Application.onCreate 中调用。
+         */
+        fun preloadPersistedLocale(context: Context) {
+            runCatching {
+                val persistedLanguage = runBlocking {
+                    context.languageDataStore.data.first()[KEY_LANGUAGE]
+                }?.let { saved ->
+                    runCatching { AppLanguage.valueOf(saved) }.getOrDefault(AppLanguage.System)
+                } ?: AppLanguage.System
+                val locales = when (persistedLanguage) {
+                    AppLanguage.System -> LocaleList.getDefault()
+                    AppLanguage.Chinese -> LocaleList(Locale.SIMPLIFIED_CHINESE)
+                    AppLanguage.English -> LocaleList(Locale.ENGLISH)
+                }
+                if (locales.size() > 0) {
+                    LocaleList.setDefault(locales)
+                    Locale.setDefault(locales[0])
+                    val resources = context.resources
+                    val config = Configuration(resources.configuration).apply { setLocales(locales) }
+                    @Suppress("DEPRECATION")
+                    resources.updateConfiguration(config, resources.displayMetrics)
+                }
+            }
+        }
+
+        /**
+         * 为 Activity 提供带持久化语言的 baseContext，确保跳转外部页面返回后仍然维持 App 语言。
+         */
+        fun wrapWithPersistedLocale(base: Context): Context {
+            val persistedLanguage = runBlocking {
+                base.languageDataStore.data.first()[KEY_LANGUAGE]
+            }?.let { saved ->
+                runCatching { AppLanguage.valueOf(saved) }.getOrDefault(AppLanguage.System)
+            } ?: AppLanguage.System
+            val locales = when (persistedLanguage) {
+                AppLanguage.System -> LocaleList.getDefault()
+                AppLanguage.Chinese -> LocaleList(Locale.SIMPLIFIED_CHINESE)
+                AppLanguage.English -> LocaleList(Locale.ENGLISH)
+            }
+            return if (locales.size() > 0) {
+                val config = Configuration(base.resources.configuration).apply { setLocales(locales) }
+                base.createConfigurationContext(config)
+            } else {
+                base
+            }
+        }
     }
 }

@@ -539,8 +539,8 @@ fun RegisterScreen(
     onSendVerificationCode: suspend (email: String) -> Result<Unit>,
     onNavigateToLogin: () -> Unit,
     onRegistrationHandled: () -> Unit,
-    onOpenUserAgreement: () -> Unit = {},
-    onOpenPrivacyPolicy: () -> Unit = {}
+    onOpenUserAgreement: (() -> Unit)? = null,
+    onOpenPrivacyPolicy: (() -> Unit)? = null
 ) {
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
@@ -555,6 +555,7 @@ fun RegisterScreen(
     var passwordError by remember { mutableStateOf<String?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
     var countdown by remember { mutableIntStateOf(0) }
+    var isSendingCode by remember { mutableStateOf(false) }
     var isVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -692,21 +693,25 @@ fun RegisterScreen(
                                 emailError = context.getString(R.string.error_email_invalid)
                                 return@OutlinedButton
                             }
+                            if (isSendingCode || countdown > 0) return@OutlinedButton
                             coroutineScope.launch {
+                                isSendingCode = true
+                                countdown = 60
                                 val result = onSendVerificationCode(email.trim())
                                 if (result.isSuccess) {
-                                    countdown = 60
                                     Toast.makeText(context, context.getString(R.string.verification_code_sent), Toast.LENGTH_SHORT).show()
                                 } else {
+                                    countdown = 0
                                     Toast.makeText(
                                         context,
                                         result.exceptionOrNull()?.message ?: context.getString(R.string.verification_code_failed),
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
+                                isSendingCode = false
                             }
                         },
-                        enabled = countdown == 0 && !state.isLoading,
+                        enabled = countdown == 0 && !state.isLoading && !isSendingCode,
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
@@ -811,7 +816,7 @@ fun RegisterScreen(
                         )
                     } else {
                         Text(
-                            text = "Submit",
+                            text = stringResource(id = R.string.action_submit),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 color = Color.White,
                                 fontWeight = FontWeight.SemiBold
@@ -826,7 +831,7 @@ fun RegisterScreen(
                         .fillMaxWidth()
                         .padding(top = 12.dp)
                 ) {
-                    Text("Back to Log In")
+                    Text(stringResource(id = R.string.action_back_to_login))
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -850,7 +855,9 @@ fun ForgetPasswordScreen(
     onConsumeToast: () -> Unit,
     onConsumeError: () -> Unit,
     onConsumeSnackbar: () -> Unit,
-    onPasswordResetSuccess: () -> Unit
+    onPasswordResetSuccess: () -> Unit,
+    onOpenUserAgreement: (() -> Unit)? = null,
+    onOpenPrivacyPolicy: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -1089,8 +1096,8 @@ fun ForgetPasswordScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             AuthFooter(
-                onOpenUserAgreement = {},
-                onOpenPrivacyPolicy = {}
+                onOpenUserAgreement = onOpenUserAgreement,
+                onOpenPrivacyPolicy = onOpenPrivacyPolicy
             )
         }
     }
@@ -1107,13 +1114,23 @@ private fun AuthLogo() {
 
 @Composable
 private fun AuthFooter(
-    onOpenUserAgreement: () -> Unit,
-    onOpenPrivacyPolicy: () -> Unit
+    onOpenUserAgreement: (() -> Unit)?,
+    onOpenPrivacyPolicy: (() -> Unit)?
 ) {
+    val context = LocalContext.current
+    fun openUrl(resId: Int) {
+        val url = context.getString(resId)
+        runCatching {
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        }
+    }
+
     val accent = MaterialTheme.colorScheme.primary
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = "By continuing you agree with",
+            text = stringResource(id = R.string.auth_terms_prefix),
             style = MaterialTheme.typography.bodySmall.copy(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             ),
@@ -1125,11 +1142,11 @@ private fun AuthFooter(
             horizontalArrangement = Arrangement.Center
         ) {
             TextButton(
-                onClick = onOpenUserAgreement,
+                onClick = { onOpenUserAgreement?.invoke() ?: openUrl(R.string.user_agreement_url) },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
             ) {
                 Text(
-                    text = "User Agreement",
+                    text = stringResource(id = R.string.auth_terms_user_agreement),
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = accent,
                         fontWeight = FontWeight.Medium
@@ -1143,11 +1160,11 @@ private fun AuthFooter(
                 )
             )
             TextButton(
-                onClick = onOpenPrivacyPolicy,
+                onClick = { onOpenPrivacyPolicy?.invoke() ?: openUrl(R.string.privacy_policy_url) },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
             ) {
                 Text(
-                    text = "Privacy Policy",
+                    text = stringResource(id = R.string.auth_terms_privacy_policy),
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = accent,
                         fontWeight = FontWeight.Medium
@@ -1222,8 +1239,7 @@ private fun validatePassword(context: android.content.Context, password: String)
     val hasLetter = password.any { it.isLetter() }
     val hasDigit = password.any { it.isDigit() }
     if (!hasLetter || !hasDigit) {
-        return "Use letters and numbers (no pure numbers)"
+        return context.getString(R.string.error_password_letters_and_numbers)
     }
     return null
 }
-

@@ -9,12 +9,14 @@ import com.massager.app.data.remote.dto.UserInfoResponse
 import com.massager.app.data.remote.upload.FilePart
 import com.massager.app.data.remote.upload.MultipartRequestBodyUtil
 import com.massager.app.domain.model.UserProfile
+import com.massager.app.data.local.SessionManager
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class UserRepository @Inject constructor(
-    private val userApiService: UserApiService
+    private val userApiService: UserApiService,
+    private val sessionManager: SessionManager
 ) {
 
     suspend fun fetchProfile(): Result<UserProfile> = runCatching {
@@ -22,7 +24,11 @@ class UserRepository @Inject constructor(
         if (response.success.not()) {
             throw IllegalStateException(response.message ?: "Failed to load profile")
         }
-        response.data?.toDomain() ?: throw IllegalStateException("Empty profile response")
+        response.data?.let { data ->
+            data.token?.takeIf { it.isNotBlank() }?.let { sessionManager.saveAuthToken(it) }
+            data.user.appId?.takeIf { it.isNotBlank() }?.let { sessionManager.saveAppId(it) }
+            data.toDomain()
+        } ?: throw IllegalStateException("Empty profile response")
     }
 
     suspend fun updateName(name: String): Result<UserProfile> = runCatching {
@@ -71,10 +77,13 @@ class UserRepository @Inject constructor(
 
     private fun UserInfoResponse.toDomain(): UserProfile =
         UserProfile(
-            id = id,
-            name = name,
-            email = email,
-            avatarUrl = avatarUrl,
-            cacheSize = null
+            id = user.id,
+            name = user.name,
+            email = user.email,
+            avatarUrl = user.avatarUrl,
+            cacheSize = null,
+            firebaseUid = user.firebaseUid,
+            appleUserId = user.appleUserId,
+            facebookUid = user.facebookUid
         )
 }

@@ -5,7 +5,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -48,6 +51,8 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.flow.collectLatest
 
+private enum class GoogleLoginSource { AuthFlow, AccountSecurity }
+
 private const val DEVICE_SCAN_RESULT_KEY = "device_scan_result_serial"
 
 @Composable
@@ -70,6 +75,8 @@ fun MassagerNavHost(
         )
     }
 
+    var googleLoginSource by remember { mutableStateOf(GoogleLoginSource.AuthFlow) }
+
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -78,25 +85,41 @@ fun MassagerNavHost(
             val account = task.getResult(ApiException::class.java)
             val idToken = account?.idToken
             if (idToken.isNullOrBlank()) {
-                authViewModel.onExternalAuthFailed("Google sign-in failed: missing token")
+                authViewModel.onExternalAuthFailed(
+                    "Google sign-in failed: missing token",
+                    resetAuth = googleLoginSource == GoogleLoginSource.AuthFlow
+                )
             } else {
                 authViewModel.loginWithGoogle(idToken)
             }
         } catch (exception: ApiException) {
             authViewModel.onExternalAuthFailed(
-                "Google sign-in was cancelled or failed (${exception.statusCode})"
+                "Google sign-in was cancelled or failed (${exception.statusCode})",
+                resetAuth = googleLoginSource == GoogleLoginSource.AuthFlow
             )
         } catch (throwable: Throwable) {
-            authViewModel.onExternalAuthFailed(throwable.message ?: "Google sign-in failed")
+            authViewModel.onExternalAuthFailed(
+                throwable.message ?: "Google sign-in failed",
+                resetAuth = googleLoginSource == GoogleLoginSource.AuthFlow
+            )
         }
+        googleLoginSource = GoogleLoginSource.AuthFlow
     }
 
+    val authStartRoutes = remember {
+        setOf(Screen.Login.route, Screen.Register.route, Screen.ForgetPassword.route)
+    }
+    var lastAuthState by remember { mutableStateOf(authState.value.isAuthenticated) }
     LaunchedEffect(authState.value.isAuthenticated) {
-        if (authState.value.isAuthenticated) {
+        val current = authState.value.isAuthenticated
+        val previous = lastAuthState
+        val currentRoute = navController.currentBackStackEntry?.destination?.route
+        if (!previous && current && currentRoute in authStartRoutes && googleLoginSource == GoogleLoginSource.AuthFlow) {
             navController.navigate(Screen.Home.route) {
                 popUpTo(Screen.Login.route) { inclusive = true }
             }
         }
+        lastAuthState = current
     }
 
     LaunchedEffect(pendingRoute) {
@@ -125,6 +148,7 @@ fun MassagerNavHost(
                 onForgotPassword = { navController.navigate(Screen.ForgetPassword.route) },
                 onGuestLogin = { authViewModel.enterGuestMode() },
                 onGoogleLogin = {
+                    googleLoginSource = GoogleLoginSource.AuthFlow
                     authViewModel.beginGoogleLogin()
                     googleSignInLauncher.launch(googleSignInClient.signInIntent)
                 },
@@ -354,7 +378,9 @@ fun MassagerNavHost(
                         }
                         launchSingleTop = true
                     }
-                }
+                },
+                onOpenUserAgreement = { navController.navigate(Screen.UserAgreement.route) },
+                onOpenPrivacyPolicy = { navController.navigate(Screen.PrivacyPolicy.route) }
             )
         }
         composable(Screen.PersonalInfo.route) {
@@ -383,7 +409,12 @@ fun MassagerNavHost(
                 onDeleteAccount = { navController.navigate(Screen.DeleteAccount.route) },
                 onRequestLogout = { viewModel.toggleLogoutDialog(true) },
                 onConfirmLogout = { viewModel.logout() },
-                onDismissLogoutDialog = { viewModel.toggleLogoutDialog(false) }
+                onDismissLogoutDialog = { viewModel.toggleLogoutDialog(false) },
+                onBindGoogle = {
+                    googleLoginSource = GoogleLoginSource.AccountSecurity
+                    authViewModel.beginGoogleLogin()
+                    googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                }
             )
         }
         composable(Screen.ChangePassword.route) {

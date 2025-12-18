@@ -48,6 +48,12 @@
     <string name="set_password">设置密码</string>
     <string name="third_party_title">第三方账号信息</string>
     <string name="go_to_binding">前往绑定</string>
+    <string name="third_party_bound">已绑定</string>
+    <string name="third_party_binding_blocked_fb">已绑定 Facebook，无需再次绑定</string>
+    <string name="third_party_already_bound">已绑定</string>
+    <string name="third_party_bound_title">已绑定 Google</string>
+    <string name="third_party_bound_message">当前账号已完成 Google 绑定，无需重复操作。</string>
+    <string name="third_party_bound_ok">我知道了</string>
     <string name="delete_account">注销账号</string>
     <string name="logout">退出登录</string>
     <string name="logout_confirm">确定要退出登录吗？</string>
@@ -262,6 +268,12 @@
     <string name="register_placeholder_verification_code">请输入验证码</string>
     <string name="register_send_code">获取验证码</string>
     <string name="register_send_code_countdown">%1$d秒</string>
+    <string name="action_submit">提交</string>
+    <string name="action_back_to_login">返回登录</string>
+    <string name="auth_terms_prefix">继续操作即表示同意</string>
+    <string name="auth_terms_user_agreement">用户协议</string>
+    <string name="auth_terms_privacy_policy">隐私政策</string>
+    <string name="error_password_letters_and_numbers">请使用字母和数字组合（不能全数字）</string>
     <string name="error_email_empty">邮箱不能为空</string>
     <string name="error_email_invalid">请输入有效的邮箱</string>
     <string name="error_password_empty">密码不能为空</string>

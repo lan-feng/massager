@@ -65,12 +65,14 @@ fun AccountSecurityScreen(
     onDeleteAccount: () -> Unit,
     onRequestLogout: () -> Unit,
     onConfirmLogout: () -> Unit,
-    onDismissLogoutDialog: () -> Unit
+    onDismissLogoutDialog: () -> Unit,
+    onBindGoogle: () -> Unit
 ) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
     val guestRestrictionText = stringResource(id = R.string.guest_mode_cloud_restricted)
     var contentVisible by remember { mutableStateOf(false) }
+    var showBoundDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         contentVisible = true
@@ -156,14 +158,16 @@ fun AccountSecurityScreen(
                                         onClick = {
                                             if (state.isGuestMode) {
                                                 restrictedClick()
+                                            } else if (state.facebookBound) {
+                                                Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.third_party_binding_blocked_fb),
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            } else if (binding.isBound) {
+                                                showBoundDialog = true
                                             } else {
-                                                Toast
-                                                    .makeText(
-                                                        context,
-                                                        context.getString(R.string.third_party_binding_coming_soon),
-                                                        Toast.LENGTH_SHORT
-                                                    )
-                                                    .show()
+                                                onBindGoogle()
                                             }
                                         }
                                     )
@@ -233,6 +237,20 @@ fun AccountSecurityScreen(
             }
         )
     }
+
+    if (showBoundDialog) {
+        AlertDialog(
+            onDismissRequest = { showBoundDialog = false },
+            title = { Text(text = stringResource(id = R.string.third_party_bound_title)) },
+            text = { Text(text = stringResource(id = R.string.third_party_bound_message)) },
+            confirmButton = {
+                Button(onClick = { showBoundDialog = false }) {
+                    Text(text = stringResource(id = R.string.third_party_bound_ok))
+                }
+            },
+            dismissButton = {}
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -294,8 +312,9 @@ private fun ThirdPartyAccountRow(
             Text(text = stringResource(id = binding.platform.displayNameRes))
         },
         supportingContent = {
+            val textRes = if (binding.isBound) R.string.third_party_bound else R.string.go_to_binding
             Text(
-                text = stringResource(id = R.string.go_to_binding),
+                text = stringResource(id = textRes),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
@@ -332,7 +351,5 @@ private fun PlatformBadge(
 }
 
 private fun ThirdPartyPlatform.badgeColor(): Color = when (this) {
-    ThirdPartyPlatform.Facebook -> Color(0xFF1877F2)
     ThirdPartyPlatform.Google -> Color(0xFF34A853)
-    ThirdPartyPlatform.Apple -> Color(0xFF1C1C1E)
 }

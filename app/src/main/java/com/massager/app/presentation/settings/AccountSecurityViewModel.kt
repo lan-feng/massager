@@ -23,9 +23,7 @@ class AccountSecurityViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(
         AccountSecurityUiState(
-            thirdPartyAccounts = ThirdPartyPlatform.values().map { platform ->
-                ThirdPartyAccountBinding(platform = platform, isBound = false)
-            }
+            thirdPartyAccounts = listOf(ThirdPartyAccountBinding(platform = ThirdPartyPlatform.Google, isBound = false))
         )
     )
     val uiState: StateFlow<AccountSecurityUiState> = _uiState.asStateFlow()
@@ -62,7 +60,18 @@ class AccountSecurityViewModel @Inject constructor(
         viewModelScope.launch {
             getUserProfileUseCase()
                 .onSuccess { profile ->
-                    _uiState.update { it.copy(userEmail = profile.email) }
+                    _uiState.update {
+                        it.copy(
+                            userEmail = profile.email,
+                            thirdPartyAccounts = listOf(
+                                ThirdPartyAccountBinding(
+                                    platform = ThirdPartyPlatform.Google,
+                                    isBound = !profile.firebaseUid.isNullOrBlank()
+                                )
+                            ),
+                            facebookBound = !profile.facebookUid.isNullOrBlank()
+                        )
+                    }
                 }
                 .onFailure {
                     // Keep previous email if available; no explicit error handling required here.
@@ -76,7 +85,8 @@ data class AccountSecurityUiState(
     val thirdPartyAccounts: List<ThirdPartyAccountBinding> = emptyList(),
     val showLogoutDialog: Boolean = false,
     val logoutCompleted: Boolean = false,
-    val isGuestMode: Boolean = false
+    val isGuestMode: Boolean = false,
+    val facebookBound: Boolean = false
 )
 
 data class ThirdPartyAccountBinding(
@@ -88,16 +98,8 @@ enum class ThirdPartyPlatform(
     val displayNameRes: Int,
     val badgeLabel: String
 ) {
-    Facebook(
-        displayNameRes = com.massager.app.R.string.third_party_facebook,
-        badgeLabel = "f"
-    ),
     Google(
         displayNameRes = com.massager.app.R.string.third_party_google,
         badgeLabel = "G"
-    ),
-    Apple(
-        displayNameRes = com.massager.app.R.string.third_party_apple,
-        badgeLabel = "A"
     )
 }

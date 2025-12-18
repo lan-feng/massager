@@ -8,6 +8,7 @@ import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFact
 import com.massager.app.BuildConfig
 import com.massager.app.data.remote.AuthApiService
 import com.massager.app.data.remote.AuthInterceptor
+import com.massager.app.data.remote.AcceptLanguageInterceptor
 import com.massager.app.data.remote.MassagerApiService
 import com.massager.app.data.remote.UserApiService
 import dagger.Module
@@ -29,12 +30,14 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
-        authInterceptor: AuthInterceptor
+        authInterceptor: AuthInterceptor,
+        acceptLanguageInterceptor: AcceptLanguageInterceptor
     ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
         return OkHttpClient.Builder()
+            .addInterceptor(acceptLanguageInterceptor)
             .addInterceptor(authInterceptor)
             .addInterceptor(logging)
             .build()

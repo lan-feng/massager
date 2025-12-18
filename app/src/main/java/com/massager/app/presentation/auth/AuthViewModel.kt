@@ -84,7 +84,6 @@ class AuthViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             isLoading = true,
             errorMessage = null,
-            isAuthenticated = false,
             isGuest = false
         )
     }
@@ -94,7 +93,6 @@ class AuthViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             isLoading = true,
             errorMessage = null,
-            isAuthenticated = false,
             isGuest = false
         )
         viewModelScope.launch {
@@ -143,11 +141,11 @@ class AuthViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
-    fun onExternalAuthFailed(message: String) {
+    fun onExternalAuthFailed(message: String, resetAuth: Boolean = true) {
         _uiState.value = _uiState.value.copy(
             isLoading = false,
             errorMessage = message,
-            isAuthenticated = false
+            isAuthenticated = if (resetAuth) false else _uiState.value.isAuthenticated
         )
     }
 

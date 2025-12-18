@@ -6,5 +6,8 @@ data class UserProfile(
     val name: String,
     val email: String,
     val avatarUrl: String?,
-    val cacheSize: String?
+    val cacheSize: String?,
+    val firebaseUid: String? = null,
+    val appleUserId: String? = null,
+    val facebookUid: String? = null
 )

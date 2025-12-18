@@ -6,13 +6,24 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class UserInfoResponse(
+    @SerialName("token") val token: String? = null,
+    @SerialName("tokenType") val tokenType: String? = null,
+    @SerialName("expiresIn") val expiresIn: Long? = null,
+    @SerialName("userInfo") val user: UserPayload
+)
+
+@Serializable
+data class UserPayload(
     val id: Long,
     val email: String,
     val name: String,
     @SerialName("avatarUrl") val avatarUrl: String? = null,
     @SerialName("appid") val appId: String? = null,
     val timezone: String? = null,
-    val country: String? = null
+    val country: String? = null,
+    @SerialName("firebaseUid") val firebaseUid: String? = null,
+    @SerialName("appleUserId") val appleUserId: String? = null,
+    @SerialName("facebookUid") val facebookUid: String? = null
 )
 
 @Serializable

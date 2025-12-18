@@ -20,6 +20,15 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var languageManager: LanguageManager
     @Inject lateinit var themeManager: ThemeManager
 
+    override fun attachBaseContext(newBase: android.content.Context?) {
+        if (newBase == null) {
+            super.attachBaseContext(null)
+            return
+        }
+        val wrapped = LanguageManager.wrapWithPersistedLocale(newBase)
+        super.attachBaseContext(wrapped)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
