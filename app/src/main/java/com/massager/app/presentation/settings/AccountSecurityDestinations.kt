@@ -3,6 +3,7 @@ package com.massager.app.presentation.settings
 // 文件说明：定义账户安全相关的导航路由与参数常量。
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,7 +24,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,6 +55,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
+import com.massager.app.presentation.components.ThemedSnackbarHost
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,7 +96,7 @@ fun ChangePasswordScreen(
     var confirmPasswordVisible by remember { mutableStateOf(false) }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        snackbarHost = { ThemedSnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(text = stringResource(id = R.string.set_new_password_title)) },
@@ -233,6 +234,7 @@ fun DeleteAccountConfirmScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(uiState.success) {
         if (uiState.success) {
@@ -243,8 +245,7 @@ fun DeleteAccountConfirmScreen(
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.takeIf { it.isNotBlank() }?.let { message ->
-            // Simple toast instead of snackbar to keep screen lightweight.
-            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+            snackbarHostState.showSnackbar(message)
             viewModel.clearError()
         }
     }
@@ -253,54 +254,62 @@ fun DeleteAccountConfirmScreen(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.massagerExtendedColors.surfaceSubtle
     ) {
-        Column {
-            TopAppBar(
-                title = { Text(text = stringResource(id = R.string.delete_account_confirm_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = stringResource(id = R.string.delete_account_confirm_description),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-                if (uiState.isLoading) {
-                    LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column {
+                TopAppBar(
+                    title = { Text(text = stringResource(id = R.string.delete_account_confirm_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
                     )
-                }
-                Button(
-                    onClick = { viewModel.deleteAccount() },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = uiState.isLoading.not()
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(text = stringResource(id = R.string.delete_account_confirm_button))
-                }
-                Button(
-                    onClick = onBack,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = uiState.isLoading.not()
-                ) {
-                    Text(text = stringResource(id = R.string.delete_account_cancel_button))
+                    Text(
+                        text = stringResource(id = R.string.delete_account_confirm_description),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    if (uiState.isLoading) {
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp)
+                        )
+                    }
+                    Button(
+                        onClick = { viewModel.deleteAccount() },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = uiState.isLoading.not()
+                    ) {
+                        Text(text = stringResource(id = R.string.delete_account_confirm_button))
+                    }
+                    Button(
+                        onClick = onBack,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = uiState.isLoading.not()
+                    ) {
+                        Text(text = stringResource(id = R.string.delete_account_cancel_button))
+                    }
                 }
             }
+            ThemedSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+            )
         }
     }
 }

@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -20,6 +21,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.massager.app.R
+import com.massager.app.core.preferences.LanguageManager
 import com.massager.app.presentation.auth.AuthViewModel
 import com.massager.app.presentation.auth.LoginScreen
 import com.massager.app.presentation.auth.ForgetPasswordScreen
@@ -49,6 +51,9 @@ import com.massager.app.presentation.settings.WebDocumentScreen
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import java.util.Locale
+import android.os.LocaleList
+import android.content.res.Configuration
 import kotlinx.coroutines.flow.collectLatest
 
 private enum class GoogleLoginSource { AuthFlow, AccountSecurity }
@@ -63,6 +68,8 @@ fun MassagerNavHost(
     val authViewModel: AuthViewModel = hiltViewModel()
     val authState = authViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    var preservedLocales by remember { mutableStateOf(configuration.locales) }
 
     val googleSignInClient = remember {
         val webClientId = context.getString(R.string.default_web_client_id)
@@ -76,10 +83,25 @@ fun MassagerNavHost(
     }
 
     var googleLoginSource by remember { mutableStateOf(GoogleLoginSource.AuthFlow) }
+    var onExternalGoogleBindSuccess by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var onExternalGoogleBindFailed by remember { mutableStateOf<((String?) -> Unit)?>(null) }
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        // Google 登录返回后强制恢复持久化语言，避免外部 Activity 覆盖为英文
+        val localesToRestore = preservedLocales
+        // 恢复绑定前的语言环境，避免 Google 登录修改默认 Locale
+        if (localesToRestore.size() > 0) {
+            LocaleList.setDefault(localesToRestore)
+            Locale.setDefault(localesToRestore[0])
+            val resources = context.applicationContext.resources
+            val config = Configuration(resources.configuration).apply { setLocales(localesToRestore) }
+            @Suppress("DEPRECATION")
+            resources.updateConfiguration(config, resources.displayMetrics)
+        } else {
+            LanguageManager.preloadPersistedLocale(context.applicationContext)
+        }
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
             val account = task.getResult(ApiException::class.java)
@@ -90,7 +112,12 @@ fun MassagerNavHost(
                     resetAuth = googleLoginSource == GoogleLoginSource.AuthFlow
                 )
             } else {
-                authViewModel.loginWithGoogle(idToken)
+                authViewModel.loginWithGoogle(
+                    idToken,
+                    onSuccess = onExternalGoogleBindSuccess,
+                    onFailure = onExternalGoogleBindFailed,
+                    resetAuth = googleLoginSource == GoogleLoginSource.AuthFlow
+                )
             }
         } catch (exception: ApiException) {
             authViewModel.onExternalAuthFailed(
@@ -104,6 +131,8 @@ fun MassagerNavHost(
             )
         }
         googleLoginSource = GoogleLoginSource.AuthFlow
+        onExternalGoogleBindSuccess = null
+        onExternalGoogleBindFailed = null
     }
 
     val authStartRoutes = remember {
@@ -149,11 +178,13 @@ fun MassagerNavHost(
                 onGuestLogin = { authViewModel.enterGuestMode() },
                 onGoogleLogin = {
                     googleLoginSource = GoogleLoginSource.AuthFlow
+                    preservedLocales = configuration.locales
                     authViewModel.beginGoogleLogin()
                     googleSignInLauncher.launch(googleSignInClient.signInIntent)
                 },
                 onOpenUserAgreement = { navController.navigate(Screen.UserAgreement.route) },
-                onOpenPrivacyPolicy = { navController.navigate(Screen.PrivacyPolicy.route) }
+                onOpenPrivacyPolicy = { navController.navigate(Screen.PrivacyPolicy.route) },
+                onConsumeError = authViewModel::clearError
             )
         }
         composable(Screen.Register.route) {
@@ -412,9 +443,16 @@ fun MassagerNavHost(
                 onDismissLogoutDialog = { viewModel.toggleLogoutDialog(false) },
                 onBindGoogle = {
                     googleLoginSource = GoogleLoginSource.AccountSecurity
+                    preservedLocales = configuration.locales
+                    onExternalGoogleBindSuccess = viewModel::onExternalBindSuccess
+                    onExternalGoogleBindFailed = viewModel::onExternalBindFailed
+                    viewModel.onExternalBindStart()
                     authViewModel.beginGoogleLogin()
                     googleSignInLauncher.launch(googleSignInClient.signInIntent)
-                }
+                },
+                onUnbind = viewModel::unbind,
+                onConsumeUnbindResult = viewModel::consumeUnbindResult,
+                onConsumeBindResult = viewModel::consumeBindResult
             )
         }
         composable(Screen.ChangePassword.route) {

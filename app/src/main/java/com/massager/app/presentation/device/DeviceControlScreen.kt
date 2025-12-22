@@ -61,7 +61,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Slider
@@ -119,6 +118,7 @@ import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
 import com.massager.app.presentation.navigation.DeviceScanSource
 import com.massager.app.presentation.device.DeviceViewModel
+import com.massager.app.presentation.components.ThemedSnackbarHost
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -355,7 +355,7 @@ private fun DeviceControlContent(
                 )
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { ThemedSnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle
     ) { paddingValues ->
         Box(

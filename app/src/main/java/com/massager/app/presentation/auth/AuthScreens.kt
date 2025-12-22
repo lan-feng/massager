@@ -2,7 +2,6 @@ package com.massager.app.presentation.auth
 
 // 文件说明：Compose 实现的登录、注册、重置密码界面与导航。
 import android.util.Patterns
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -16,17 +15,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -51,7 +55,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
@@ -73,6 +76,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
@@ -86,9 +90,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.massager.app.R
+import com.massager.app.presentation.components.ThemedSnackbarHost
 import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -103,10 +109,13 @@ fun LoginScreen(
     onGoogleLogin: () -> Unit = {},
     onFacebookLogin: () -> Unit = {},
     onOpenUserAgreement: () -> Unit = {},
-    onOpenPrivacyPolicy: () -> Unit = {}
+    onOpenPrivacyPolicy: () -> Unit = {},
+    onConsumeError: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var emailError by remember { mutableStateOf<String?>(null) }
@@ -136,41 +145,28 @@ fun LoginScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        AnimatedVisibility(
-            visible = isVisible,
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(horizontal = 24.dp, vertical = 28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        Box(modifier = Modifier.fillMaxSize()) {
+            AnimatedVisibility(
+                visible = isVisible,
+                enter = fadeIn(),
+                exit = fadeOut()
             ) {
-                AuthLogo()
-                Spacer(modifier = Modifier.height(24.dp))
-
-                AnimatedVisibility(
-                    visible = state.errorMessage != null,
-                    enter = fadeIn(),
-                    exit = fadeOut()
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 24.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    AuthLogo()
+                    Spacer(modifier = Modifier.height(24.dp))
+
                     state.errorMessage?.let { message ->
-                        OutlinedCard(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp),
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Text(
-                                text = message,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(16.dp)
-                            )
+                        LaunchedEffect(message) {
+                            snackbarHostState.showSnackbar(message)
+                            onConsumeError()
                         }
                     }
-                }
 
                 LoginTextField(
                     value = email,
@@ -415,13 +411,24 @@ fun LoginScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(28.dp))
+                    Spacer(modifier = Modifier.weight(1f, fill = true))
 
-                AuthFooter(
-                    onOpenUserAgreement = onOpenUserAgreement,
-                    onOpenPrivacyPolicy = onOpenPrivacyPolicy
-                )
+                    AuthFooter(
+                        onOpenUserAgreement = onOpenUserAgreement,
+                        onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(bottom = 1.dp)
+                    )
+                }
             }
+            ThemedSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+            )
         }
     }
 }
@@ -431,7 +438,7 @@ fun LoginScreen(
 private fun LoginTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
+    label: String, // 用于 contentDescription，不展示 label
     placeholder: String,
     leadingIcon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier = Modifier,
@@ -439,67 +446,77 @@ private fun LoginTextField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    singleLine: Boolean = true,
+    enabled: Boolean = true,
     isError: Boolean = false,
     supportingText: String? = null,
     shape: RoundedCornerShape,
     background: Color,
     contentColor: Color
 ) {
-    OutlinedTextField(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(background),
-        value = value,
-        onValueChange = onValueChange,
-        singleLine = true,
-        label = {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = contentColor.copy(alpha = 0.8f)
-            )
-        },
-        placeholder = {
-            Text(
-                text = placeholder,
-                style = MaterialTheme.typography.bodyMedium,
-                color = contentColor.copy(alpha = 0.6f)
-            )
-        },
-        leadingIcon = {
-            Icon(
-                imageVector = leadingIcon,
-                contentDescription = label,
-                modifier = Modifier.size(22.dp),
-                tint = contentColor.copy(alpha = 0.9f)
-            )
-        },
-        trailingIcon = trailingIcon,
-        textStyle = MaterialTheme.typography.bodyLarge.copy(color = contentColor),
-        visualTransformation = visualTransformation,
-        keyboardOptions = keyboardOptions,
-        keyboardActions = keyboardActions,
-        isError = isError,
-        colors = TextFieldDefaults.outlinedTextFieldColors(
-            focusedBorderColor = Color.Transparent,
-            unfocusedBorderColor = Color.Transparent,
-            disabledBorderColor = Color.Transparent,
-            errorBorderColor = MaterialTheme.colorScheme.error,
-            containerColor = Color.Transparent,
-            cursorColor = contentColor
-        ),
-        shape = shape,
-        supportingText = {
-            supportingText?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(background)
+                .defaultMinSize(minHeight = 64.dp)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier.size(20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = leadingIcon,
+                    contentDescription = label,
+                    tint = contentColor.copy(alpha = 0.9f),
+                    modifier = Modifier.size(18.dp)
                 )
             }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .defaultMinSize(minHeight = 32.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        text = placeholder,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = contentColor.copy(alpha = 0.6f)
+                    )
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    enabled = enabled,
+                    singleLine = singleLine,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = contentColor),
+                    visualTransformation = visualTransformation,
+                    keyboardOptions = keyboardOptions,
+                    keyboardActions = keyboardActions,
+                    cursorBrush = SolidColor(contentColor),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            trailingIcon?.let { icon ->
+                Box(contentAlignment = Alignment.Center) {
+                    icon()
+                }
+            }
         }
-    )
+        supportingText?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 10.dp, top = 4.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -545,7 +562,12 @@ fun RegisterScreen(
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
     val brand = MaterialTheme.massagerExtendedColors.band
+    val brandDeep = MaterialTheme.massagerExtendedColors.bandDeep
+    val fieldShape = RoundedCornerShape(14.dp)
+    val fieldBackground = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+    val fieldContent = MaterialTheme.colorScheme.onSurface
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var verificationCode by remember { mutableStateOf("") }
@@ -586,27 +608,33 @@ fun RegisterScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        AnimatedVisibility(
-            visible = isVisible,
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            AnimatedVisibility(
+                visible = isVisible,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
-                    .padding(horizontal = 24.dp, vertical = 32.dp),
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                AuthLogo()
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = stringResource(id = R.string.login_action_signup),
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontWeight = FontWeight.Bold
-                    )
+            AuthLogo()
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = stringResource(id = R.string.login_action_signup),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    color = brand
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.Start),
+                    textAlign = TextAlign.Start
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 AnimatedVisibility(
                     visible = state.errorMessage != null,
@@ -629,8 +657,7 @@ fun RegisterScreen(
                     }
                 }
 
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
+                LoginTextField(
                     value = email,
                     onValueChange = { input ->
                         val sanitized = input.trimEnd { ch -> ch.isWhitespace() }
@@ -648,22 +675,18 @@ fun RegisterScreen(
                             else -> null
                         }
                     },
-                    label = { Text(stringResource(id = R.string.login_label_email)) },
-                    placeholder = { Text(stringResource(id = R.string.login_placeholder_email)) },
+                    label = stringResource(id = R.string.login_label_email),
+                    placeholder = stringResource(id = R.string.login_placeholder_email),
+                    leadingIcon = Icons.Default.MailOutline,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Next
                     ),
                     isError = emailError != null,
-                    supportingText = {
-                        emailError?.let {
-                            Text(
-                                text = it,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
+                    supportingText = emailError,
+                    shape = fieldShape,
+                    background = fieldBackground,
+                    contentColor = fieldContent
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -672,58 +695,71 @@ fun RegisterScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedTextField(
-                        modifier = Modifier.weight(1f),
-                        value = verificationCode,
-                        onValueChange = { input ->
-                            verificationCode = input.trimEnd { ch -> ch.isWhitespace() }
+                LoginTextField(
+                    modifier = Modifier.weight(1f),
+                    value = verificationCode,
+                    onValueChange = { input ->
+                        verificationCode = input.trimEnd { ch -> ch.isWhitespace() }
                         },
-                        label = { Text(stringResource(id = R.string.register_label_verification_code)) },
-                        placeholder = { Text(stringResource(id = R.string.register_placeholder_verification_code)) },
+                        label = stringResource(id = R.string.register_label_verification_code),
+                        placeholder = stringResource(id = R.string.register_placeholder_verification_code),
+                        leadingIcon = Icons.Default.MailOutline,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Number,
                             imeAction = ImeAction.Next
-                        )
+                        ),
+                        shape = fieldShape,
+                        background = fieldBackground,
+                        contentColor = fieldContent,
+                        trailingIcon = {
+                            OutlinedButton(
+                                onClick = {
+                                    focusManager.clearFocus()
+                                    if (email.isBlank() || emailError != null) {
+                                        emailError = context.getString(R.string.error_email_invalid)
+                                        return@OutlinedButton
+                                    }
+                                    if (isSendingCode || countdown > 0) return@OutlinedButton
+                                    coroutineScope.launch {
+                                        isSendingCode = true
+                                        countdown = 60
+                                        val result = onSendVerificationCode(email.trim())
+                                        if (result.isSuccess) {
+                                            snackbarHostState.showSnackbar(context.getString(R.string.verification_code_sent))
+                                        } else {
+                                            countdown = 0
+                                            snackbarHostState.showSnackbar(
+                                                result.exceptionOrNull()?.message
+                                                    ?: context.getString(R.string.verification_code_failed)
+                                            )
+                                        }
+                                        isSendingCode = false
+                                    }
+                                },
+                                enabled = countdown == 0 && !state.isLoading && !isSendingCode,
+                                shape = RoundedCornerShape(16.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = brand,
+                                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                border = BorderStroke(
+                                    1.dp,
+                                    brush = Brush.linearGradient(listOf(brandDeep, brand))
+                                )
+                            ) {
+                                Text(
+                                    text = if (countdown == 0) stringResource(id = R.string.register_send_code)
+                                    else stringResource(id = R.string.register_send_code_countdown, countdown)
+                                )
+                            }
+                        }
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    OutlinedButton(
-                        onClick = {
-                            focusManager.clearFocus()
-                            if (email.isBlank() || emailError != null) {
-                                emailError = context.getString(R.string.error_email_invalid)
-                                return@OutlinedButton
-                            }
-                            if (isSendingCode || countdown > 0) return@OutlinedButton
-                            coroutineScope.launch {
-                                isSendingCode = true
-                                countdown = 60
-                                val result = onSendVerificationCode(email.trim())
-                                if (result.isSuccess) {
-                                    Toast.makeText(context, context.getString(R.string.verification_code_sent), Toast.LENGTH_SHORT).show()
-                                } else {
-                                    countdown = 0
-                                    Toast.makeText(
-                                        context,
-                                        result.exceptionOrNull()?.message ?: context.getString(R.string.verification_code_failed),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                                isSendingCode = false
-                            }
-                        },
-                        enabled = countdown == 0 && !state.isLoading && !isSendingCode,
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text(
-                            if (countdown == 0) stringResource(id = R.string.register_send_code)
-                            else stringResource(id = R.string.register_send_code_countdown, countdown)
-                        )
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                OutlinedTextField(
+                LoginTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = password,
                     onValueChange = { input ->
@@ -731,8 +767,9 @@ fun RegisterScreen(
                         password = sanitized
                         passwordError = validatePassword(context, sanitized)
                     },
-                    label = { Text(stringResource(id = R.string.login_label_password)) },
-                    placeholder = { Text(stringResource(id = R.string.login_placeholder_password)) },
+                    label = stringResource(id = R.string.login_label_password),
+                    placeholder = stringResource(id = R.string.login_placeholder_password),
+                    leadingIcon = Icons.Default.Person,
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
@@ -760,18 +797,17 @@ fun RegisterScreen(
                     ),
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     isError = passwordError != null,
-                    supportingText = {
-                        passwordError?.let {
-                            Text(
-                                text = it,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
+                    supportingText = passwordError,
+                    shape = fieldShape,
+                    background = fieldBackground,
+                    contentColor = fieldContent
                 )
-
-                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = stringResource(R.string.password_rule),
+                    style = MaterialTheme.typography.bodySmall.copy(color = brand),
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 Button(
                     onClick = {
@@ -789,7 +825,11 @@ fun RegisterScreen(
                         passwordError = validatePassword(context, password)
                         if (passwordError != null) return@Button
                         if (verificationCode.isBlank()) {
-                            Toast.makeText(context, context.getString(R.string.register_placeholder_verification_code), Toast.LENGTH_SHORT).show()
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(
+                                    context.getString(R.string.register_placeholder_verification_code)
+                                )
+                            }
                             return@Button
                         }
                         onRegister(
@@ -801,12 +841,17 @@ fun RegisterScreen(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = canSubmit,
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(22.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = brand,
                         disabledContainerColor = brand.copy(alpha = 0.4f),
-                        contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
-                    )
+                        contentColor = Color.White
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 8.dp,
+                        pressedElevation = 2.dp
+                    ),
+                    contentPadding = PaddingValues(vertical = 16.dp)
                 ) {
                     if (state.isLoading) {
                         CircularProgressIndicator(
@@ -829,18 +874,33 @@ fun RegisterScreen(
                     onClick = onNavigateToLogin,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp)
+                        .padding(top = 12.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = brand)
                 ) {
-                    Text(stringResource(id = R.string.action_back_to_login))
+                    Text(
+                        text = stringResource(id = R.string.action_back_to_login),
+                        style = MaterialTheme.typography.bodyMedium.copy(color = brand, fontWeight = FontWeight.Medium)
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.weight(1f, fill = true))
 
                 AuthFooter(
                     onOpenUserAgreement = onOpenUserAgreement,
-                    onOpenPrivacyPolicy = onOpenPrivacyPolicy
+                    onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = 1.dp)
                 )
             }
+            }
+            ThemedSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+            )
         }
     }
 }
@@ -863,12 +923,20 @@ fun ForgetPasswordScreen(
     val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val brand = MaterialTheme.massagerExtendedColors.band
+    val brandDeep = MaterialTheme.massagerExtendedColors.bandDeep
+    val fieldShape = RoundedCornerShape(14.dp)
+    val fieldBackground = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+    val fieldContent = MaterialTheme.colorScheme.onSurface
 
     var email by remember { mutableStateOf("") }
     var verificationCode by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var localCountdown by remember { mutableIntStateOf(0) }
+    var isSendingLocal by remember { mutableStateOf(false) }
     var logoVisible by remember { mutableStateOf(false) }
+    var emailErrorMessage by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     val passwordPattern = remember { Regex("^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{6,12}$") }
     val trimmedEmail = email.trim()
@@ -877,20 +945,18 @@ fun ForgetPasswordScreen(
     val isPasswordValid = passwordPattern.matches(password)
     val isSubmitEnabled = isEmailValid && verificationCode.isNotBlank() && isPasswordValid && !state.isResetting
 
-    LaunchedEffect(Unit) {
-        logoVisible = true
-    }
+    LaunchedEffect(Unit) { logoVisible = true }
 
     state.toastMessageRes?.let { resId ->
         LaunchedEffect(resId) {
-            Toast.makeText(context, context.getString(resId), Toast.LENGTH_SHORT).show()
+            snackbarHostState.showSnackbar(context.getString(resId))
             onConsumeToast()
         }
     }
 
     state.errorMessage?.let { message ->
         LaunchedEffect(message) {
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            snackbarHostState.showSnackbar(message)
             onConsumeError()
         }
     }
@@ -900,204 +966,284 @@ fun ForgetPasswordScreen(
             val message = context.getString(resId)
             snackbarHostState.showSnackbar(message)
             onConsumeSnackbar()
-            if (resId == R.string.password_reset_success) {
-                onPasswordResetSuccess()
-            }
+            if (resId == R.string.password_reset_success) onPasswordResetSuccess()
         }
     }
 
-    val sendCodeEnabled = state.countdownSeconds == 0 && !state.isSendingCode && !state.isResetting
+    LaunchedEffect(localCountdown) {
+        if (localCountdown > 0) {
+            delay(1_000)
+            localCountdown -= 1
+        } else if (isSendingLocal) {
+            isSendingLocal = false
+        }
+    }
+
+    val sendCodeEnabled = state.countdownSeconds == 0 && localCountdown == 0 && !state.isSendingCode && !state.isResetting && !isSendingLocal
 
     fun handleSendCode() {
         val currentEmail = email.trim()
         if (currentEmail.isEmpty() || !Patterns.EMAIL_ADDRESS.matcher(currentEmail).matches()) {
-            Toast.makeText(context, context.getString(R.string.invalid_email), Toast.LENGTH_SHORT).show()
-        } else {
-            onSendCode(currentEmail)
+            emailErrorMessage = if (currentEmail.isEmpty()) {
+                context.getString(R.string.error_email_empty)
+            } else {
+                context.getString(R.string.error_email_invalid)
+            }
+            email = currentEmail
+        } else if (sendCodeEnabled) {
+            isSendingLocal = true
+            localCountdown = 60
+            emailErrorMessage = null
+            coroutineScope.launch {
+                runCatching { onSendCode(currentEmail) }
+                    .onFailure {
+                        localCountdown = 0
+                        isSendingLocal = false
+                        snackbarHostState.showSnackbar(
+                            it.message ?: context.getString(R.string.verification_code_failed)
+                        )
+                    }
+            }
         }
     }
 
     fun handleSubmit() {
-        if (!isSubmitEnabled) return
-        onSubmit(email.trim(), verificationCode.trim(), password)
+        if (isSubmitEnabled) onSubmit(email.trim(), verificationCode.trim(), password)
     }
 
-    val getCodeText = if (state.countdownSeconds > 0) {
-        stringResource(R.string.resend_in_seconds, state.countdownSeconds)
+    val getCodeText = if (localCountdown > 0) {
+        stringResource(R.string.resend_in_seconds, localCountdown)
     } else {
         stringResource(R.string.get_code)
     }
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(text = stringResource(R.string.forget_password_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = null)
-                    }
-                }
-            )
-        },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            Spacer(modifier = Modifier.height(12.dp))
-
-            AnimatedVisibility(visible = logoVisible, enter = fadeIn()) {
-                AuthLogo()
-            }
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { input ->
-                    email = input.trimEnd { ch -> ch.isWhitespace() }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(text = stringResource(id = R.string.email_hint)) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.MailOutline,
-                        contentDescription = null
-                    )
-                },
-                singleLine = true,
-                isError = emailHasError,
-                enabled = !state.isResetting,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                )
-            )
-
-            OutlinedTextField(
-                value = verificationCode,
-                onValueChange = { input ->
-                    verificationCode = input.trimEnd { ch -> ch.isWhitespace() }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(text = stringResource(id = R.string.verification_hint)) },
-                singleLine = true,
-                enabled = !state.isResetting,
-                trailingIcon = {
-                    TextButton(
-                        onClick = ::handleSendCode,
-                        enabled = sendCodeEnabled
-                    ) {
-                        if (state.isSendingCode) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text(
-                                text = getCodeText,
-                                color = if (sendCodeEnabled) {
-                                    brand
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
-                        }
-                    }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                )
-            )
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { input ->
-                    password = input.trimEnd { ch -> ch.isWhitespace() }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(text = stringResource(id = R.string.password_hint)) },
-                singleLine = true,
-                isError = password.isNotEmpty() && !isPasswordValid,
-                enabled = !state.isResetting,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        if (isSubmitEnabled) {
-                            handleSubmit()
-                        } else {
-                            focusManager.clearFocus()
-                        }
-                    }
-                ),
-                visualTransformation = if (passwordVisible) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        val icon = if (passwordVisible) {
-                            Icons.Filled.Visibility
-                        } else {
-                            Icons.Filled.VisibilityOff
-                        }
-                        Icon(imageVector = icon, contentDescription = null)
-                    }
-                }
-            )
-
-            Text(
-                text = stringResource(R.string.password_rule),
-                style = MaterialTheme.typography.bodySmall.copy(color = brand),
-                textAlign = TextAlign.Start,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Button(
-                onClick = ::handleSubmit,
-                enabled = isSubmitEnabled,
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                shape = RoundedCornerShape(50.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = brand,
-                    disabledContainerColor = brand.copy(alpha = 0.4f),
-                    contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
-                ),
-                contentPadding = PaddingValues(vertical = 16.dp)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Top
             ) {
-                if (state.isResetting) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(20.dp)
-                    )
-                } else {
+                AnimatedVisibility(visible = logoVisible, enter = fadeIn()) { AuthLogo() }
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = stringResource(R.string.forget_password_title),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = brand
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.Start),
+                    textAlign = TextAlign.Start
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                AnimatedVisibility(
+                    visible = state.errorMessage != null,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    state.errorMessage?.let { message ->
+                        OutlinedCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Text(
+                                text = message,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                LoginTextField(
+                    value = email,
+                    onValueChange = { input ->
+                        email = input.trimEnd { ch -> ch.isWhitespace() }
+                        emailErrorMessage = null
+                    },
+                    label = stringResource(id = R.string.login_label_email),
+                    placeholder = stringResource(id = R.string.email_hint),
+                    leadingIcon = Icons.Filled.MailOutline,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = emailErrorMessage != null || emailHasError,
+                    supportingText = emailErrorMessage ?: if (emailHasError) stringResource(id = R.string.error_email_invalid) else null,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                    ),
+                    shape = fieldShape,
+                    background = fieldBackground,
+                    contentColor = fieldContent
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LoginTextField(
+                    value = verificationCode,
+                    onValueChange = { input -> verificationCode = input.trimEnd { ch -> ch.isWhitespace() } },
+                    label = stringResource(id = R.string.register_label_verification_code),
+                    placeholder = stringResource(id = R.string.verification_hint),
+                    leadingIcon = Icons.Filled.MailOutline,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    trailingIcon = {
+                        OutlinedButton(
+                            onClick = ::handleSendCode,
+                            enabled = sendCodeEnabled,
+                            shape = RoundedCornerShape(16.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = brand,
+                                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            border = BorderStroke(
+                                1.dp,
+                                brush = Brush.linearGradient(listOf(brandDeep, brand))
+                            )
+                        ) {
+                            if (state.isSendingCode) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(
+                                    text = getCodeText,
+                                    color = if (sendCodeEnabled) brand else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                    ),
+                    shape = fieldShape,
+                    background = fieldBackground,
+                    contentColor = fieldContent
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LoginTextField(
+                    value = password,
+                    onValueChange = { input -> password = input.trimEnd { ch -> ch.isWhitespace() } },
+                    label = stringResource(id = R.string.login_label_password),
+                    placeholder = stringResource(id = R.string.password_hint),
+                    leadingIcon = Icons.Filled.Person,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = password.isNotEmpty() && !isPasswordValid,
+                    enabled = !state.isResetting,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            if (isSubmitEnabled) handleSubmit() else focusManager.clearFocus()
+                        }
+                    ),
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            val icon = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                            Icon(imageVector = icon, contentDescription = null)
+                        }
+                    },
+                    shape = fieldShape,
+                    background = fieldBackground,
+                    contentColor = fieldContent
+                )
+
+                Text(
+                    text = stringResource(R.string.password_rule),
+                    style = MaterialTheme.typography.bodySmall.copy(color = brand),
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Button(
+                    onClick = ::handleSubmit,
+                    enabled = isSubmitEnabled,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = brand,
+                        disabledContainerColor = brand.copy(alpha = 0.4f),
+                        contentColor = Color.White
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 8.dp,
+                        pressedElevation = 2.dp
+                    ),
+                    contentPadding = PaddingValues(vertical = 16.dp)
+                ) {
+                    if (state.isResetting) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.submit),
+                            style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+                        )
+                    }
+                }
+
+                TextButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = brand)
+                ) {
                     Text(
-                        text = stringResource(R.string.submit),
-                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+                        text = stringResource(id = R.string.action_back_to_login),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = brand,
+                            fontWeight = FontWeight.Medium
+                        )
                     )
                 }
+
+                Spacer(modifier = Modifier.weight(1f, fill = true))
+
+                AuthFooter(
+                    onOpenUserAgreement = onOpenUserAgreement,
+                    onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = 1.dp)
+                )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
-
-            AuthFooter(
-                onOpenUserAgreement = onOpenUserAgreement,
-                onOpenPrivacyPolicy = onOpenPrivacyPolicy
+            ThemedSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp)
             )
         }
     }
@@ -1115,7 +1261,8 @@ private fun AuthLogo() {
 @Composable
 private fun AuthFooter(
     onOpenUserAgreement: (() -> Unit)?,
-    onOpenPrivacyPolicy: (() -> Unit)?
+    onOpenPrivacyPolicy: (() -> Unit)?,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     fun openUrl(resId: Int) {
@@ -1128,7 +1275,10 @@ private fun AuthFooter(
     }
 
     val accent = MaterialTheme.colorScheme.primary
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(
             text = stringResource(id = R.string.auth_terms_prefix),
             style = MaterialTheme.typography.bodySmall.copy(

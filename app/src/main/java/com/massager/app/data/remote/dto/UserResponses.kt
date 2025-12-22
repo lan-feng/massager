@@ -23,7 +23,14 @@ data class UserPayload(
     val country: String? = null,
     @SerialName("firebaseUid") val firebaseUid: String? = null,
     @SerialName("appleUserId") val appleUserId: String? = null,
-    @SerialName("facebookUid") val facebookUid: String? = null
+    @SerialName("facebookUid") val facebookUid: String? = null,
+    @SerialName("userSettings") val userSettings: Map<String, ThirdPartyProps?>? = null
+)
+
+@Serializable
+data class ThirdPartyProps(
+    val name: String? = null,
+    val email: String? = null
 )
 
 @Serializable

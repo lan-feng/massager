@@ -37,4 +37,9 @@ interface UserApiService {
     suspend fun deleteAccount(
         @Query("id") userId: Long
     ): ApiEnvelope<Unit>
+
+    @POST("auth/v1/user/unbind")
+    suspend fun unbindProvider(
+        @Query("provider") provider: String
+    ): ApiEnvelope<Unit>
 }

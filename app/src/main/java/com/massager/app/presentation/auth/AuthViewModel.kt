@@ -88,7 +88,12 @@ class AuthViewModel @Inject constructor(
         )
     }
 
-    fun loginWithGoogle(idToken: String) {
+    fun loginWithGoogle(
+        idToken: String,
+        onSuccess: (() -> Unit)? = null,
+        onFailure: ((String?) -> Unit)? = null,
+        resetAuth: Boolean = true
+    ) {
         sessionManager.disableGuestMode()
         _uiState.value = _uiState.value.copy(
             isLoading = true,
@@ -102,12 +107,12 @@ class AuthViewModel @Inject constructor(
                     errorMessage = null,
                     isAuthenticated = true,
                     isGuest = false
-                )
+                ).also { onSuccess?.invoke() }
                 is AuthResult.Error -> _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = result.message,
-                    isAuthenticated = false
-                )
+                    errorMessage = if (resetAuth) result.message else null,
+                    isAuthenticated = if (resetAuth) false else _uiState.value.isAuthenticated
+                ).also { onFailure?.invoke(result.message) }
                 else -> _uiState.value = AuthUiState()
             }
         }
@@ -144,7 +149,7 @@ class AuthViewModel @Inject constructor(
     fun onExternalAuthFailed(message: String, resetAuth: Boolean = true) {
         _uiState.value = _uiState.value.copy(
             isLoading = false,
-            errorMessage = message,
+            errorMessage = if (resetAuth) message else null,
             isAuthenticated = if (resetAuth) false else _uiState.value.isAuthenticated
         )
     }

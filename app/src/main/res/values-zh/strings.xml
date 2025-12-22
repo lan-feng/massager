@@ -64,6 +64,13 @@
     <string name="third_party_facebook">Facebook</string>
     <string name="third_party_google">Google</string>
     <string name="third_party_apple">Apple</string>
+    <string name="third_party_unbind">解绑</string>
+    <string name="third_party_unbind_cancel">取消</string>
+    <string name="third_party_unbind_confirm_title">解绑账号</string>
+    <string name="third_party_unbind_confirm_message">是否解绑该第三方账号？</string>
+    <string name="third_party_unbind_success">解绑成功</string>
+    <string name="third_party_unbind_failed">解绑失败，请重试。</string>
+    <string name="third_party_bind_success">绑定成功</string>
     <string name="device_remote_level_changed">设备硬件等级已变更：%1$d</string>
     <string name="change_password_title">修改密码</string>
     <string name="change_password_placeholder">密码管理功能即将上线。</string>

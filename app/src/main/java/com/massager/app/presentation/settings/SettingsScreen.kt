@@ -57,7 +57,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import com.massager.app.presentation.components.AppBottomNavigation
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -93,6 +92,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.massager.app.presentation.home.AppBottomTab
 import com.massager.app.presentation.theme.massagerExtendedColors
+import com.massager.app.presentation.components.ThemedSnackbarHost
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -305,7 +305,7 @@ fun SettingsScreen(
                 item { Spacer(modifier = Modifier.height(72.dp)) }
             }
 
-            SnackbarHost(
+            ThemedSnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

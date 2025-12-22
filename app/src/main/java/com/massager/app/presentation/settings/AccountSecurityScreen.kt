@@ -1,7 +1,6 @@
 package com.massager.app.presentation.settings
 
 // 文件说明：账户安全界面，提供密码找回、邮件验证等操作入口。
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,6 +16,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,14 +37,18 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import com.massager.app.presentation.components.ThemedSnackbarHost
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,10 +57,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,19 +74,27 @@ fun AccountSecurityScreen(
     onRequestLogout: () -> Unit,
     onConfirmLogout: () -> Unit,
     onDismissLogoutDialog: () -> Unit,
-    onBindGoogle: () -> Unit
+    onBindGoogle: () -> Unit,
+    onUnbind: (ThirdPartyPlatform) -> Unit,
+    onConsumeUnbindResult: () -> Unit,
+    onConsumeBindResult: () -> Unit
 ) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val guestRestrictionText = stringResource(id = R.string.guest_mode_cloud_restricted)
     var contentVisible by remember { mutableStateOf(false) }
-    var showBoundDialog by remember { mutableStateOf(false) }
+    var unbindTarget by remember { mutableStateOf<ThirdPartyPlatform?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val showBlockingLoader = state.isBinding || state.isUnbinding
 
     LaunchedEffect(Unit) {
         contentVisible = true
     }
     val restrictedClick: () -> Unit = {
-        Toast.makeText(context, guestRestrictionText, Toast.LENGTH_SHORT).show()
+        coroutineScope.launch {
+            snackbarHostState.showSnackbar(guestRestrictionText)
+        }
     }
     val setPasswordAction = if (state.isGuestMode) restrictedClick else onSetPassword
     val deleteAccountAction = if (state.isGuestMode) restrictedClick else onDeleteAccount
@@ -88,10 +104,31 @@ fun AccountSecurityScreen(
         state.userEmail
     }
 
+    LaunchedEffect(state.unbindSucceeded, state.unbindError) {
+        if (state.unbindSucceeded) {
+            snackbarHostState.showSnackbar(context.getString(R.string.third_party_unbind_success))
+            onConsumeUnbindResult()
+        } else if (state.unbindError != null) {
+            snackbarHostState.showSnackbar(state.unbindError ?: context.getString(R.string.third_party_unbind_failed))
+            onConsumeUnbindResult()
+        }
+    }
+
+    LaunchedEffect(state.bindSucceeded, state.bindError) {
+        if (state.bindSucceeded) {
+            snackbarHostState.showSnackbar(context.getString(R.string.third_party_bind_success))
+            onConsumeBindResult()
+        } else if (state.bindError != null) {
+            snackbarHostState.showSnackbar(state.bindError ?: context.getString(R.string.third_party_unbind_failed))
+            onConsumeBindResult()
+        }
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.massagerExtendedColors.surfaceSubtle
     ) {
+        Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopAppBar(
                 title = { Text(text = stringResource(id = R.string.account_security_title)) },
@@ -155,21 +192,35 @@ fun AccountSecurityScreen(
                                 state.thirdPartyAccounts.forEachIndexed { index, binding ->
                                     ThirdPartyAccountRow(
                                         binding = binding,
-                                        onClick = {
+                                        onBind = {
                                             if (state.isGuestMode) {
                                                 restrictedClick()
                                             } else if (state.facebookBound) {
-                                                Toast.makeText(
-                                                    context,
-                                                    context.getString(R.string.third_party_binding_blocked_fb),
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            } else if (binding.isBound) {
-                                                showBoundDialog = true
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar(
+                                                        context.getString(R.string.third_party_binding_blocked_fb)
+                                                    )
+                                                }
                                             } else {
-                                                onBindGoogle()
+                                                if (binding.platform == ThirdPartyPlatform.Google) {
+                                                    onBindGoogle()
+                                                } else {
+                                                    coroutineScope.launch {
+                                                        snackbarHostState.showSnackbar(
+                                                            context.getString(R.string.third_party_binding_coming_soon)
+                                                        )
+                                                    }
+                                                }
                                             }
-                                        }
+                                        },
+                                        onUnbind = {
+                                            if (state.isGuestMode) {
+                                                restrictedClick()
+                                            } else {
+                                                unbindTarget = binding.platform
+                                            }
+                                        },
+                                        isProcessing = state.isUnbinding
                                     )
                                     if (index != state.thirdPartyAccounts.lastIndex) {
                                         Divider()
@@ -217,6 +268,26 @@ fun AccountSecurityScreen(
                     }
                 }
             }
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                ThemedSnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
+
+            if (showBlockingLoader) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.25f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
         }
     }
 
@@ -238,19 +309,31 @@ fun AccountSecurityScreen(
         )
     }
 
-    if (showBoundDialog) {
+    if (unbindTarget != null) {
         AlertDialog(
-            onDismissRequest = { showBoundDialog = false },
-            title = { Text(text = stringResource(id = R.string.third_party_bound_title)) },
-            text = { Text(text = stringResource(id = R.string.third_party_bound_message)) },
+            onDismissRequest = { unbindTarget = null },
+            title = { Text(text = stringResource(id = R.string.third_party_unbind_confirm_title)) },
+            text = { Text(text = stringResource(id = R.string.third_party_unbind_confirm_message)) },
             confirmButton = {
-                Button(onClick = { showBoundDialog = false }) {
-                    Text(text = stringResource(id = R.string.third_party_bound_ok))
+                Button(
+                    enabled = !state.isUnbinding,
+                    onClick = {
+                        unbindTarget?.let(onUnbind)
+                        unbindTarget = null
+                    }
+                ) {
+                    Text(text = stringResource(id = R.string.third_party_unbind))
                 }
             },
-            dismissButton = {}
+            dismissButton = {
+                Button(onClick = { unbindTarget = null }) {
+                    Text(text = stringResource(id = R.string.third_party_unbind_cancel))
+                }
+            }
         )
     }
+}
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -299,7 +382,9 @@ private fun AccountInfoRow(
 @Composable
 private fun ThirdPartyAccountRow(
     binding: ThirdPartyAccountBinding,
-    onClick: () -> Unit
+    onBind: () -> Unit,
+    onUnbind: () -> Unit,
+    isProcessing: Boolean
 ) {
     ListItem(
         leadingContent = {
@@ -312,16 +397,47 @@ private fun ThirdPartyAccountRow(
             Text(text = stringResource(id = binding.platform.displayNameRes))
         },
         supportingContent = {
-            val textRes = if (binding.isBound) R.string.third_party_bound else R.string.go_to_binding
-            Text(
-                text = stringResource(id = textRes),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (binding.isBound) {
+                Column {
+                    val details = listOfNotNull(binding.displayName, binding.email).distinct()
+                    details.forEach { detail ->
+                        Text(
+                            text = detail,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = stringResource(id = R.string.go_to_binding),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         },
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable(onClick = { if (binding.isBound) onUnbind() else onBind() })
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        trailingContent = {
+            if (binding.isBound) {
+                TextButton(
+                    onClick = onUnbind,
+                    enabled = !isProcessing,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text(text = stringResource(id = R.string.third_party_unbind))
+                }
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.ArrowForwardIos,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     )
 }
 

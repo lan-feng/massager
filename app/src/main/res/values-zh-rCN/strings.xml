@@ -66,6 +66,13 @@
     <string name="delete_account_cancel_button">取消</string>
     <string name="about_title">关于</string>
     <string name="check_update">检查更新</string>
+    <string name="third_party_unbind">解绑</string>
+    <string name="third_party_unbind_cancel">取消</string>
+    <string name="third_party_unbind_confirm_title">解绑账号</string>
+    <string name="third_party_unbind_confirm_message">是否解绑该第三方账号？</string>
+    <string name="third_party_unbind_success">解绑成功</string>
+    <string name="third_party_unbind_failed">解绑失败，请重试。</string>
+    <string name="third_party_bind_success">绑定成功</string>
     <string name="user_agreement">用户协议</string>
     <string name="privacy_policy">隐私政策</string>
     <string name="version_label">V1.0.0</string>

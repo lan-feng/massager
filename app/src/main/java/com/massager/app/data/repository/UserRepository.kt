@@ -8,6 +8,7 @@ import com.massager.app.data.remote.dto.UpdateUserRequest
 import com.massager.app.data.remote.dto.UserInfoResponse
 import com.massager.app.data.remote.upload.FilePart
 import com.massager.app.data.remote.upload.MultipartRequestBodyUtil
+import com.massager.app.domain.model.ThirdPartyProfile
 import com.massager.app.domain.model.UserProfile
 import com.massager.app.data.local.SessionManager
 import javax.inject.Inject
@@ -75,6 +76,13 @@ class UserRepository @Inject constructor(
         }
     }
 
+    suspend fun unbindProvider(provider: String): Result<Unit> = runCatching {
+        val response = userApiService.unbindProvider(provider)
+        if (response.success.not()) {
+            throw IllegalStateException(response.message ?: "Failed to unbind provider")
+        }
+    }
+
     private fun UserInfoResponse.toDomain(): UserProfile =
         UserProfile(
             id = user.id,
@@ -84,6 +92,13 @@ class UserRepository @Inject constructor(
             cacheSize = null,
             firebaseUid = user.firebaseUid,
             appleUserId = user.appleUserId,
-            facebookUid = user.facebookUid
+            facebookUid = user.facebookUid,
+            thirdPartyProfiles = parseThirdPartyProfiles(user.userSettings)
         )
+
+    private fun parseThirdPartyProfiles(settings: Map<String, com.massager.app.data.remote.dto.ThirdPartyProps?>?): Map<String, ThirdPartyProfile> {
+        return settings.orEmpty().mapValues { (_, value) ->
+            ThirdPartyProfile(name = value?.name, email = value?.email)
+        }
+    }
 }

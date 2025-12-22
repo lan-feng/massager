@@ -9,5 +9,11 @@ data class UserProfile(
     val cacheSize: String?,
     val firebaseUid: String? = null,
     val appleUserId: String? = null,
-    val facebookUid: String? = null
+    val facebookUid: String? = null,
+    val thirdPartyProfiles: Map<String, ThirdPartyProfile> = emptyMap()
+)
+
+data class ThirdPartyProfile(
+    val name: String? = null,
+    val email: String? = null
 )

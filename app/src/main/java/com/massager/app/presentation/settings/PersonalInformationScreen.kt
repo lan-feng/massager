@@ -3,7 +3,6 @@ package com.massager.app.presentation.settings
 // 文件说明：个人信息编辑界面，提供姓名、邮箱、头像等表单交互。
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -39,6 +38,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -66,6 +66,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.rememberAsyncImagePainter
 import com.massager.app.R
+import com.massager.app.presentation.components.ThemedSnackbarHost
 import com.massager.app.presentation.theme.massagerExtendedColors
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
@@ -77,11 +78,11 @@ fun PersonalInformationScreen(
     onBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(uiState.toastMessage) {
         uiState.toastMessage?.let { message ->
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            snackbarHostState.showSnackbar(message)
             viewModel.consumeToast()
         }
     }
@@ -90,7 +91,8 @@ fun PersonalInformationScreen(
         state = uiState,
         onBack = onBack,
         onAvatarSelected = viewModel::updateAvatar,
-        onNameUpdated = viewModel::updateName
+        onNameUpdated = viewModel::updateName,
+        snackbarHostState = snackbarHostState
     )
 }
 
@@ -100,7 +102,8 @@ private fun PersonalInformationContent(
     state: PersonalInfoUiState,
     onBack: () -> Unit,
     onAvatarSelected: (ByteArray) -> Unit,
-    onNameUpdated: (String) -> Unit
+    onNameUpdated: (String) -> Unit,
+    snackbarHostState: SnackbarHostState
 ) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
@@ -145,7 +148,8 @@ private fun PersonalInformationContent(
                 )
             )
         },
-        containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle
+        containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle,
+        snackbarHost = { ThemedSnackbarHost(hostState = snackbarHostState) }
     ) { padding ->
         if (state.isLoading) {
             LinearProgressIndicator(

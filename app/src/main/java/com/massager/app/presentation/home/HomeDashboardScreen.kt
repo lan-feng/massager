@@ -1,7 +1,6 @@
 package com.massager.app.presentation.home
 
 // 文件说明：Compose 首页仪表盘界面，呈现设备状态与健康数据。
-import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -47,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.sp
 import com.massager.app.R
 import com.massager.app.domain.model.DeviceMetadata
 import com.massager.app.presentation.components.AppBottomNavigation
+import com.massager.app.presentation.components.ThemedSnackbarHost
 import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -97,16 +98,17 @@ fun HomeDashboardScreen(
     onTabSelected: (AppBottomTab) -> Unit
 ) {
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(effects) {
         effects.collectLatest { effect ->
             when (effect) {
                 is HomeEffect.ShowMessage -> {
-                    Toast.makeText(context, context.getString(effect.messageRes), Toast.LENGTH_SHORT).show()
+                    snackbarHostState.showSnackbar(context.getString(effect.messageRes))
                 }
 
                 is HomeEffect.ShowMessageText -> {
-                    Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
+                    snackbarHostState.showSnackbar(effect.message)
                 }
             }
         }
@@ -114,13 +116,19 @@ fun HomeDashboardScreen(
 
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let { message ->
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            snackbarHostState.showSnackbar(message)
             onDismissError()
         }
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = {
+            ThemedSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = 72.dp)
+            )
+        },
         bottomBar = {
             Column {
                 AnimatedVisibility(visible = state.isManagementActive) {

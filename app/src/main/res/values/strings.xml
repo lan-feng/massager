@@ -72,6 +72,13 @@
     <string name="third_party_bound_title">Google already bound</string>
     <string name="third_party_bound_message">This account has been linked to Google. No further action is required.</string>
     <string name="third_party_bound_ok">Got it</string>
+    <string name="third_party_unbind">Unbind</string>
+    <string name="third_party_unbind_cancel">Cancel</string>
+    <string name="third_party_unbind_confirm_title">Unbind account</string>
+    <string name="third_party_unbind_confirm_message">Do you want to unbind this third-party account?</string>
+    <string name="third_party_unbind_success">Unbound successfully</string>
+    <string name="third_party_unbind_failed">Failed to unbind. Please try again.</string>
+    <string name="third_party_bind_success">Bound successfully</string>
     <string name="delete_account">Delete account</string>
     <string name="logout">Log out</string>
     <string name="logout_confirm">Are you sure you want to log out?</string>
