@@ -203,18 +203,20 @@ class BleScanCoordinator @Inject constructor(
             Log.v(TAG, "handleScanResult: adapter missing for productId=${advertisement.productId}")
             return
         }
-        val cachedDevice = CachedScanDevice(
-            device = device,
-            name = buildDisplayName(safeDeviceName(device).orEmpty(), advertisement),
-            address = device.address,
-            rssi = result.rssi,
-            lastSeen = System.currentTimeMillis(),
-            productId = advertisement.productId,
-            firmwareVersion = advertisement.firmwareVersion,
-            uniqueId = advertisement.uniqueId,
-            protocolKey = adapter.protocolKey
-        )
         synchronized(cachedDevices) {
+            val existing = cachedDevices[device.address]
+            val cachedDevice = CachedScanDevice(
+                device = device,
+                name = buildDisplayName(safeDeviceName(device), advertisement),
+                address = device.address,
+                rssi = result.rssi,
+                lastSeen = System.currentTimeMillis(),
+                firstSeen = existing?.firstSeen ?: SystemClock.elapsedRealtime(),
+                productId = advertisement.productId,
+                firmwareVersion = advertisement.firmwareVersion,
+                uniqueId = advertisement.uniqueId,
+                protocolKey = adapter.protocolKey
+            )
             cachedDevices[cachedDevice.address] = cachedDevice
             pruneStaleScanResultsLocked()
         }
@@ -234,7 +236,7 @@ class BleScanCoordinator @Inject constructor(
     private fun emitDeviceSnapshot() {
         val snapshot = synchronized(cachedDevices) {
             cachedDevices.values
-                .sortedByDescending { it.rssi }
+                .sortedBy { it.firstSeen }
                 .map {
                     BleScanResult(
                         name = it.name.ifBlank { it.address },
@@ -251,18 +253,9 @@ class BleScanCoordinator @Inject constructor(
     }
 
     private fun buildDisplayName(rawName: String?, advertisement: ProtocolAdvertisement): String {
-        val parts = mutableListOf<String>()
-        if (!rawName.isNullOrBlank()) {
-            parts += rawName
-        }
-        val firmware = advertisement.firmwareVersion?.takeIf { it.isNotBlank() }
-        if (firmware != null) {
-            parts += "fw:$firmware"
-        }
-        advertisement.uniqueId?.takeIf { it.isNotBlank() }?.let {
-            parts += "#$it"
-        }
-        return parts.joinToString(" ").ifBlank { rawName.orEmpty() }
+        // Show only the base name; avoid appending firmware/uniqueId to keep label concise.
+        return rawName?.takeIf { it.isNotBlank() }
+            ?: advertisement.uniqueId.orEmpty()
     }
 
     private fun pruneStaleScanResultsLocked() {
@@ -384,6 +377,7 @@ class BleScanCoordinator @Inject constructor(
         val address: String,
         val rssi: Int,
         val lastSeen: Long,
+        val firstSeen: Long,
         val productId: Int?,
         val firmwareVersion: String?,
         val uniqueId: String?,

@@ -543,6 +543,7 @@ class DeviceControlViewModel @Inject constructor(
             updatedDevices = updated,
             successMessageRes = R.string.device_removed
         ) {
+            bluetoothService.disconnect(serial)
             if (serial.equals(selectedDeviceSerial, ignoreCase = true)) {
                 val fallback = targetAddress ?: updated.firstOrNull()?.deviceSerial
                 if (fallback != null) {

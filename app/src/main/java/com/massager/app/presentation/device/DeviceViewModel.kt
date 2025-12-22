@@ -253,9 +253,14 @@ class DeviceViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        stopScan()
+        super.onCleared()
+    }
+
+    fun stopScan() {
         bluetoothService.stopScan()
         scanTimeoutJob?.cancel()
-        super.onCleared()
+        _uiState.update { it.copy(isScanning = false, processingAddress = null) }
     }
 
     private fun scheduleScanTimeout() {

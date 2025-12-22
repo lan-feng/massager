@@ -681,6 +681,9 @@ private fun DeviceControlContent(
                 color = MaterialTheme.massagerExtendedColors.surfaceSubtle
             ) {
                 val scanViewModel: DeviceViewModel = hiltViewModel()
+                DisposableEffect(showScanDialog) {
+                    onDispose { scanViewModel.stopScan() }
+                }
                 LaunchedEffect(showScanDialog, hostSerial, excludedSerials) {
                     if (showScanDialog) {
                         scanViewModel.configureScanContext(

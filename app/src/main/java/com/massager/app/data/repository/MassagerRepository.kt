@@ -155,7 +155,7 @@ class MassagerRepository @Inject constructor(
                 }
                 val ownerId = sessionManager.accountOwnerId()
                     ?: throw IllegalStateException("Missing account owner id")
-                val idLong = deviceId.toLongOrNull()
+                val idLong = resolveServerDeviceId(deviceId)
                     ?: throw IllegalArgumentException("Invalid device id: $deviceId")
                 val response = api.updateDevice(
                     com.massager.app.data.remote.dto.DeviceUpdateRequest(
@@ -188,10 +188,10 @@ class MassagerRepository @Inject constructor(
     ): Result<Unit> = withContext(ioDispatcher) {
         runCatching {
             if (sessionManager.isGuestMode()) {
-                database.deviceDao().updateComboInfo(deviceId, comboInfo)
+                updateLocalComboInfo(deviceId, comboInfo)
                 return@runCatching
             }
-            val idLong = deviceId.toLongOrNull()
+            val idLong = resolveServerDeviceId(deviceId)
                 ?: throw IllegalArgumentException("Invalid device id: $deviceId")
             val response = api.updateComboInfo(
                 DeviceComboInfoUpdateRequest(
@@ -202,7 +202,7 @@ class MassagerRepository @Inject constructor(
             if (response.success.not()) {
                 throw IllegalStateException(response.message ?: "Failed to update combination info")
             }
-            database.deviceDao().updateComboInfo(deviceId, comboInfo)
+            updateLocalComboInfo(deviceId, comboInfo, resolvedId = idLong)
         }
     }
 
@@ -216,7 +216,7 @@ class MassagerRepository @Inject constructor(
                     }
                     return@runCatching Unit
                 }
-                val idLong = deviceId.toLongOrNull()
+                val idLong = resolveServerDeviceId(deviceId)
                     ?: throw IllegalArgumentException("Invalid device id: $deviceId")
                 val response = api.deleteDevice(idLong)
                 if (response.success.not()) {
@@ -350,5 +350,21 @@ class MassagerRepository @Inject constructor(
             macAddress = serial,
             isConnected = status?.equals("online", ignoreCase = true) == true
         )
+
+    private suspend fun updateLocalComboInfo(deviceId: String, comboInfo: String, resolvedId: Long? = null) {
+        // Update by id, resolved numeric id, and serial to ensure local row matches the server update.
+        val idKey = resolvedId?.toString() ?: deviceId
+        database.deviceDao().updateComboInfo(idKey, comboInfo)
+        database.deviceDao().updateComboInfo(deviceId, comboInfo)
+        database.deviceDao().updateComboInfoBySerial(deviceId, comboInfo)
+    }
+
+    private suspend fun resolveServerDeviceId(deviceId: String): Long? {
+        deviceId.toLongOrNull()?.let { return it }
+        val byId = database.deviceDao().findById(deviceId)?.id?.toLongOrNull()
+        if (byId != null) return byId
+        val bySerial = database.deviceDao().findBySerial(deviceId)?.id?.toLongOrNull()
+        return bySerial
+    }
 
 }

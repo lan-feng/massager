@@ -55,6 +55,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -177,6 +178,10 @@ fun DeviceScanScreen(
     val accent = if (isDark) BandDeep else BandPrimary
     val signalColor = if (isDark) DangerDark else DangerLight
 
+    DisposableEffect(Unit) {
+        onDispose { viewModel.stopScan() }
+    }
+
     LaunchedEffect(errorMessage) {
         if (!errorMessage.isNullOrBlank()) {
             snackbarHostState.showSnackbar(errorMessage)
@@ -211,7 +216,10 @@ fun DeviceScanScreen(
             TopAppBar(
                 title = { Text(text = stringResource(id = R.string.add_device_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        viewModel.stopScan()
+                        onBack()
+                    }) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = null
@@ -483,17 +491,18 @@ private fun DeviceCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(64.dp)
                     .background(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        RoundedCornerShape(16.dp)
+                        MaterialTheme.massagerExtendedColors.success.copy(alpha = 0.12f),
+                        RoundedCornerShape(18.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Bluetooth,
+                    painter = painterResource(id = R.drawable.ic_massager_logo),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(36.dp)
                 )
             }
             Column(

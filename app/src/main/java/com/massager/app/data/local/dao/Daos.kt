@@ -79,11 +79,17 @@ interface DeviceDao {
     @Query("SELECT * FROM devices WHERE id = :deviceId LIMIT 1")
     suspend fun findById(deviceId: String): DeviceEntity?
 
+    @Query("SELECT * FROM devices WHERE serial = :serial LIMIT 1")
+    suspend fun findBySerial(serial: String): DeviceEntity?
+
     @Query("UPDATE devices SET name = :name WHERE id = :deviceId")
     suspend fun updateName(deviceId: String, name: String)
 
     @Query("UPDATE devices SET comboInfo = :comboInfo WHERE id = :deviceId")
     suspend fun updateComboInfo(deviceId: String, comboInfo: String)
+
+    @Query("UPDATE devices SET comboInfo = :comboInfo WHERE serial = :serial")
+    suspend fun updateComboInfoBySerial(serial: String, comboInfo: String)
 
     @Query("DELETE FROM devices WHERE id = :deviceId")
     suspend fun deleteById(deviceId: String)
