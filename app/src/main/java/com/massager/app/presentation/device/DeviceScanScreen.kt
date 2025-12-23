@@ -123,6 +123,7 @@ fun DeviceScanScreen(
     var bluetoothRequested by remember { mutableStateOf(false) }
     var permissionRequestFailed by remember { mutableStateOf(false) }
     var btEnableFailed by remember { mutableStateOf(false) }
+    var dialogSuppressed by remember { mutableStateOf(false) }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -130,17 +131,25 @@ fun DeviceScanScreen(
     val missingPermissions = runtimePermissions.filter {
         ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
     }
+    val missingLocation = missingPermissions.any { perm ->
+        perm == android.Manifest.permission.ACCESS_FINE_LOCATION || perm == android.Manifest.permission.ACCESS_COARSE_LOCATION
+    }
+    val permissionMessage = if (missingLocation) {
+        context.getString(R.string.device_error_location_permission)
+    } else {
+        context.getString(R.string.device_error_bluetooth_scan_permission)
+    }
     var settingsDialogMessage by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(missingPermissions) {
+        if (missingPermissions.isEmpty()) dialogSuppressed = false
         if (missingPermissions.isNotEmpty()) {
             permissionRequested = true
             runCatching {
                 permissionLauncher.launch(missingPermissions.toTypedArray())
             }.onFailure {
                 permissionRequestFailed = true
-                val text = context.getString(R.string.device_error_bluetooth_scan_permission)
-                snackbarHostState.showSnackbar(text)
-                settingsDialogMessage = text
+                snackbarHostState.showSnackbar(permissionMessage)
+                if (!dialogSuppressed && settingsDialogMessage == null) settingsDialogMessage = permissionMessage
             }
         } else {
             permissionRequested = false
@@ -150,11 +159,13 @@ fun DeviceScanScreen(
     }
     LaunchedEffect(missingPermissions, permissionRequested) {
         if (missingPermissions.isNotEmpty() && permissionRequested) {
-            settingsDialogMessage = settingsDialogMessage
-                ?: context.getString(R.string.device_error_bluetooth_scan_permission)
+            if (!dialogSuppressed && settingsDialogMessage == null) {
+                settingsDialogMessage = permissionMessage
+            }
         }
     }
-    val isBluetoothOff = uiState.connectionState.status == BleConnectionState.Status.BluetoothUnavailable
+    val isBluetoothOff = uiState.connectionState.status == BleConnectionState.Status.BluetoothUnavailable &&
+        missingPermissions.isEmpty()
     LaunchedEffect(isBluetoothOff) {
         if (isBluetoothOff && missingPermissions.isEmpty()) {
             bluetoothRequested = true
@@ -164,7 +175,7 @@ fun DeviceScanScreen(
                 btEnableFailed = true
                 val text = context.getString(R.string.device_error_bluetooth_disabled)
                 snackbarHostState.showSnackbar(text)
-                settingsDialogMessage = text
+                if (!dialogSuppressed && settingsDialogMessage == null) settingsDialogMessage = text
             }
         } else {
             bluetoothRequested = false
@@ -269,13 +280,15 @@ fun DeviceScanScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            if ((isBluetoothOff && (bluetoothRequested || btEnableFailed)) ||
-                ((missingPermissions.isNotEmpty() && permissionRequested) || permissionRequestFailed)
+            if (!dialogSuppressed &&
+                ((isBluetoothOff && (bluetoothRequested || btEnableFailed)) ||
+                    ((missingPermissions.isNotEmpty() && permissionRequested) || permissionRequestFailed))
             ) {
-                settingsDialogMessage = settingsDialogMessage ?: context.getString(
-                    if (isBluetoothOff) R.string.device_error_bluetooth_disabled
-                    else R.string.device_error_bluetooth_scan_permission
-                )
+                settingsDialogMessage = settingsDialogMessage ?: if (isBluetoothOff) {
+                    context.getString(R.string.device_error_bluetooth_disabled)
+                } else {
+                    permissionMessage
+                }
             }
 
             LazyColumn(
@@ -314,13 +327,17 @@ fun DeviceScanScreen(
 
     settingsDialogMessage?.let { message ->
         AlertDialog(
-            onDismissRequest = { settingsDialogMessage = null },
+            onDismissRequest = {
+                settingsDialogMessage = null
+                dialogSuppressed = true
+            },
             title = { Text(text = stringResource(id = R.string.permission_bluetooth_settings)) },
             text = { Text(text = message) },
             confirmButton = {
                 Button(
                     onClick = {
                         settingsDialogMessage = null
+                        dialogSuppressed = false
                         val intent = Intent(
                             Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                             Uri.fromParts("package", context.packageName, null)
@@ -332,7 +349,10 @@ fun DeviceScanScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { settingsDialogMessage = null }) {
+                TextButton(onClick = {
+                    settingsDialogMessage = null
+                    dialogSuppressed = true
+                }) {
                     Text(text = stringResource(id = R.string.cancel))
                 }
             }

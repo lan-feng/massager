@@ -108,6 +108,7 @@ class AccountSecurityViewModel @Inject constructor(
                         val googleInfo = profile.thirdPartyProfiles[ThirdPartyPlatform.Google.apiName]
                         it.copy(
                             userEmail = profile.email,
+                            hasPassword = profile.hasPassword,
                             thirdPartyAccounts = listOf(
                                 ThirdPartyAccountBinding(
                                     platform = ThirdPartyPlatform.Google,
@@ -133,6 +134,7 @@ data class AccountSecurityUiState(
     val showLogoutDialog: Boolean = false,
     val logoutCompleted: Boolean = false,
     val isGuestMode: Boolean = false,
+    val hasPassword: Boolean = false,
     val facebookBound: Boolean = false,
     val isUnbinding: Boolean = false,
     val unbindSucceeded: Boolean = false,

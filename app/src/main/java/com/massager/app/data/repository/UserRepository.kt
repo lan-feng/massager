@@ -93,7 +93,8 @@ class UserRepository @Inject constructor(
             firebaseUid = user.firebaseUid,
             appleUserId = user.appleUserId,
             facebookUid = user.facebookUid,
-            thirdPartyProfiles = parseThirdPartyProfiles(user.userSettings)
+            thirdPartyProfiles = parseThirdPartyProfiles(user.userSettings),
+            hasPassword = user.hasPassword ?: false
         )
 
     private fun parseThirdPartyProfiles(settings: Map<String, com.massager.app.data.remote.dto.ThirdPartyProps?>?): Map<String, ThirdPartyProfile> {

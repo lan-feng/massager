@@ -24,6 +24,10 @@ class ChangePasswordViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ChangePasswordUiState())
     val uiState: StateFlow<ChangePasswordUiState> = _uiState.asStateFlow()
 
+    fun configure(requireOldPassword: Boolean) {
+        _uiState.update { it.copy(requireOldPassword = requireOldPassword, oldPasswordError = false) }
+    }
+
     fun onOldPasswordChanged(value: String) {
         _uiState.update { it.copy(oldPassword = value, oldPasswordError = false, snackbarMessage = null) }
     }
@@ -38,7 +42,7 @@ class ChangePasswordViewModel @Inject constructor(
 
     fun submit() {
         val current = _uiState.value
-        val oldError = current.oldPassword.isBlank()
+        val oldError = current.requireOldPassword && current.oldPassword.isBlank()
         val newError = !PASSWORD_REGEX.matches(current.newPassword)
         val confirmError = current.newPassword != current.confirmPassword
 
@@ -90,8 +94,11 @@ data class ChangePasswordUiState(
     val confirmPasswordError: Boolean = false,
     val isSubmitting: Boolean = false,
     val snackbarMessage: String? = null,
-    val success: Boolean = false
+    val success: Boolean = false,
+    val requireOldPassword: Boolean = true
 ) {
     val isFormValid: Boolean
-        get() = oldPassword.isNotBlank() && PASSWORD_REGEX.matches(newPassword) && newPassword == confirmPassword
+        get() = (!requireOldPassword || oldPassword.isNotBlank()) &&
+            PASSWORD_REGEX.matches(newPassword) &&
+            newPassword == confirmPassword
 }

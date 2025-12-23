@@ -276,7 +276,7 @@
     <string name="register_send_code">获取验证码</string>
     <string name="register_send_code_countdown">%1$d秒</string>
     <string name="action_submit">提交</string>
-    <string name="action_back_to_login">返回登录</string>
+    <string name="action_back_to_login">返回</string>
     <string name="auth_terms_prefix">继续操作即表示同意</string>
     <string name="auth_terms_user_agreement">用户协议</string>
     <string name="auth_terms_privacy_policy">隐私政策</string>

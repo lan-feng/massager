@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -76,7 +75,6 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
@@ -94,6 +92,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.massager.app.R
+import com.massager.app.presentation.components.LoginTextField
 import com.massager.app.presentation.components.ThemedSnackbarHost
 import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlinx.coroutines.delay
@@ -433,91 +432,6 @@ fun LoginScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun LoginTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String, // 用于 contentDescription，不展示 label
-    placeholder: String,
-    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier,
-    trailingIcon: (@Composable () -> Unit)? = null,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    keyboardActions: KeyboardActions = KeyboardActions.Default,
-    singleLine: Boolean = true,
-    enabled: Boolean = true,
-    isError: Boolean = false,
-    supportingText: String? = null,
-    shape: RoundedCornerShape,
-    background: Color,
-    contentColor: Color
-) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(background)
-                .defaultMinSize(minHeight = 64.dp)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Box(
-                modifier = Modifier.size(20.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = leadingIcon,
-                    contentDescription = label,
-                    tint = contentColor.copy(alpha = 0.9f),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .defaultMinSize(minHeight = 32.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (value.isEmpty()) {
-                    Text(
-                        text = placeholder,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = contentColor.copy(alpha = 0.6f)
-                    )
-                }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    enabled = enabled,
-                    singleLine = singleLine,
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = contentColor),
-                    visualTransformation = visualTransformation,
-                    keyboardOptions = keyboardOptions,
-                    keyboardActions = keyboardActions,
-                    cursorBrush = SolidColor(contentColor),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            trailingIcon?.let { icon ->
-                Box(contentAlignment = Alignment.Center) {
-                    icon()
-                }
-            }
-        }
-        supportingText?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(start = 10.dp, top = 4.dp)
-            )
-        }
-    }
-}
 
 @Composable
 private fun SocialIconButton(
@@ -808,6 +722,8 @@ fun RegisterScreen(
                     textAlign = TextAlign.Start,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Button(
                     onClick = {
@@ -1178,6 +1094,8 @@ fun ForgetPasswordScreen(
                     textAlign = TextAlign.Start,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Button(
                     onClick = ::handleSubmit,

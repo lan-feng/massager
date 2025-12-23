@@ -51,7 +51,12 @@ sealed class Screen(val route: String) {
     data object PersonalInfo : Screen("personal_info")
     data object Recovery : Screen("recovery")
     data object AccountSecurity : Screen("account_security")
-    data object ChangePassword : Screen("change_password")
+    data object ChangePassword : Screen("change_password") {
+        const val ARG_REQUIRE_OLD = "requireOld"
+        val routePattern: String = "change_password?$ARG_REQUIRE_OLD={$ARG_REQUIRE_OLD}"
+        fun createRoute(requireOldPassword: Boolean): String =
+            "change_password?$ARG_REQUIRE_OLD=$requireOldPassword"
+    }
     data object DeleteAccount : Screen("delete_account")
     data object ForgetPassword : Screen("forget_password")
 }

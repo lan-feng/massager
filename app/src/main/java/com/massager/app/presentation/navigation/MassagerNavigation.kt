@@ -436,7 +436,11 @@ fun MassagerNavHost(
             AccountSecurityScreen(
                 state = uiState.value,
                 onBack = { navController.popBackStack() },
-                onSetPassword = { navController.navigate(Screen.ChangePassword.route) },
+                onSetPassword = {
+                    navController.navigate(
+                        Screen.ChangePassword.createRoute(requireOldPassword = uiState.value.hasPassword)
+                    )
+                },
                 onDeleteAccount = { navController.navigate(Screen.DeleteAccount.route) },
                 onRequestLogout = { viewModel.toggleLogoutDialog(true) },
                 onConfirmLogout = { viewModel.logout() },
@@ -455,8 +459,19 @@ fun MassagerNavHost(
                 onConsumeBindResult = viewModel::consumeBindResult
             )
         }
-        composable(Screen.ChangePassword.route) {
+        composable(
+            Screen.ChangePassword.routePattern,
+            arguments = listOf(
+                navArgument(Screen.ChangePassword.ARG_REQUIRE_OLD) {
+                    type = NavType.BoolType
+                    defaultValue = true
+                }
+            )
+        ) { backStackEntry ->
+            val requireOldPassword =
+                backStackEntry.arguments?.getBoolean(Screen.ChangePassword.ARG_REQUIRE_OLD) ?: true
             ChangePasswordScreen(
+                requireOldPassword = requireOldPassword,
                 onBack = { navController.popBackStack() },
                 onPasswordChanged = {
                     navController.navigate(Screen.Login.route) {
