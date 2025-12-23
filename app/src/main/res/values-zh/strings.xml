@@ -140,6 +140,10 @@
     <string name="device_current_level">强度</string>
     <string name="device_current_timer">定时</string>
     <string name="device_command_failed">指令发送失败，请重试。</string>
+    <string name="device_connection_error_title">通信错误</string>
+    <string name="device_connection_timeout_message">设备连接超时（10秒）。请重试。</string>
+    <string name="device_connection_instruction_power_on">1. 确保设备开机</string>
+    <string name="device_connection_instruction_blink">2. 蓝色灯闪烁说明设备等待蓝牙连接</string>
     <string name="device_error_bluetooth_disabled">蓝牙已关闭，请前往系统设置开启后重试。</string>
     <string name="device_error_bluetooth_permission">需要蓝牙权限，请在系统设置中授予后重试。</string>
     <string name="device_error_bluetooth_scan_permission">需要附近设备权限，请在系统设置中允许蓝牙扫描。</string>

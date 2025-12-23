@@ -162,6 +162,10 @@
     <string name="device_current_level">Level</string>
     <string name="device_current_timer">Timer</string>
     <string name="device_command_failed">Unable to send command. Please try again.</string>
+    <string name="device_connection_error_title">Communication Error</string>
+    <string name="device_connection_timeout_message">Device connection timed out (10s). Please try again.</string>
+    <string name="device_connection_instruction_power_on">1. Ensure the device is powered on</string>
+    <string name="device_connection_instruction_blink">2. A flashing blue light indicates the device is waiting for Bluetooth connection</string>
     <string name="device_error_bluetooth_disabled">Bluetooth is turned off. Enable it in system settings to connect.</string>
     <string name="device_error_bluetooth_permission">Bluetooth permission is required. Grant access in system settings and try again.</string>
     <string name="device_error_bluetooth_scan_permission">Nearby devices permission is required to scan for your massager. Grant access in settings.</string>

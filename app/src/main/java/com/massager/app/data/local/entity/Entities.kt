@@ -18,6 +18,7 @@ data class DeviceEntity(
     @PrimaryKey val id: String,
     val name: String,
     val serial: String?,
+    val uniqueId: String? = null,
     val ownerId: String,
     val comboInfo: String? = null,
     val status: String? = null,

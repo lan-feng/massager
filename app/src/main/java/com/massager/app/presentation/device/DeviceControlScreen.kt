@@ -50,11 +50,9 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -282,6 +280,12 @@ private fun DeviceControlContent(
     }
     val isDevicePoweredOff = selectedStatus?.connectionStatus == BleConnectionState.Status.Disconnected ||
         selectedStatus?.connectionStatus == BleConnectionState.Status.Failed
+    var hideConnectionDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(isDevicePoweredOff) {
+        if (!isDevicePoweredOff) {
+            hideConnectionDialog = false
+        }
+    }
     val hostSerial = state.deviceCards.firstOrNull { it.isMainDevice }?.deviceSerial
     val excludedSerials = remember(state.deviceCards) {
         val combos = state.deviceCards
@@ -421,38 +425,90 @@ private fun DeviceControlContent(
                 brand = brand
             )
         }
-            if (isDevicePoweredOff && settingsDialogMessage == null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center
+            if (isDevicePoweredOff && settingsDialogMessage == null && !hideConnectionDialog) {
+                Dialog(
+                    onDismissRequest = {},
+                    properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
                 ) {
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.massagerExtendedColors.cardBackground.copy(alpha = 0.94f)
-                        ),
+                    Box(
                         modifier = Modifier
-                            .widthIn(max = 520.dp)
-                            .shadow(10.dp, RoundedCornerShape(12.dp))
+                            .fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        Surface(
+                            modifier = Modifier
+                                .padding(horizontal = 32.dp)
+                                .widthIn(max = 360.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            tonalElevation = 10.dp,
+                            color = MaterialTheme.colorScheme.surface
                         ) {
-                            Text(
-                                text = stringResource(id = R.string.home_saved_devices_empty_getting_started_title),
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.massagerExtendedColors.band
-                            )
-                            Text(
-                                text = stringResource(id = R.string.home_saved_devices_empty_getting_started_body),
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = MaterialTheme.massagerExtendedColors.textPrimary
-                                ),
-                                fontSize = 16.sp
-                            )
+                            Column(
+                                modifier = Modifier
+                                    .padding(horizontal = 24.dp, vertical = 20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(id = R.string.device_connection_error_title),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = stringResource(id = R.string.device_connection_timeout_message),
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        color = MaterialTheme.massagerExtendedColors.textPrimary
+                                    ),
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 20.sp
+                                )
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = stringResource(id = R.string.device_connection_instruction_power_on),
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = MaterialTheme.massagerExtendedColors.textSecondary
+                                        ),
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 18.sp
+                                    )
+                                    Text(
+                                        text = stringResource(id = R.string.device_connection_instruction_blink),
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = MaterialTheme.massagerExtendedColors.textSecondary
+                                        ),
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 18.sp
+                                    )
+                                }
+                                Divider(
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(24.dp)
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
+                                        ) {
+                                            hideConnectionDialog = true
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = stringResource(id = R.string.common_ok),
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
                         }
                     }
                 }

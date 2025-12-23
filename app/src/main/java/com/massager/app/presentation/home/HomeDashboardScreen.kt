@@ -4,12 +4,20 @@ package com.massager.app.presentation.home
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +35,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
@@ -42,6 +51,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,23 +69,35 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 import com.massager.app.R
 import com.massager.app.domain.model.DeviceMetadata
 import com.massager.app.presentation.components.AppBottomNavigation
@@ -83,6 +105,9 @@ import com.massager.app.presentation.components.ThemedSnackbarHost
 import com.massager.app.presentation.theme.massagerExtendedColors
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.material.ripple.rememberRipple
+
+private data class SelectedCardLayout(val offset: Offset, val size: IntSize)
 
 @Composable
 fun HomeDashboardScreen(
@@ -105,6 +130,10 @@ fun HomeDashboardScreen(
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val focusedDeviceId = state.selectedDeviceIds.firstOrNull()
+    val focusedDevice = state.devices.firstOrNull { it.id == focusedDeviceId }
+    var selectedCardLayout by remember { mutableStateOf<SelectedCardLayout?>(null) }
+    var contentRootOffset by remember { mutableStateOf(Offset.Zero) }
 
     LaunchedEffect(effects) {
         effects.collectLatest { effect ->
@@ -127,8 +156,14 @@ fun HomeDashboardScreen(
         }
     }
 
+    LaunchedEffect(focusedDeviceId) {
+        if (focusedDeviceId == null) {
+            selectedCardLayout = null
+        }
+    }
+
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         snackbarHost = {
             ThemedSnackbarHost(
                 hostState = snackbarHostState,
@@ -136,44 +171,97 @@ fun HomeDashboardScreen(
             )
         },
         bottomBar = {
-            Column {
-                AnimatedVisibility(visible = state.isManagementActive) {
-                    ManagementBottomBar(
-                        isSelectionActive = state.isManagementActive,
-                        selectionCount = state.selectedDeviceIds.size,
-                        isProcessing = state.isActionInProgress,
-                        onRenameClick = onRenameClick,
-                        onRemoveClick = onRemoveClick,
-                        onCancel = onCancelManagement
-                    )
-                }
-                AppBottomNavigation(
-                    currentTab = currentTab,
-                    onTabSelected = onTabSelected
-                )
-            }
+            AppBottomNavigation(
+                currentTab = currentTab,
+                onTabSelected = onTabSelected
+            )
         }
     ) { padding ->
+        val gradientColors = listOf(
+            MaterialTheme.massagerExtendedColors.surfaceSubtle,
+            MaterialTheme.massagerExtendedColors.surfaceBright
+        )
+        val scrimBase = MaterialTheme.colorScheme.onSurface
+        val isFocusVisible = focusedDevice != null
+        val blurRadius by animateDpAsState(targetValue = if (isFocusVisible) 12.dp else 0.dp, animationSpec = tween(220), label = "focusBlur")
+        val scrimAlpha by animateFloatAsState(targetValue = if (isFocusVisible) 0.35f else 0f, animationSpec = tween(200), label = "focusScrim")
+        val blurModifier = if (blurRadius > 0.dp) Modifier.blur(blurRadius) else Modifier
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
+                .background(brush = Brush.verticalGradient(gradientColors))
                 .padding(padding)
         ) {
-            HeaderSection(onAddDevice = onAddDevice)
-            if (state.devices.isEmpty()) {
-                EmptyDeviceState(
-                    modifier = Modifier.fillMaxSize(),
-                    onAddDevice = onAddDevice
-                )
-            } else {
-                DeviceList(
-                    devices = state.devices,
-                    selectedIds = state.selectedDeviceIds,
-                    isManagementActive = state.isManagementActive,
-                    onDeviceToggle = onDeviceToggle,
-                    onDeviceOpen = onDeviceOpen
-                )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { coordinates ->
+                        contentRootOffset = coordinates.positionInRoot()
+                    }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(blurModifier)
+                ) {
+                    HeaderSection(onAddDevice = onAddDevice)
+                    if (state.devices.isEmpty()) {
+                        EmptyDeviceState(
+                            modifier = Modifier.fillMaxSize(),
+                            onAddDevice = onAddDevice
+                        )
+                    } else {
+                        DeviceList(
+                            devices = state.devices,
+                            focusedDeviceId = focusedDeviceId,
+                            isManagementActive = state.isManagementActive,
+                            onDeviceToggle = onDeviceToggle,
+                            onDeviceOpen = onDeviceOpen,
+                            onSelectedBounds = { selectedCardLayout = it },
+                            contentOrigin = contentRootOffset
+                        )
+                    }
+                }
+                if (scrimAlpha > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(scrimBase.copy(alpha = scrimAlpha))
+                            .then(
+                                if (focusedDevice != null) {
+                                    Modifier.pointerInput(onCancelManagement) {
+                                        detectTapGestures { onCancelManagement() }
+                                    }
+                                } else Modifier
+                            )
+                            .zIndex(1f)
+                    )
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = focusedDevice != null,
+                    enter = fadeIn(animationSpec = tween(200)) + scaleIn(initialScale = 0.98f, animationSpec = tween(220)),
+                    exit = fadeOut(animationSpec = tween(160)) + scaleOut(targetScale = 0.98f, animationSpec = tween(160)),
+                    modifier = Modifier.zIndex(2f)
+                ) {
+                    focusedDevice?.let { device ->
+                        SelectedDeviceOverlay(
+                            device = device,
+                            layout = selectedCardLayout,
+                            onClick = {
+                                if (state.isManagementActive) {
+                                    onDeviceToggle(device)
+                                } else {
+                                    onDeviceOpen(device)
+                                }
+                            },
+                            onLongPress = { onDeviceToggle(device) },
+                            onRenameClick = onRenameClick,
+                            onRemoveClick = onRemoveClick,
+                            modifier = Modifier.zIndex(2f)
+                        )
+                    }
+                }
             }
         }
     }
@@ -201,10 +289,12 @@ fun HomeDashboardScreen(
 @Composable
 private fun DeviceList(
     devices: List<DeviceMetadata>,
-    selectedIds: Set<String>,
+    focusedDeviceId: String?,
     isManagementActive: Boolean,
     onDeviceToggle: (DeviceMetadata) -> Unit,
-    onDeviceOpen: (DeviceMetadata) -> Unit
+    onDeviceOpen: (DeviceMetadata) -> Unit,
+    onSelectedBounds: (SelectedCardLayout) -> Unit,
+    contentOrigin: Offset
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -217,7 +307,10 @@ private fun DeviceList(
         ) { device ->
             DeviceCardItem(
                 device = device,
-                isSelected = selectedIds.contains(device.id),
+                isSelected = device.id == focusedDeviceId,
+                showSelectionBadge = focusedDeviceId == null,
+                onSelectedBounds = onSelectedBounds,
+                contentOrigin = contentOrigin,
                 onClick = {
                     if (isManagementActive) {
                         onDeviceToggle(device)
@@ -286,6 +379,9 @@ private fun HeaderSection(onAddDevice: () -> Unit) {
 private fun DeviceCardItem(
     device: DeviceMetadata,
     isSelected: Boolean,
+    showSelectionBadge: Boolean = true,
+    onSelectedBounds: (SelectedCardLayout) -> Unit = {},
+    contentOrigin: Offset = Offset.Zero,
     onClick: () -> Unit,
     onLongPress: () -> Unit
 ) {
@@ -300,27 +396,44 @@ private fun DeviceCardItem(
                 device = device,
                 isSelected = isSelected,
                 onClick = onClick,
-                onLongPress = onLongPress
+                onLongPress = onLongPress,
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    if (isSelected) {
+                        val bounds = coordinates.boundsInRoot()
+                        val offset = bounds.topLeft - contentOrigin
+                        onSelectedBounds(
+                            SelectedCardLayout(
+                                offset = offset,
+                                size = IntSize(
+                                    bounds.width.roundToInt(),
+                                    bounds.height.roundToInt()
+                                )
+                            )
+                        )
+                    }
+                }
             )
-            AnimatedVisibility(
-                visible = isSelected,
-                enter = fadeIn()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = (-12).dp, y = 12.dp)
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.massagerExtendedColors.success),
-                    contentAlignment = Alignment.Center
+            if (showSelectionBadge) {
+                AnimatedVisibility(
+                    visible = isSelected,
+                    enter = fadeIn()
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = (-12).dp, y = 12.dp)
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.massagerExtendedColors.success),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
@@ -333,15 +446,16 @@ private fun DeviceCard(
     device: DeviceMetadata,
     isSelected: Boolean,
     onClick: () -> Unit,
-    onLongPress: () -> Unit
+    onLongPress: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val scale = if (isSelected) 1.02f else 1f
 
     Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor =  MaterialTheme.massagerExtendedColors.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier
+        shape = RoundedCornerShape(if (isSelected) 22.dp else 16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.cardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 8.dp else 2.dp),
+        modifier = modifier
             .fillMaxWidth()
             .scale(scale)
             .combinedClickable(
@@ -353,7 +467,7 @@ private fun DeviceCard(
             modifier = Modifier
                 .background(MaterialTheme.massagerExtendedColors.cardBackground)
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -361,7 +475,7 @@ private fun DeviceCard(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(MaterialTheme.massagerExtendedColors.success.copy(alpha = 0.12f)),
+                    .background(MaterialTheme.massagerExtendedColors.surfaceSubtle),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
@@ -386,7 +500,7 @@ private fun DeviceCard(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = stringResource(id = R.string.home_management_device_subtitle),
+                    text = "SerialNo ${device.serialNo ?: device.id}",
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = MaterialTheme.massagerExtendedColors.textMuted,
                         fontSize = 12.sp
@@ -401,6 +515,197 @@ private fun DeviceCard(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
             )
         }
+    }
+}
+
+@Composable
+private fun SelectedDeviceOverlay(
+    device: DeviceMetadata,
+    layout: SelectedCardLayout?,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
+    onRenameClick: () -> Unit,
+    onRemoveClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val cardWidth = layout?.let { with(density) { it.size.width.toDp() } }
+    val cardOffset = layout?.let { with(density) { IntOffset(it.offset.x.roundToInt(), it.offset.y.roundToInt()) } }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+    ) {
+        val columnModifier = (cardOffset?.let { offset ->
+            Modifier.offset { offset }
+        } ?: Modifier.align(Alignment.TopCenter).padding(horizontal = 20.dp, vertical = 16.dp))
+            .then(
+                if (cardWidth != null) Modifier.width(cardWidth) else Modifier.fillMaxWidth()
+            )
+        Column(
+            modifier = columnModifier,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            FocusedDeviceCard(
+                device = device,
+                onClick = onClick,
+                onLongPress = onLongPress
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            FloatingActionPanel(
+                onRenameClick = onRenameClick,
+                onRemoveClick = onRemoveClick,
+                modifier = if (cardWidth != null && cardWidth > 100.dp) {
+                    Modifier.width(cardWidth*3/4)
+                } else {
+                    Modifier.fillMaxWidth()
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FocusedDeviceCard(
+    device: DeviceMetadata,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.surfaceBright),
+        elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.massagerExtendedColors.band.copy(alpha = 0.2f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
+    ) {
+        Row(
+            modifier = Modifier
+                .background(MaterialTheme.massagerExtendedColors.surfaceBright)
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(70.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.massagerExtendedColors.surfaceSubtle),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_massager_logo),
+                    contentDescription = device.name,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = device.name.ifBlank { "BLE_EMS" },
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.massagerExtendedColors.textPrimary,
+                        fontSize = 17.sp
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "SerialNo ${device.serialNo ?: device.id}",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.massagerExtendedColors.textMuted,
+                        fontSize = 14.sp
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.massagerExtendedColors.iconMuted
+            )
+        }
+    }
+}
+
+@Composable
+private fun FloatingActionPanel(
+    onRenameClick: () -> Unit,
+    onRemoveClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val dividerColor = MaterialTheme.massagerExtendedColors.divider
+    val panelBackground = MaterialTheme.massagerExtendedColors.surfaceBright
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = panelBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier
+            .background(MaterialTheme.massagerExtendedColors.surfaceBright)
+            .fillMaxWidth()) {
+            PanelRow(
+                text = stringResource(id = R.string.rename),
+                textColor = MaterialTheme.massagerExtendedColors.textPrimary,
+                icon = Icons.Filled.Edit,
+                iconTint = MaterialTheme.massagerExtendedColors.band,
+                onClick = onRenameClick
+            )
+            Divider(color = dividerColor.copy(alpha = 0.6f), thickness = 0.7.dp)
+            PanelRow(
+                text = stringResource(id = R.string.remove_device),
+                textColor = MaterialTheme.massagerExtendedColors.danger,
+                icon = Icons.Filled.Delete,
+                iconTint = MaterialTheme.massagerExtendedColors.band,
+                onClick = onRemoveClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun PanelRow(
+    text: String,
+    textColor: Color,
+    icon: ImageVector,
+    iconTint: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = rememberRipple(
+                    bounded = true,
+                    color = iconTint.copy(alpha = 0.35f)
+                ),
+                onClick = onClick
+            )
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontWeight = FontWeight.Medium,
+                color = textColor
+            ),
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconTint
+        )
     }
 }
 

@@ -4,6 +4,7 @@ package com.massager.app.domain.model
 data class DeviceMetadata(
     val id: String,
     val name: String,
+    val serialNo: String?,
     val macAddress: String?,
     val isConnected: Boolean
 )

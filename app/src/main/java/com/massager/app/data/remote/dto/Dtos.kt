@@ -56,6 +56,7 @@ data class DeviceDto(
     val id: Long,
     @SerialName("userId") val userId: Long? = null,
     @SerialName("deviceSerial") val deviceSerial: String? = null,
+    @SerialName("uniqueId") val uniqueId: String? = null,
     @SerialName("deviceType") val deviceType: Int? = null,
     @SerialName("firmwareVersion") val firmwareVersion: String? = null,
     @SerialName("nameAlias") val nameAlias: String? = null,

@@ -94,16 +94,17 @@ class MassagerRepository @Inject constructor(
                     .takeIf { it.isNotBlank() }
                     ?: uniqueId
                     ?: now.toEpochMilli().toString()
-                val ownerId = sessionManager.activeOwnerId()
-                val entity = DeviceEntity(
-                    id = generatedId,
-                    name = displayName.ifBlank { deviceSerial.ifBlank { "Local Device" } },
-                    serial = deviceSerial.ifBlank { uniqueId },
-                    ownerId = ownerId,
-                    status = "online",
-                    batteryLevel = 100,
-                    lastSeenAt = now
-                )
+            val ownerId = sessionManager.activeOwnerId()
+            val entity = DeviceEntity(
+                id = generatedId,
+                name = displayName.ifBlank { deviceSerial.ifBlank { "Local Device" } },
+                serial = deviceSerial.ifBlank { uniqueId },
+                uniqueId = uniqueId,
+                ownerId = ownerId,
+                status = "online",
+                batteryLevel = 100,
+                lastSeenAt = now
+            )
                 database.deviceDao().upsert(entity)
                 entity.toDeviceMetadata()
             } else {
@@ -336,6 +337,7 @@ class MassagerRepository @Inject constructor(
                 ?: deviceSerial?.takeIf { it.isNotBlank() }
                 ?: id.toString(),
             serial = deviceSerial,
+            uniqueId = uniqueId,
             comboInfo = comboInfo,
             ownerId = ownerIdOverride ?: userId?.toString().orEmpty(),
             status = status,
@@ -347,6 +349,7 @@ class MassagerRepository @Inject constructor(
         DeviceMetadata(
             id = id,
             name = name,
+            serialNo = uniqueId ?: id,
             macAddress = serial,
             isConnected = status?.equals("online", ignoreCase = true) == true
         )
