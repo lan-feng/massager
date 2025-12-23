@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -238,7 +239,7 @@ fun DeviceScanScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = accent.copy(alpha = 0.08f)
+                    containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle
                 )
             )
         },
@@ -297,16 +298,10 @@ fun DeviceScanScreen(
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (uiState.devices.isEmpty()) {
+                if (!uiState.isScanning && uiState.devices.isEmpty()) {
                     item {
-                        Text(
-                            text = stringResource(id = R.string.device_scan_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.massagerExtendedColors.textMuted,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 16.dp),
-                            textAlign = TextAlign.Center
+                        EmptyScanLowerSection(
+                            onScanAgain = { viewModel.refreshScan() }
                         )
                     }
                 } else {
@@ -361,6 +356,71 @@ fun DeviceScanScreen(
 }
 
 @Composable
+private fun EmptyScanLowerSection(
+    onScanAgain: () -> Unit
+) {
+    val accent = MaterialTheme.massagerExtendedColors.band
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Spacer(modifier = Modifier.height(30.dp))
+        Icon(
+            painter = painterResource(id = R.drawable.bigtop_updates_24),
+            contentDescription = null,
+            tint = accent.copy(alpha = 0.55f),
+            modifier = Modifier.size(60.dp)
+        )
+        Text(
+            text = stringResource(id = R.string.home_saved_devices_empty_getting_started_title),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.massagerExtendedColors.textPrimary
+            ),
+            textAlign = TextAlign.Center
+        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp)
+        ) {
+            Text(
+                text = stringResource(id = R.string.device_connection_instruction_power_on),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.massagerExtendedColors.textMuted
+                ),
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = stringResource(id = R.string.device_connection_instruction_blink),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.massagerExtendedColors.textMuted
+                ),
+                textAlign = TextAlign.Center
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Button(
+            onClick = onScanAgain,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = accent.copy(alpha = 0.15f),
+                contentColor = accent
+            ),
+            shape = RoundedCornerShape(18.dp),
+            modifier = Modifier
+                .padding(top = 4.dp)
+        ) {
+            Text(
+                text = stringResource(id = R.string.device_scan_refresh),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+            )
+        }
+    }
+}
+@Composable
 private fun RadarScanView(
     isScanning: Boolean,
     modifier: Modifier = Modifier,
@@ -386,7 +446,7 @@ private fun RadarScanView(
     val dashEffect = remember { PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f) }
 
     Box(
-        modifier = modifier.size(270.dp),
+        modifier = modifier.size(220.dp),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
