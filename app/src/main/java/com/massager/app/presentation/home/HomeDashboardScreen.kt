@@ -9,6 +9,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,8 +59,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -155,16 +160,6 @@ fun HomeDashboardScreen(
                 .padding(padding)
         ) {
             HeaderSection(onAddDevice = onAddDevice)
-            Text(
-                text = stringResource(id = R.string.home_management_subtitle),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.massagerExtendedColors.textSecondary
-                ),
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
-            Spacer(modifier = Modifier.height(20.dp))
             if (state.devices.isEmpty()) {
                 EmptyDeviceState(
                     modifier = Modifier.fillMaxSize(),
@@ -261,14 +256,14 @@ private fun HeaderSection(onAddDevice: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(id = R.string.home_management_title),
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 20.sp,
-                    color = MaterialTheme.massagerExtendedColors.textPrimary
-                )
-            )
+//            Text(
+//                text = stringResource(id = R.string.home_management_title),
+//                style = MaterialTheme.typography.titleLarge.copy(
+//                    fontWeight = FontWeight.SemiBold,
+//                    fontSize = 20.sp,
+//                    color = MaterialTheme.massagerExtendedColors.textPrimary
+//                )
+//            )
         }
         IconButton(
             onClick = onAddDevice,
@@ -575,58 +570,101 @@ private fun EmptyDeviceState(
     modifier: Modifier = Modifier,
     onAddDevice: (() -> Unit)? = null
 ) {
+    val cardShape = RoundedCornerShape(24.dp)
+    val borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+    val cardFillColor = MaterialTheme.massagerExtendedColors.surfaceBright
+
     Column(
         modifier = modifier.padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Card(
+            shape = cardShape,
+            colors = CardDefaults.cardColors(containerColor = cardFillColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    val strokeWidth = 2.dp.toPx()
+                    val dash = PathEffect.dashPathEffect(floatArrayOf(16f, 10f))
+                    val radius = 24.dp.toPx()
+                    drawRoundRect(
+                        color = borderColor,
+                        style = Stroke(width = strokeWidth, pathEffect = dash),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius, radius)
+                    )
+                }
+                .clip(cardShape)
+                .clickable(
+                    enabled = onAddDevice != null,
+                    onClick = { onAddDevice?.invoke() }
+                )
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(
+                            brush = Brush.linearGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(id = R.string.home_management_add_device),
+                        tint = MaterialTheme.massagerExtendedColors.textOnAccent,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Text(
+                    text = stringResource(id = R.string.home_saved_devices_empty_title),
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 19.sp,
+                        color = MaterialTheme.massagerExtendedColors.textPrimary
+                    ),
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = stringResource(id = R.string.home_saved_devices_empty_subtitle),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.massagerExtendedColors.textMuted,
+                        fontSize = 15.sp
+                    ),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(36.dp))
         Text(
-            text = stringResource(id = R.string.home_saved_devices_empty_title),
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.massagerExtendedColors.textSecondary
+            text = stringResource(id = R.string.home_saved_devices_empty_getting_started_title),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 17.sp,
+                color = MaterialTheme.massagerExtendedColors.textPrimary
+            ),
+            textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = stringResource(id = R.string.home_saved_devices_empty_subtitle),
-            style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.massagerExtendedColors.textMuted),
+            text = stringResource(id = R.string.home_saved_devices_empty_getting_started_body),
+            style = MaterialTheme.typography.bodySmall.copy(
+                color = MaterialTheme.massagerExtendedColors.textMuted,
+                fontSize = 15.sp,
+                lineHeight = 20.sp
+            ),
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(16.dp))
-        Card(
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.cardBackground),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.Start,
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = stringResource(id = R.string.home_saved_devices_empty_getting_started_title),
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.massagerExtendedColors.textPrimary
-                )
-                Text(
-                    text = stringResource(id = R.string.home_saved_devices_empty_getting_started_body),
-                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.massagerExtendedColors.textMuted),
-                )
-            }
-        }
-        if (onAddDevice != null) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = onAddDevice,
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.massagerExtendedColors.band,
-                    contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
-                )
-            ) {
-                Text(text = stringResource(id = R.string.home_device_empty_action))
-            }
-        }
     }
 }
