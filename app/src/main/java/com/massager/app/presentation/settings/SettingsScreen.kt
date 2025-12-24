@@ -72,6 +72,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -93,6 +94,7 @@ import kotlinx.coroutines.withContext
 import com.massager.app.presentation.home.AppBottomTab
 import com.massager.app.presentation.theme.massagerExtendedColors
 import com.massager.app.presentation.components.ThemedSnackbarHost
+import com.massager.app.presentation.settings.StandardDualActionDialog
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -126,6 +128,7 @@ fun SettingsScreen(
     var showAvatarDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
@@ -261,7 +264,7 @@ fun SettingsScreen(
                 if (!state.isGuestMode) {
                     item {
                         Button(
-                            onClick = onLogout,
+                            onClick = { showLogoutDialog = true },
                             modifier = Modifier
                                 .padding(horizontal = 20.dp)
                                 .fillMaxWidth()
@@ -399,6 +402,21 @@ fun SettingsScreen(
                 onDismiss = { showThemeDialog = false }
             )
         }
+
+        if (showLogoutDialog) {
+            StandardDualActionDialog(
+                title = stringResource(id = R.string.logout),
+                message = stringResource(id = R.string.logout_confirm),
+                confirmText = stringResource(id = R.string.logout_confirm_confirm),
+                cancelText = stringResource(id = R.string.logout_confirm_cancel),
+                onConfirm = {
+                    showLogoutDialog = false
+                    onLogout()
+                },
+                onCancel = { showLogoutDialog = false },
+                dialogColor = MaterialTheme.massagerExtendedColors.cardBackground
+            )
+        }
     }
 }
 
@@ -513,14 +531,6 @@ private fun HeaderSection(
                         if (displayEmail.isNotBlank()) {
                             Text(
                                 text = displayEmail,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            )
-                        }
-                        if (user.id > 0) {
-                            Text(
-                                text = stringResource(R.string.settings_user_id, user.id.toString()),
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

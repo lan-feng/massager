@@ -27,7 +27,7 @@ class DeleteAccountViewModel @Inject constructor(
 
         val userId = sessionManager.userId()?.toLongOrNull()
         if (userId == null) {
-            _uiState.update { it.copy(errorMessage = "无法获取用户 ID， 请重新登录后再试") }
+            _uiState.update { it.copy(errorMessage = "Unable to get user ID, please re-login and try again") }
             return
         }
 
@@ -42,7 +42,7 @@ class DeleteAccountViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = throwable.message ?: "删除账号失败，请稍后再试"
+                            errorMessage = throwable.message ?: "Failed to delete account, please try again later"
                         )
                     }
                 }

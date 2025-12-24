@@ -17,20 +17,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,12 +40,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import com.massager.app.presentation.components.ThemedSnackbarHost
+import com.massager.app.presentation.settings.StandardDualActionDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -61,6 +64,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,14 +81,17 @@ fun AccountSecurityScreen(
     onBindGoogle: () -> Unit,
     onUnbind: (ThirdPartyPlatform) -> Unit,
     onConsumeUnbindResult: () -> Unit,
-    onConsumeBindResult: () -> Unit
+    onConsumeBindResult: () -> Unit,
+    onCancelExternalBind: () -> Unit
 ) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val guestRestrictionText = stringResource(id = R.string.guest_mode_cloud_restricted)
     var contentVisible by remember { mutableStateOf(false) }
     var unbindTarget by remember { mutableStateOf<ThirdPartyPlatform?>(null) }
+    var externalBindPending by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val showBlockingLoader = state.isBinding || state.isUnbinding
 
@@ -115,6 +123,28 @@ fun AccountSecurityScreen(
         } else if (state.bindError != null) {
             snackbarHostState.showSnackbar(state.bindError ?: context.getString(R.string.third_party_unbind_failed))
             onConsumeBindResult()
+        }
+        if (state.bindSucceeded || state.bindError != null) {
+            externalBindPending = false
+        }
+    }
+
+    LaunchedEffect(state.isBinding) {
+        if (!state.isBinding) {
+            externalBindPending = false
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                externalBindPending = false
+                onCancelExternalBind()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -185,15 +215,14 @@ fun AccountSecurityScreen(
                                                     context.getString(R.string.third_party_binding_blocked_fb)
                                                 )
                                             }
+                                        } else if (binding.platform == ThirdPartyPlatform.Google) {
+                                            externalBindPending = true
+                                            onBindGoogle()
                                         } else {
-                                            if (binding.platform == ThirdPartyPlatform.Google) {
-                                                onBindGoogle()
-                                            } else {
-                                                coroutineScope.launch {
-                                                    snackbarHostState.showSnackbar(
-                                                        context.getString(R.string.third_party_binding_coming_soon)
-                                                    )
-                                                }
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    context.getString(R.string.third_party_binding_coming_soon)
+                                                )
                                             }
                                         }
                                     },
@@ -211,7 +240,6 @@ fun AccountSecurityScreen(
                                 }
                             }
                         }
-
                     }
                 }
                 Box(
@@ -223,105 +251,35 @@ fun AccountSecurityScreen(
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
                 }
-
-                if (showBlockingLoader) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.25f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
+            }
+            if (showBlockingLoader || externalBindPending) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.massagerExtendedColors.band)
                 }
             }
         }
-
-        if (state.showLogoutDialog) {
-            AlertDialog(
-                onDismissRequest = onDismissLogoutDialog,
-                title = { Text(text = stringResource(id = R.string.logout)) },
-                text = { Text(text = stringResource(id = R.string.logout_confirm)) },
-                confirmButton = {
-                    Button(onClick = onConfirmLogout) {
-                        Text(text = stringResource(id = R.string.logout_confirm_confirm))
-                    }
-                },
-                dismissButton = {
-                    Button(onClick = onDismissLogoutDialog) {
-                        Text(text = stringResource(id = R.string.logout_confirm_cancel))
-                    }
-                }
-            )
-        }
-
-        if (unbindTarget != null) {
-            AlertDialog(
-                onDismissRequest = { unbindTarget = null },
-                title = { Text(text = stringResource(id = R.string.third_party_unbind_confirm_title)) },
-                text = { Text(text = stringResource(id = R.string.third_party_unbind_confirm_message)) },
-                confirmButton = {
-                    Button(
-                        enabled = !state.isUnbinding,
-                        onClick = {
-                            unbindTarget?.let(onUnbind)
-                            unbindTarget = null
-                        }
-                    ) {
-                        Text(text = stringResource(id = R.string.third_party_unbind))
-                    }
-                },
-                dismissButton = {
-                    Button(onClick = { unbindTarget = null }) {
-                        Text(text = stringResource(id = R.string.third_party_unbind_cancel))
-                    }
-                }
-            )
-        }
     }
 
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AccountInfoRow(
-    title: String,
-    value: String?,
-    onClick: (() -> Unit)?
-) {
-    val modifier = if (onClick != null) {
-        Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-    } else {
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+    if (unbindTarget != null) {
+        StandardDualActionDialog(
+            title = stringResource(id = R.string.third_party_unbind_confirm_title),
+            message = stringResource(id = R.string.third_party_unbind_confirm_message),
+            confirmText = stringResource(id = R.string.third_party_unbind),
+            cancelText = stringResource(id = R.string.cancel),
+            onConfirm = {
+                unbindTarget?.let(onUnbind)
+                unbindTarget = null
+            },
+            onCancel = { unbindTarget = null },
+            confirmEnabled = !state.isUnbinding,
+            dialogColor = MaterialTheme.massagerExtendedColors.cardBackground
+        )
     }
-
-    val supportingContent: (@Composable () -> Unit)? = value?.let { textValue ->
-        {
-            Text(text = textValue, fontWeight = FontWeight.SemiBold)
-        }
-    }
-
-    ListItem(
-        headlineContent = {
-            Text(text = title, style = MaterialTheme.typography.bodyLarge)
-        },
-        supportingContent = supportingContent,
-        trailingContent = {
-            if (onClick != null) {
-                Icon(
-                    imageVector = Icons.Filled.ArrowForwardIos,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        modifier = modifier
-    )
 }
 
 @Composable

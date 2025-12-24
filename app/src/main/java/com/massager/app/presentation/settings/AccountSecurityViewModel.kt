@@ -68,6 +68,10 @@ class AccountSecurityViewModel @Inject constructor(
         _uiState.update { it.copy(bindSucceeded = false, bindError = null) }
     }
 
+    fun cancelExternalBind() {
+        _uiState.update { it.copy(isBinding = false, bindError = null, bindSucceeded = false) }
+    }
+
     fun onExternalBindStart() {
         _uiState.update { it.copy(isBinding = true, bindError = null, bindSucceeded = false) }
     }

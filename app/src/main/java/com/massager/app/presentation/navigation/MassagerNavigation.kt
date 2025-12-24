@@ -454,7 +454,8 @@ fun MassagerNavHost(
                 },
                 onUnbind = viewModel::unbind,
                 onConsumeUnbindResult = viewModel::consumeUnbindResult,
-                onConsumeBindResult = viewModel::consumeBindResult
+                onConsumeBindResult = viewModel::consumeBindResult,
+                onCancelExternalBind = viewModel::cancelExternalBind
             )
         }
         composable(

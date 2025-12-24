@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -58,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -179,6 +181,12 @@ private fun PersonalInformationContent(
                 }
                 ProfileListCard {
                     ProfileRow(
+                        title = stringResource(id = R.string.email_label),
+                        trailingText = displayEmail,
+                        onClick = null
+                    )
+                    Divider()
+                    ProfileRow(
                         title = stringResource(id = R.string.avatar_label),
                         trailingContent = {
                             AvatarPreview(
@@ -187,12 +195,6 @@ private fun PersonalInformationContent(
                             )
                         },
                         onClick = { showAvatarDialog = true }
-                    )
-                    Divider()
-                    ProfileRow(
-                        title = stringResource(id = R.string.email_label),
-                        trailingText = displayEmail,
-                        onClick = null
                     )
                     Divider()
                     ProfileRow(
@@ -294,24 +296,40 @@ private fun ProfileRow(
         headlineContent = {
             Text(text = title, style = MaterialTheme.typography.bodyLarge)
         },
-        supportingContent = {
-            trailingText?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.End
-                )
-            }
-        },
         trailingContent = {
             when {
                 trailingContent != null -> trailingContent.invoke()
-                onClick != null -> Icon(
-                    imageVector = Icons.Filled.ArrowForwardIos,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                trailingText != null -> {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .padding(start = 8.dp)
+                    ) {
+                        Text(
+                            text = trailingText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.padding(end = if (onClick != null) 8.dp else 0.dp)
+                        )
+                        if (onClick != null) {
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                            )
+                        }
+                    }
+                }
+                onClick != null -> {
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                    )
+                }
             }
         },
         modifier = modifier
@@ -326,6 +344,7 @@ private fun AvatarPreview(
     val avatarBitmap = remember(state.avatarBytes) {
         state.avatarBytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
     }
+    val hasRemote = !state.avatarUrl.isNullOrBlank()
     Row(
         modifier = Modifier
             .clickable(onClick = onClick),
@@ -341,32 +360,41 @@ private fun AvatarPreview(
             tonalElevation = 2.dp,
             shadowElevation = 6.dp
         ) {
-            if (avatarBitmap != null) {
-                Image(
-                    bitmap = avatarBitmap,
-                    contentDescription = stringResource(id = R.string.avatar_label),
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(Color.LightGray)
-                        .size(48.dp),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Image(
-                    painter = rememberAsyncImagePainter(model = state.avatarUrl),
-                    contentDescription = stringResource(id = R.string.avatar_label),
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(Color.LightGray)
-                        .size(48.dp),
-                    contentScale = ContentScale.Crop
-                )
+            val modifier = Modifier
+                .clip(CircleShape)
+                .background(Color.LightGray)
+                .size(48.dp)
+            when {
+                avatarBitmap != null -> {
+                    Image(
+                        bitmap = avatarBitmap,
+                        contentDescription = stringResource(id = R.string.avatar_label),
+                        modifier = modifier,
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                hasRemote -> {
+                    Image(
+                        painter = rememberAsyncImagePainter(model = state.avatarUrl),
+                        contentDescription = stringResource(id = R.string.avatar_label),
+                        modifier = modifier,
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                else -> {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_massager_logo),
+                        contentDescription = stringResource(id = R.string.avatar_label),
+                        modifier = modifier,
+                        contentScale = ContentScale.Crop
+                    )
+                }
             }
         }
         Icon(
-            imageVector = Icons.Filled.ArrowForwardIos,
+            imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
         )
     }
 }
