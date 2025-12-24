@@ -163,7 +163,7 @@ fun HomeDashboardScreen(
     }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = {
             ThemedSnackbarHost(
                 hostState = snackbarHostState,
@@ -177,10 +177,7 @@ fun HomeDashboardScreen(
             )
         }
     ) { padding ->
-        val gradientColors = listOf(
-            MaterialTheme.massagerExtendedColors.surfaceSubtle,
-            MaterialTheme.massagerExtendedColors.surfaceBright
-        )
+        val backgroundColor = MaterialTheme.colorScheme.background
         val scrimBase = MaterialTheme.colorScheme.onSurface
         val isFocusVisible = focusedDevice != null
         val blurRadius by animateDpAsState(targetValue = if (isFocusVisible) 12.dp else 0.dp, animationSpec = tween(220), label = "focusBlur")
@@ -190,7 +187,7 @@ fun HomeDashboardScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(brush = Brush.verticalGradient(gradientColors))
+                .background(color = backgroundColor)
                 .padding(padding)
         ) {
             Box(
@@ -706,84 +703,6 @@ private fun PanelRow(
             contentDescription = null,
             tint = iconTint
         )
-    }
-}
-
-@Composable
-private fun ManagementBottomBar(
-    isSelectionActive: Boolean,
-    selectionCount: Int,
-    isProcessing: Boolean,
-    onRenameClick: () -> Unit,
-    onRemoveClick: () -> Unit,
-    onCancel: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = MaterialTheme.massagerExtendedColors.surfaceBright,
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-            )
-            .padding(horizontal = 24.dp, vertical = 20.dp)
-    ) {
-        if (isProcessing) {
-            Text(
-                text = stringResource(id = R.string.home_management_processing),
-                style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.massagerExtendedColors.textSecondary),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                textAlign = TextAlign.Center
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Button(
-                onClick = onRenameClick,
-                enabled = selectionCount == 1 && !isProcessing,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.massagerExtendedColors.success,
-                    contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
-                ),
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Edit,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(id = R.string.rename))
-            }
-            Button(
-                onClick = onRemoveClick,
-                enabled = selectionCount > 0 && !isProcessing,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.massagerExtendedColors.success,
-                    contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
-                ),
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(id = R.string.remove_device))
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        TextButton(
-            onClick = onCancel,
-            enabled = isSelectionActive && !isProcessing,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        ) {
-            Text(text = stringResource(id = R.string.cancel))
-        }
     }
 }
 
