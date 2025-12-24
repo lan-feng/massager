@@ -258,6 +258,28 @@ fun SettingsScreen(
                     )
                 }
 
+                if (!state.isGuestMode) {
+                    item {
+                        Button(
+                            onClick = onLogout,
+                            modifier = Modifier
+                                .padding(horizontal = 20.dp)
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.massagerExtendedColors.danger.copy(alpha = 0.12f),
+                                contentColor = MaterialTheme.massagerExtendedColors.danger
+                            )
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.logout),
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                    }
+                }
+
                 if (state.isGuestMode) {
                     item {
                         Card(

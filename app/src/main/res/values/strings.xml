@@ -62,6 +62,8 @@
     <string name="device_combo_rename_hint">Enter new device name</string>
     <string name="device_combo_manage_error_not_found">Unable to find this linked device.</string>
     <string name="account_security_title">Account and Security</string>
+    <string name="security_settings_section">Security Settings</string>
+    <string name="account_binding_section">Account Binding</string>
     <string name="email_label">Mail</string>
     <string name="set_password">Set Password</string>
     <string name="third_party_title">Third-party account information</string>

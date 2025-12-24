@@ -80,6 +80,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -367,6 +368,8 @@ private fun DeviceControlContent(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+        val controlsEnabled = state.isConnected
+        val controlsAlpha = if (controlsEnabled) 1f else 0.45f
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -393,36 +396,44 @@ private fun DeviceControlContent(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-            TimerDashboard(
-                isRunning = state.isRunning,
-                remainingSeconds = state.remainingSeconds,
-                timerMinutes = state.timerMinutes,
-                brand = brand,
-                brandSoft = brandSoft,
-                enabled = state.isProtocolReady && state.isConnected,
-                onSelectTimer = { minutes -> onSelectTimer(minutes.coerceIn(0, 60)) },
-                onToggleSession = onToggleSession
-            )
-            LevelControlSection(
-                level = state.level,
-                isConnected = state.isConnected,
-                brand = brand,
-                onPreviewLevel = onPreviewLevel,
-                onCommitLevel = {
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onCommitLevel(it)
-                }
-            )
-            ModeSelectionGrid(
-                selectedMode = state.mode,
-                isEnabled = state.isProtocolReady && state.isConnected,
-                onSelectMode = onSelectMode,
-                brand = brand
-            )
+            Box(modifier = Modifier.alpha(controlsAlpha)) {
+                TimerDashboard(
+                    isRunning = state.isRunning,
+                    remainingSeconds = state.remainingSeconds,
+                    timerMinutes = state.timerMinutes,
+                    brand = brand,
+                    brandSoft = brandSoft,
+                    enabled = state.isProtocolReady && controlsEnabled,
+                    onSelectTimer = { minutes -> onSelectTimer(minutes.coerceIn(0, 60)) },
+                    onToggleSession = onToggleSession
+                )
+            }
+            Box(modifier = Modifier.alpha(controlsAlpha)) {
+                LevelControlSection(
+                    level = state.level,
+                    isConnected = controlsEnabled,
+                    brand = brand,
+                    onPreviewLevel = onPreviewLevel,
+                    onCommitLevel = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onCommitLevel(it)
+                    }
+                )
+            }
+            Box(modifier = Modifier.alpha(controlsAlpha)) {
+                ModeSelectionGrid(
+                    selectedMode = state.mode,
+                    isEnabled = state.isProtocolReady && controlsEnabled,
+                    onSelectMode = onSelectMode,
+                    brand = brand
+                )
+            }
             BodyZoneGrid(
                 selectedZone = state.zone,
                 onSelectZone = onSelectZone,
-                brand = brand
+                brand = brand,
+                isEnabled = controlsEnabled,
+                modifier = Modifier.alpha(controlsAlpha)
             )
         }
             if (isDevicePoweredOff && settingsDialogMessage == null && !hideConnectionDialog) {
@@ -899,7 +910,9 @@ private fun validateLinkedDeviceName(value: String): Int? {
 private fun BodyZoneGrid(
     selectedZone: BodyZone,
     onSelectZone: (BodyZone) -> Unit,
-    brand: Color
+    brand: Color,
+    isEnabled: Boolean,
+    modifier: Modifier = Modifier
 ) {
     val zoneItems = listOf(
         BodyZone.SHOULDER to R.drawable.ic_deck,
@@ -912,7 +925,7 @@ private fun BodyZoneGrid(
     val panelBackground = controlPanelBackground()
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 4.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(16.dp))
@@ -945,7 +958,7 @@ private fun BodyZoneGrid(
                     title = stringResource(id = zone.labelRes),
                     painter = painterResource(id = iconRes),
                     selected = isSelected,
-                    enabled = true,
+                    enabled = isEnabled,
                     brand = brand,
                     modifier = Modifier
                         .width(targetWidth)

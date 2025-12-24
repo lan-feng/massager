@@ -90,8 +90,7 @@ fun MassagerNavHost(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         // Google 登录返回后强制恢复持久化语言，避免外部 Activity 覆盖为英文
-        val localesToRestore = preservedLocales
-        // 恢复绑定前的语言环境，避免 Google 登录修改默认 Locale
+        val localesToRestore = LanguageManager.getPersistedLocales(context.applicationContext)
         if (localesToRestore.size() > 0) {
             LocaleList.setDefault(localesToRestore)
             Locale.setDefault(localesToRestore[0])
@@ -99,9 +98,8 @@ fun MassagerNavHost(
             val config = Configuration(resources.configuration).apply { setLocales(localesToRestore) }
             @Suppress("DEPRECATION")
             resources.updateConfiguration(config, resources.displayMetrics)
-        } else {
-            LanguageManager.preloadPersistedLocale(context.applicationContext)
         }
+        preservedLocales = localesToRestore
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
             val account = task.getResult(ApiException::class.java)

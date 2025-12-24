@@ -178,16 +178,7 @@ class LanguageManager @Inject constructor(
          */
         fun preloadPersistedLocale(context: Context) {
             runCatching {
-                val persistedLanguage = runBlocking {
-                    context.languageDataStore.data.first()[KEY_LANGUAGE]
-                }?.let { saved ->
-                    runCatching { AppLanguage.valueOf(saved) }.getOrDefault(AppLanguage.System)
-                } ?: AppLanguage.System
-                val locales = when (persistedLanguage) {
-                    AppLanguage.System -> LocaleList.getDefault()
-                    AppLanguage.Chinese -> LocaleList(Locale.SIMPLIFIED_CHINESE)
-                    AppLanguage.English -> LocaleList(Locale.ENGLISH)
-                }
+                val locales = getPersistedLocales(context)
                 if (locales.size() > 0) {
                     LocaleList.setDefault(locales)
                     Locale.setDefault(locales[0])
@@ -203,21 +194,28 @@ class LanguageManager @Inject constructor(
          * 为 Activity 提供带持久化语言的 baseContext，确保跳转外部页面返回后仍然维持 App 语言。
          */
         fun wrapWithPersistedLocale(base: Context): Context {
-            val persistedLanguage = runBlocking {
-                base.languageDataStore.data.first()[KEY_LANGUAGE]
-            }?.let { saved ->
-                runCatching { AppLanguage.valueOf(saved) }.getOrDefault(AppLanguage.System)
-            } ?: AppLanguage.System
-            val locales = when (persistedLanguage) {
-                AppLanguage.System -> LocaleList.getDefault()
-                AppLanguage.Chinese -> LocaleList(Locale.SIMPLIFIED_CHINESE)
-                AppLanguage.English -> LocaleList(Locale.ENGLISH)
-            }
+            val locales = getPersistedLocales(base)
             return if (locales.size() > 0) {
                 val config = Configuration(base.resources.configuration).apply { setLocales(locales) }
                 base.createConfigurationContext(config)
             } else {
                 base
+            }
+        }
+
+        /**
+         * 读取持久化的语言配置为 LocaleList，不主动更新资源。
+         */
+        fun getPersistedLocales(context: Context): LocaleList {
+            val persistedLanguage = runBlocking {
+                context.languageDataStore.data.first()[KEY_LANGUAGE]
+            }?.let { saved ->
+                runCatching { AppLanguage.valueOf(saved) }.getOrDefault(AppLanguage.System)
+            } ?: AppLanguage.System
+            return when (persistedLanguage) {
+                AppLanguage.System -> LocaleList.getDefault()
+                AppLanguage.Chinese -> LocaleList(Locale.SIMPLIFIED_CHINESE)
+                AppLanguage.English -> LocaleList(Locale.ENGLISH)
             }
         }
     }

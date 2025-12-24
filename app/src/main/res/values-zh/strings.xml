@@ -44,6 +44,8 @@
     <string name="device_scan_stop">停止扫描</string>
     <string name="device_scan_refresh">重新扫描</string>
     <string name="account_security_title">账号与安全</string>
+    <string name="security_settings_section">安全设置</string>
+    <string name="account_binding_section">账号绑定</string>
     <string name="email_label">邮箱</string>
     <string name="set_password">设置密码</string>
     <string name="third_party_title">第三方账号信息</string>

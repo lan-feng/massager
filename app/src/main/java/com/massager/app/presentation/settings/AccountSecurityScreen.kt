@@ -6,9 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,6 +17,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,15 +26,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarHostState
@@ -55,10 +59,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
@@ -98,11 +104,6 @@ fun AccountSecurityScreen(
     }
     val setPasswordAction = if (state.isGuestMode) restrictedClick else onSetPassword
     val deleteAccountAction = if (state.isGuestMode) restrictedClick else onDeleteAccount
-    val displayedEmail = if (state.isGuestMode && state.userEmail.isBlank()) {
-        stringResource(id = R.string.guest_placeholder_email)
-    } else {
-        state.userEmail
-    }
 
     LaunchedEffect(state.unbindSucceeded, state.unbindError) {
         if (state.unbindSucceeded) {
@@ -156,116 +157,68 @@ fun AccountSecurityScreen(
                         .fillMaxSize()
                         .verticalScroll(scrollState)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        tonalElevation = 2.dp
+                    SectionCard(
+                        title = stringResource(id = R.string.security_settings_section).uppercase(),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column {
-                            AccountInfoRow(
-                                title = stringResource(id = R.string.email_label),
-                                value = displayedEmail,
-                                onClick = null
-                            )
-                            Divider()
-                            AccountInfoRow(
-                                title = stringResource(id = R.string.set_password),
-                                value = null,
-                                onClick = setPasswordAction
-                            )
-                        }
-                    }
-
-                    Column {
-                        Text(
-                            text = stringResource(id = R.string.third_party_title),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 8.dp)
+                        SettingRow(
+                            icon = Icons.Filled.Lock,
+                            label = stringResource(id = R.string.set_password),
+                            onClick = setPasswordAction
                         )
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            tonalElevation = 2.dp
-                        ) {
-                            Column {
-                                state.thirdPartyAccounts.forEachIndexed { index, binding ->
-                                    ThirdPartyAccountRow(
-                                        binding = binding,
-                                        onBind = {
-                                            if (state.isGuestMode) {
-                                                restrictedClick()
-                                            } else if (state.facebookBound) {
-                                                coroutineScope.launch {
-                                                    snackbarHostState.showSnackbar(
-                                                        context.getString(R.string.third_party_binding_blocked_fb)
-                                                    )
-                                                }
-                                            } else {
-                                                if (binding.platform == ThirdPartyPlatform.Google) {
-                                                    onBindGoogle()
-                                                } else {
-                                                    coroutineScope.launch {
-                                                        snackbarHostState.showSnackbar(
-                                                            context.getString(R.string.third_party_binding_coming_soon)
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        onUnbind = {
-                                            if (state.isGuestMode) {
-                                                restrictedClick()
-                                            } else {
-                                                unbindTarget = binding.platform
-                                            }
-                                        },
-                                        isProcessing = state.isUnbinding
-                                    )
-                                    if (index != state.thirdPartyAccounts.lastIndex) {
-                                        Divider()
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        tonalElevation = 2.dp
-                    ) {
-                        AccountInfoRow(
-                            title = stringResource(id = R.string.delete_account),
-                            value = null,
+                        Divider(color = MaterialTheme.massagerExtendedColors.divider.copy(alpha = 0.6f))
+                        SettingRow(
+                            icon = Icons.Filled.Delete,
+                            label = stringResource(id = R.string.delete_account),
                             onClick = deleteAccountAction
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Button(
-                        onClick = onRequestLogout,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(54.dp)
-                            .clip(RoundedCornerShape(28.dp))
-                            .border(
-                                BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-                                shape = RoundedCornerShape(28.dp)
-                            )
-                            .background(Color.Transparent),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-                        shape = RoundedCornerShape(28.dp)
+                    SectionCard(
+                        title = stringResource(id = R.string.account_binding_section).uppercase(),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = stringResource(id = R.string.logout),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onError
-                        )
+                        state.thirdPartyAccounts.forEachIndexed { index, binding ->
+                            ThirdPartyAccountRow(
+                                binding = binding,
+                                onBind = {
+                                    if (state.isGuestMode) {
+                                        restrictedClick()
+                                    } else if (state.facebookBound) {
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                context.getString(R.string.third_party_binding_blocked_fb)
+                                            )
+                                        }
+                                    } else {
+                                        if (binding.platform == ThirdPartyPlatform.Google) {
+                                            onBindGoogle()
+                                        } else {
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    context.getString(R.string.third_party_binding_coming_soon)
+                                                )
+                                            }
+                                        }
+                                    }
+                                },
+                                onUnbind = {
+                                    if (state.isGuestMode) {
+                                        restrictedClick()
+                                    } else {
+                                        unbindTarget = binding.platform
+                                    }
+                                },
+                                isProcessing = state.isUnbinding
+                            )
+                            if (index != state.thirdPartyAccounts.lastIndex) {
+                                Divider(color = MaterialTheme.massagerExtendedColors.divider.copy(alpha = 0.6f))
+                            }
+                        }
                     }
+
                 }
             }
             Box(
@@ -378,6 +331,68 @@ private fun AccountInfoRow(
     )
 }
 
+@Composable
+private fun SectionCard(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+        )
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.massagerExtendedColors.cardBackground
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    val contentColor = MaterialTheme.colorScheme.onSurface
+    ListItem(
+        leadingContent = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.massagerExtendedColors.band
+            )
+        },
+        headlineContent = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = contentColor
+            )
+        },
+        trailingContent = {
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+            )
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ThirdPartyAccountRow(
@@ -389,8 +404,7 @@ private fun ThirdPartyAccountRow(
     ListItem(
         leadingContent = {
             PlatformBadge(
-                text = binding.platform.badgeLabel,
-                background = binding.platform.badgeColor()
+                platform = binding.platform
             )
         },
         headlineContent = {
@@ -431,10 +445,10 @@ private fun ThirdPartyAccountRow(
                     Text(text = stringResource(id = R.string.third_party_unbind))
                 }
             } else {
-                Icon(
-                    imageVector = Icons.Filled.ArrowForwardIos,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                Text(
+                    text = stringResource(id = R.string.go_to_binding),
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.massagerExtendedColors.band
                 )
             }
         }
@@ -443,29 +457,24 @@ private fun ThirdPartyAccountRow(
 
 @Composable
 private fun PlatformBadge(
-    text: String,
-    background: Color
+    platform: ThirdPartyPlatform
 ) {
+    val (iconRes, tint) = when (platform) {
+        ThirdPartyPlatform.Google -> R.drawable.ic_google to Color(0xFF4285F4)
+    }
     Surface(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(Color.Transparent),
-        color = background,
-        contentColor = Color.White,
+        modifier = Modifier.size(36.dp),
         shape = CircleShape,
+        color = tint.copy(alpha = 0.12f),
         tonalElevation = 0.dp
     ) {
-        Text(
-            text = text,
-            modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            color = Color.White,
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.Bold
-        )
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
-}
-
-private fun ThirdPartyPlatform.badgeColor(): Color = when (this) {
-    ThirdPartyPlatform.Google -> Color(0xFF34A853)
 }
