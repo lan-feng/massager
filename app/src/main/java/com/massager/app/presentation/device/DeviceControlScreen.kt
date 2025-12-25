@@ -915,12 +915,12 @@ private fun BodyZoneGrid(
     modifier: Modifier = Modifier
 ) {
     val zoneItems = listOf(
-        BodyZone.SHOULDER to R.drawable.ic_deck,
-        BodyZone.WAIST to R.drawable.ic_airline_seat_recline_normal,
-        BodyZone.LEGS to R.drawable.ic_hiking,
-        BodyZone.ARMS to R.drawable.ic_sports_gymnastics,
-        BodyZone.JOINT to R.drawable.ic_settings_accessibility,
-        BodyZone.BODY to R.drawable.ic_person
+        BodyZone.SHOULDER to R.drawable.ic_body_shoulder,
+        BodyZone.WAIST to R.drawable.ic_body_waist,
+        BodyZone.LEGS to R.drawable.ic_body_legs,
+        BodyZone.ARMS to R.drawable.ic_body_arms,
+        BodyZone.JOINT to R.drawable.ic_body_joint,
+        BodyZone.BODY to R.drawable.ic_body_full
     )
     val panelBackground = controlPanelBackground()
 
@@ -978,14 +978,14 @@ private fun ModeSelectionGrid(
     brand: Color
 ) {
     val modeItems = listOf(
-        Triple(0, stringResource(id = R.string.device_mode_0), R.drawable.ic_accessibility),
-        Triple(1, stringResource(id = R.string.device_mode_1), R.drawable.ic_person),
-        Triple(2, stringResource(id = R.string.device_mode_2), R.drawable.ic_gesture),
-        Triple(3, stringResource(id = R.string.device_mode_3), R.drawable.ic_compress),
-        Triple(4, stringResource(id = R.string.device_mode_4), R.drawable.ic_scatter_plot),
-        Triple(5, stringResource(id = R.string.device_mode_5), R.drawable.ic_invert_colors),
-        Triple(6, stringResource(id = R.string.device_mode_6), R.drawable.ic_local_fire_department),
-        Triple(7, stringResource(id = R.string.device_mode_7), R.drawable.ic_woman)
+        Triple(0, stringResource(id = R.string.device_mode_0), R.drawable.ic_mode_massage),
+        Triple(1, stringResource(id = R.string.device_mode_1), R.drawable.ic_mode_knead),
+        Triple(2, stringResource(id = R.string.device_mode_2), R.drawable.ic_mode_scraping),
+        Triple(3, stringResource(id = R.string.device_mode_3), R.drawable.ic_mode_pressure),
+        Triple(4, stringResource(id = R.string.device_mode_4), R.drawable.ic_mode_acupoint),
+        Triple(5, stringResource(id = R.string.device_mode_5), R.drawable.ic_mode_cupping),
+        Triple(6, stringResource(id = R.string.device_mode_6), R.drawable.ic_mode_activate),
+        Triple(7, stringResource(id = R.string.device_mode_7), R.drawable.ic_mode_shape)
     )
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val maxVisibleTiles = 3.5f
@@ -1066,12 +1066,14 @@ private fun SelectionTile(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val iconSize = 32.dp
             when {
                 painter != null -> {
                     Icon(
                         painter = painter,
                         contentDescription = null,
-                        tint = contentColor
+                        tint = contentColor,
+                        modifier = Modifier.size(iconSize)
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                 }
@@ -1079,7 +1081,8 @@ private fun SelectionTile(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = contentColor
+                        tint = contentColor,
+                        modifier = Modifier.size(iconSize)
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                 }
