@@ -48,7 +48,7 @@ class MassagerRepository @Inject constructor(
                         it.status?.equals("online", ignoreCase = true) == true
                     }.thenByDescending { it.lastSeenAt ?: Instant.EPOCH }
                 )
-                .map { it.toDeviceMetadata() }
+                .map { it.toDeviceMetadata(deviceCatalog) }
         }
     }
 
@@ -76,7 +76,7 @@ class MassagerRepository @Inject constructor(
                 database.deviceDao().clearForOwner(ownerId)
                 database.deviceDao().upsertAll(entities)
             }
-            entities.map { entity -> entity.toDeviceMetadata() }
+            entities.map { entity -> entity.toDeviceMetadata(deviceCatalog) }
         }
     }
 
@@ -106,7 +106,7 @@ class MassagerRepository @Inject constructor(
                 lastSeenAt = now
             )
                 database.deviceDao().upsert(entity)
-                entity.toDeviceMetadata()
+                entity.toDeviceMetadata(deviceCatalog)
             } else {
                 val ownerId = sessionManager.accountOwnerId()
                     ?: throw IllegalStateException("Missing account owner id")
@@ -129,7 +129,7 @@ class MassagerRepository @Inject constructor(
                     ownerIdOverride = ownerId
                 )
                 database.deviceDao().upsert(entity)
-                entity.toDeviceMetadata()
+                entity.toDeviceMetadata(deviceCatalog)
             }
         }
     }
@@ -152,7 +152,7 @@ class MassagerRepository @Inject constructor(
                     val existing = database.deviceDao().findById(deviceId)
                         ?: throw IllegalStateException("Device not found locally")
                     database.deviceDao().updateName(deviceId, newName)
-                    return@runCatching existing.copy(name = newName).toDeviceMetadata()
+                    return@runCatching existing.copy(name = newName).toDeviceMetadata(deviceCatalog)
                 }
                 val ownerId = sessionManager.accountOwnerId()
                     ?: throw IllegalStateException("Missing account owner id")
@@ -174,10 +174,10 @@ class MassagerRepository @Inject constructor(
                         ownerIdOverride = ownerId
                     )
                     database.deviceDao().upsert(entity)
-                    entity.toDeviceMetadata()
+                    entity.toDeviceMetadata(deviceCatalog)
                 } else {
                     database.deviceDao().updateName(deviceId, newName)
-                    database.deviceDao().findById(deviceId)?.toDeviceMetadata()
+                    database.deviceDao().findById(deviceId)?.toDeviceMetadata(deviceCatalog)
                         ?: throw IllegalStateException("Device not found locally after rename")
                 }
             }
@@ -279,7 +279,7 @@ class MassagerRepository @Inject constructor(
     private suspend fun localDevicesSnapshot(): List<DeviceMetadata> {
         val ownerId = sessionManager.activeOwnerId()
         return database.deviceDao().getDevicesForOwner(ownerId).first()
-            .map { it.toDeviceMetadata() }
+            .map { it.toDeviceMetadata(deviceCatalog) }
     }
 
     private suspend fun seedGuestMeasurements(deviceId: String): List<MeasurementEntity> {
@@ -345,14 +345,18 @@ class MassagerRepository @Inject constructor(
             lastSeenAt = parseInstant(lastSeenAt)
         )
 
-    private fun DeviceEntity.toDeviceMetadata(): DeviceMetadata =
-        DeviceMetadata(
+    private fun DeviceEntity.toDeviceMetadata(deviceCatalog: DeviceCatalog): DeviceMetadata {
+        val type = deviceCatalog.resolveType(productId = null, name = name)
+        return DeviceMetadata(
             id = id,
             name = name,
             serialNo = uniqueId ?: id,
             macAddress = serial,
-            isConnected = status?.equals("online", ignoreCase = true) == true
+            isConnected = status?.equals("online", ignoreCase = true) == true,
+            deviceType = type,
+            iconResId = deviceCatalog.iconForType(type)
         )
+    }
 
     private suspend fun updateLocalComboInfo(deviceId: String, comboInfo: String, resolvedId: Long? = null) {
         // Update by id, resolved numeric id, and serial to ensure local row matches the server update.

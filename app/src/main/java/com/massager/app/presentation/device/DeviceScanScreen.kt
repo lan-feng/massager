@@ -571,18 +571,14 @@ private fun DeviceCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(64.dp)
-                    .background(
-                        MaterialTheme.massagerExtendedColors.success.copy(alpha = 0.12f),
-                        RoundedCornerShape(18.dp)
-                    ),
+                    .size(64.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_massager_logo),
+                    painter = painterResource(id = device.iconRes ?: R.drawable.ic_massager_logo),
                     contentDescription = null,
                     tint = Color.Unspecified,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(64.dp)
                 )
             }
             Column(

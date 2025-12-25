@@ -4,14 +4,16 @@
     "productIds": [],
     "nameKeywords": [
       "smartpulse"
-    ]
+    ],
+    "icon": "ems_device_001"
   },
   {
     "typeId": 11,
     "productIds": [],
     "nameKeywords": [
       "Massager"
-    ]
+    ],
+    "icon": "ems_device_001"
   },
   {
     "typeId": 12,
@@ -20,6 +22,7 @@
     ],
     "nameKeywords": [
       "massager"
-    ]
+    ],
+    "icon": "ems_device_001"
   }
 ]

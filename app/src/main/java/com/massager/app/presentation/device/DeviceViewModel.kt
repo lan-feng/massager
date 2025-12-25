@@ -38,7 +38,9 @@ data class DeviceListItem(
     val isConnected: Boolean,
     val productId: Int? = null,
     val firmwareVersion: String? = null,
-    val uniqueId: String? = null
+    val uniqueId: String? = null,
+    val deviceType: Int? = null,
+    val iconRes: Int? = null
 )
 
 data class DeviceScanUiState(
@@ -106,6 +108,7 @@ class DeviceViewModel @Inject constructor(
                 }
                 DeviceScanUiState(
                     devices = filtered.map { device ->
+                        val type = deviceCatalog.resolveType(device.productId, device.name)
                         DeviceListItem(
                             name = device.name,
                             address = device.address,
@@ -113,7 +116,9 @@ class DeviceViewModel @Inject constructor(
                             isConnected = device.isConnected,
                             productId = device.productId,
                             firmwareVersion = device.firmwareVersion,
-                            uniqueId = device.uniqueId
+                            uniqueId = device.uniqueId,
+                            deviceType = type,
+                            iconRes = deviceCatalog.iconForType(type)
                         )
                     },
                     connectionState = state,
@@ -225,9 +230,10 @@ class DeviceViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(processingAddress = device.address) }
             val current = getDeviceComboInfoUseCase(ownerId)
+            val resolvedType = device.deviceType ?: deviceCatalog.resolveType(device.productId, device.name)
             val entry = ComboDeviceInfo(
                 deviceSerial = device.address,
-                deviceType = deviceCatalog.resolveType(device.productId, device.name),
+                deviceType = resolvedType,
                 firmwareVersion = device.firmwareVersion,
                 uniqueId = device.uniqueId,
                 nameAlias = device.name

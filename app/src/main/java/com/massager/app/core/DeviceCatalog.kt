@@ -15,6 +15,7 @@ class DeviceCatalog @Inject constructor(
 ) {
 
     private val definitions: List<DeviceTypeDefinition>
+    private val iconResByType: Map<Int, Int>
 
     init {
         definitions = loadDefinitions(
@@ -25,6 +26,13 @@ class DeviceCatalog @Inject constructor(
                 context.packageName
             )
         ).ifEmpty { DEFAULT_DEFINITIONS }
+        iconResByType = definitions.mapNotNull { definition ->
+            val name = definition.iconName?.substringBeforeLast(".")?.takeIf { it.isNotBlank() }
+            val resId = name?.let {
+                context.resources.getIdentifier(it, "drawable", context.packageName)
+            }?.takeIf { it != 0 }
+            resId?.let { definition.typeId to it }
+        }.toMap()
     }
 
     val reservedDeviceTypes: List<Int> =
@@ -41,6 +49,11 @@ class DeviceCatalog @Inject constructor(
             definition.nameKeywords.any { keyword -> normalized.contains(keyword.lowercase()) }
         }
         return byName?.typeId ?: reservedDeviceTypes.first()
+    }
+
+    fun iconForType(typeId: Int?): Int? {
+        if (typeId == null) return null
+        return iconResByType[typeId]
     }
 
     private fun loadDefinitions(context: Context, @RawRes rawRes: Int): List<DeviceTypeDefinition> {
@@ -63,7 +76,8 @@ class DeviceCatalog @Inject constructor(
         DeviceTypeDefinition(
             typeId = getInt("typeId"),
             productIds = optJSONArray("productIds")?.toIntList().orEmpty(),
-            nameKeywords = optJSONArray("nameKeywords")?.toStringList().orEmpty()
+            nameKeywords = optJSONArray("nameKeywords")?.toStringList().orEmpty(),
+            iconName = optString("icon").takeIf { has("icon") && it.isNotBlank() }
         )
 
     private fun JSONArray.toIntList(): List<Int> =
@@ -83,7 +97,8 @@ class DeviceCatalog @Inject constructor(
     data class DeviceTypeDefinition(
         val typeId: Int,
         val productIds: List<Int>,
-        val nameKeywords: List<String>
+        val nameKeywords: List<String>,
+        val iconName: String? = null
     )
 
     companion object {
@@ -93,7 +108,8 @@ class DeviceCatalog @Inject constructor(
             DeviceTypeDefinition(
                 typeId = typeId,
                 productIds = emptyList(),
-                nameKeywords = emptyList()
+                nameKeywords = emptyList(),
+                iconName = null
             )
         }
     }

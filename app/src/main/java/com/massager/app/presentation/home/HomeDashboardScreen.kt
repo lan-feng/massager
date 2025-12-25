@@ -471,15 +471,15 @@ private fun DeviceCard(
             Box(
                 modifier = Modifier
                     .size(64.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(MaterialTheme.massagerExtendedColors.surfaceSubtle),
+                    .clip(RoundedCornerShape(18.dp)),
+//                    .background(MaterialTheme.massagerExtendedColors.surfaceSubtle),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.ic_massager_logo),
+                    painter = painterResource(id = device.iconResId ?: R.drawable.ic_massager_logo),
                     contentDescription = device.name,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(64.dp)
                 )
             }
             Column(
@@ -589,14 +589,14 @@ private fun FocusedDeviceCard(
             Box(
                 modifier = Modifier
                     .size(70.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.massagerExtendedColors.surfaceSubtle),
+                    .clip(RoundedCornerShape(20.dp)),
+//                    .background(MaterialTheme.massagerExtendedColors.surfaceSubtle),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.ic_massager_logo),
+                    painter = painterResource(id = device.iconResId ?: R.drawable.ic_massager_logo),
                     contentDescription = device.name,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(70.dp)
                 )
             }
             Column(
