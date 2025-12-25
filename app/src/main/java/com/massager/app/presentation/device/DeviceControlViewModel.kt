@@ -243,7 +243,7 @@ class DeviceControlViewModel @Inject constructor(
         val current = _uiState.value
         if (current.zone == zone) return
         _uiState.update { it.copy(zone = zone) }
-        if (current.isRunning) {
+        if (current.isProtocolReady) {
             viewModelScope.launch {
                 if (!withSession { session -> session.selectZone(zone.index) }) {
                     _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
@@ -257,7 +257,7 @@ class DeviceControlViewModel @Inject constructor(
         val current = _uiState.value
         if (current.mode == sanitized) return
         _uiState.update { it.copy(mode = sanitized) }
-        if (current.isRunning) {
+        if (current.isProtocolReady) {
             viewModelScope.launch {
                 if (!withSession { session -> session.selectMode(sanitized) }) {
                     _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
@@ -325,7 +325,7 @@ class DeviceControlViewModel @Inject constructor(
             tag,
             "updateLevel: level=$sanitized dispatchCommand=$dispatchCommand isRunning=${current.isRunning}"
         )
-        if (dispatchCommand && current.isRunning) {
+        if (dispatchCommand && current.isProtocolReady) {
             viewModelScope.launch {
                 Log.d(tag, "updateLevel: sending live level update level=$sanitized")
                 if (!withSession { session -> session.selectLevel(sanitized) }) {
