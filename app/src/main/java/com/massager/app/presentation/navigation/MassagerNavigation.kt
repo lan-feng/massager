@@ -86,6 +86,17 @@ fun MassagerNavHost(
     var onExternalGoogleBindSuccess by remember { mutableStateOf<(() -> Unit)?>(null) }
     var onExternalGoogleBindFailed by remember { mutableStateOf<((String?) -> Unit)?>(null) }
 
+    LaunchedEffect(preservedLocales) {
+        if (preservedLocales.size() > 0) {
+            LocaleList.setDefault(preservedLocales)
+            Locale.setDefault(preservedLocales[0])
+            val resources = context.applicationContext.resources
+            val config = Configuration(resources.configuration).apply { setLocales(preservedLocales) }
+            @Suppress("DEPRECATION")
+            resources.updateConfiguration(config, resources.displayMetrics)
+        }
+    }
+
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -176,7 +187,7 @@ fun MassagerNavHost(
                 onGuestLogin = { authViewModel.enterGuestMode() },
                 onGoogleLogin = {
                     googleLoginSource = GoogleLoginSource.AuthFlow
-                    preservedLocales = configuration.locales
+                    preservedLocales = LanguageManager.getPersistedLocales(context.applicationContext)
                     authViewModel.beginGoogleLogin()
                     googleSignInLauncher.launch(googleSignInClient.signInIntent)
                 },
@@ -449,6 +460,7 @@ fun MassagerNavHost(
                     onExternalGoogleBindFailed = viewModel::onExternalBindFailed
                     viewModel.onExternalBindStart()
                     authViewModel.beginGoogleLogin()
+                    preservedLocales = LanguageManager.getPersistedLocales(context.applicationContext)
                     googleSignInLauncher.launch(googleSignInClient.signInIntent)
                 },
                 onUnbind = viewModel::unbind,
