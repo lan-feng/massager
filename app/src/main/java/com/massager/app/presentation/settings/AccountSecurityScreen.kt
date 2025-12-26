@@ -92,6 +92,7 @@ fun AccountSecurityScreen(
     var contentVisible by remember { mutableStateOf(false) }
     var unbindTarget by remember { mutableStateOf<ThirdPartyPlatform?>(null) }
     var externalBindPending by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val showBlockingLoader = state.isBinding || state.isUnbinding
 
@@ -104,7 +105,13 @@ fun AccountSecurityScreen(
         }
     }
     val setPasswordAction = if (state.isGuestMode) restrictedClick else onSetPassword
-    val deleteAccountAction = if (state.isGuestMode) restrictedClick else onDeleteAccount
+    val deleteAccountAction: () -> Unit = {
+        if (state.isGuestMode) {
+            restrictedClick()
+        } else {
+            showDeleteDialog = true
+        }
+    }
 
     LaunchedEffect(state.unbindSucceeded, state.unbindError) {
         if (state.unbindSucceeded) {
@@ -280,6 +287,21 @@ fun AccountSecurityScreen(
             dialogColor = MaterialTheme.massagerExtendedColors.cardBackground
         )
     }
+
+    if (showDeleteDialog) {
+        StandardDualActionDialog(
+            title = stringResource(id = R.string.delete_account_confirm_title),
+            message = stringResource(id = R.string.delete_account_confirm_description),
+            confirmText = stringResource(id = R.string.delete_account_confirm_button),
+            cancelText = stringResource(id = R.string.delete_account_cancel_button),
+            onConfirm = {
+                showDeleteDialog = false
+                onDeleteAccount()
+            },
+            onCancel = { showDeleteDialog = false },
+            dialogColor = MaterialTheme.massagerExtendedColors.cardBackground
+        )
+    }
 }
 
 @Composable
@@ -368,8 +390,8 @@ private fun ThirdPartyAccountRow(
                     details.forEach { detail ->
                         Text(
                             text = detail,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.massagerExtendedColors.textMuted,
+                            style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -378,7 +400,8 @@ private fun ThirdPartyAccountRow(
             } else {
                 Text(
                     text = stringResource(id = R.string.go_to_binding),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.massagerExtendedColors.textMuted
                 )
             }
         },
@@ -397,7 +420,7 @@ private fun ThirdPartyAccountRow(
                 }
             } else {
                 Text(
-                    text = stringResource(id = R.string.go_to_binding),
+                    text = stringResource(id = R.string.bind_action),
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.massagerExtendedColors.band
                 )

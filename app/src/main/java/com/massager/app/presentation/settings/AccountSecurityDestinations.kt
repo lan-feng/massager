@@ -31,7 +31,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -71,8 +70,7 @@ fun ChangePasswordScreen(
     viewModel: ChangePasswordViewModel = hiltViewModel(),
     requireOldPassword: Boolean = true,
     onBack: () -> Unit,
-    onPasswordChanged: () -> Unit,
-    onForgotPassword: () -> Unit
+    onPasswordChanged: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -134,7 +132,7 @@ fun ChangePasswordScreen(
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            AnimatedVisibility(visible = uiState.requireOldPassword) {
+            AnimatedVisibility(visible = requireOldPassword && uiState.requireOldPassword) {
                 PasswordField(
                     label = stringResource(id = R.string.old_password_label),
                     value = uiState.oldPassword,
@@ -243,16 +241,7 @@ fun ChangePasswordScreen(
                 }
             }
 
-            TextButton(
-                onClick = onForgotPassword,
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text(
-                    text = stringResource(id = R.string.forgot_password_action),
-                    color = MaterialTheme.massagerExtendedColors.success,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            
         }
     }
 }

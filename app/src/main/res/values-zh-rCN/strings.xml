@@ -49,7 +49,8 @@
     <string name="email_label">邮箱</string>
     <string name="set_password">设置密码</string>
     <string name="third_party_title">第三方账号信息</string>
-    <string name="go_to_binding">前往绑定</string>
+    <string name="go_to_binding">未绑定</string>
+    <string name="bind_action">绑定</string>
     <string name="delete_account">注销账号</string>
     <string name="logout">退出登录</string>
     <string name="logout_confirm">确定要退出登录吗？</string>

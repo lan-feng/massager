@@ -67,7 +67,8 @@
     <string name="email_label">Mail</string>
     <string name="set_password">Set Password</string>
     <string name="third_party_title">Third-party account information</string>
-    <string name="go_to_binding">Go to binding</string>
+    <string name="go_to_binding">Not bound</string>
+    <string name="bind_action">Bind</string>
     <string name="third_party_bound">Already bound</string>
     <string name="third_party_binding_blocked_fb">Facebook already bound, Google binding not required</string>
     <string name="third_party_already_bound">Already bound</string>

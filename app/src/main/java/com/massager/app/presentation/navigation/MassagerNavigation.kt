@@ -478,8 +478,7 @@ fun MassagerNavHost(
                         launchSingleTop = true
                     }
                     authViewModel.clearAuthenticationFlag()
-                },
-                onForgotPassword = { navController.navigate(Screen.ForgetPassword.route) }
+                }
             )
         }
         composable(Screen.About.route) {
