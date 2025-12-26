@@ -101,7 +101,7 @@
     <string name="check_update">Check for update</string>
     <string name="user_agreement">User agreement</string>
     <string name="privacy_policy">Privacy policy</string>
-    <string name="version_label">V1.0.0</string>
+    <string name="version_label">Version %1$s</string>
     <string name="already_latest">Already up to date</string>
     <string name="new_version_available">New version available!</string>
     <string name="new_version_details">New version available: %1$s</string>

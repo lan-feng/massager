@@ -53,12 +53,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.massager.app.BuildConfig
 import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
 
@@ -133,27 +135,23 @@ fun AboutScreen(
                         .shadow(elevation = 12.dp, shape = CircleShape, clip = false)
                         .clip(CircleShape)
                         .semantics { contentDescription = logoContentDescription }
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    MaterialTheme.massagerExtendedColors.success,
-                                    MaterialTheme.massagerExtendedColors.success.copy(alpha = 0.8f)
-                                )
-                            )
-                        ),
+                        .background(MaterialTheme.massagerExtendedColors.cardBackground),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "M",
-                        color = MaterialTheme.massagerExtendedColors.textOnAccent,
-                        fontSize = 42.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.Center),
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_massager_logo),
+                        contentDescription = logoContentDescription,
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(52.dp)
                     )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = stringResource(R.string.version_label),
+                    text = stringResource(
+                        id = R.string.version_label,
+                        BuildConfig.VERSION_NAME,
+                        BuildConfig.VERSION_CODE
+                    ),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = MaterialTheme.massagerExtendedColors.textMuted,
                         fontSize = 14.sp
@@ -253,7 +251,7 @@ private fun InfoListItem(
             Icon(
                 imageVector = leadingIcon,
                 contentDescription = null,
-                tint = MaterialTheme.massagerExtendedColors.success
+                tint = MaterialTheme.massagerExtendedColors.band
             )
             Text(
                 text = title,
