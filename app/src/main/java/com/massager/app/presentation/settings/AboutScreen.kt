@@ -7,34 +7,25 @@ import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material.icons.outlined.SystemUpdate
-import androidx.compose.material.ripple.rememberRipple
-import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -51,7 +42,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -62,6 +52,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.massager.app.BuildConfig
 import com.massager.app.R
+import com.massager.app.presentation.components.ThemedSnackbarHost
+import com.massager.app.presentation.settings.components.SettingsEntry
+import com.massager.app.presentation.settings.components.SettingsSectionCard
 import com.massager.app.presentation.theme.massagerExtendedColors
 
 @kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -86,29 +79,15 @@ fun AboutScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(R.string.about_title),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.massagerExtendedColors.textPrimary
-                        )
-                    )
-                },
+                title = { Text(text = stringResource(id = R.string.about_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.Filled.ArrowBack,
-                            contentDescription = null,
-                            tint = MaterialTheme.massagerExtendedColors.textPrimary
-                        )
+                        Icon(Icons.Filled.ArrowBack, contentDescription = null)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.massagerExtendedColors.surfaceBright,
-                    navigationIconContentColor = MaterialTheme.massagerExtendedColors.textPrimary,
-                    titleContentColor = MaterialTheme.massagerExtendedColors.textPrimary
+                    containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
@@ -161,39 +140,29 @@ fun AboutScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                shadowElevation = 2.dp,
-                color = MaterialTheme.massagerExtendedColors.surfaceBright
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    InfoListItem(
+            SettingsSectionCard(
+                title = null,
+                items = listOf(
+                    SettingsEntry(
                         title = stringResource(R.string.check_update),
-                        leadingIcon = Icons.Outlined.SystemUpdate,
-                        onClick = { openOnPlayStore(context) },
-                        trailingContent = {
-                            Icon(
-                                imageVector = Icons.Filled.ChevronRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.massagerExtendedColors.iconMuted
-                            )
-                        }
-                    )
-                    Divider(color = MaterialTheme.massagerExtendedColors.divider, thickness = 1.dp)
-                    InfoListItem(
+                        icon = Icons.Outlined.SystemUpdate,
+                        onClick = { openOnPlayStore(context) }
+                    ),
+                    SettingsEntry(
                         title = stringResource(R.string.user_agreement),
-                        leadingIcon = Icons.Outlined.Article,
+                        icon = Icons.Outlined.Article,
                         onClick = onOpenUserAgreement
-                    )
-                    Divider(color = MaterialTheme.massagerExtendedColors.divider, thickness = 1.dp)
-                    InfoListItem(
+                    ),
+                    SettingsEntry(
                         title = stringResource(R.string.privacy_policy),
-                        leadingIcon = Icons.Outlined.Policy,
+                        icon = Icons.Outlined.Policy,
                         onClick = onOpenPrivacyPolicy
                     )
-                }
-            }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 0.dp)
+            )
 
             Spacer(modifier = Modifier.height(48.dp))
 
@@ -210,59 +179,6 @@ fun AboutScreen(
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
-    }
-}
-
-@Composable
-private fun InfoListItem(
-    title: String,
-    leadingIcon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    trailingContent: @Composable () -> Unit = {
-        Icon(
-            imageVector = Icons.Filled.ChevronRight,
-            contentDescription = null,
-            tint = MaterialTheme.massagerExtendedColors.iconMuted
-        )
-    },
-    enabled: Boolean = true
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = rememberRipple(),
-                enabled = enabled,
-                onClick = onClick
-            )
-            .padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Icon(
-                imageVector = leadingIcon,
-                contentDescription = null,
-                tint = MaterialTheme.massagerExtendedColors.band
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontSize = 16.sp,
-                    color = MaterialTheme.massagerExtendedColors.textPrimary
-                )
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        trailingContent()
     }
 }
 

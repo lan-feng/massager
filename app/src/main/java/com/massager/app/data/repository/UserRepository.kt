@@ -27,7 +27,7 @@ class UserRepository @Inject constructor(
         }
         response.data?.let { data ->
             data.token?.takeIf { it.isNotBlank() }?.let { sessionManager.saveAuthToken(it) }
-            data.user.appId?.takeIf { it.isNotBlank() }?.let { sessionManager.saveAppId(it) }
+            data.resolvedUser()?.appId?.takeIf { it.isNotBlank() }?.let { sessionManager.saveAppId(it) }
             data.toDomain()
         } ?: throw IllegalStateException("Empty profile response")
     }
@@ -83,19 +83,22 @@ class UserRepository @Inject constructor(
         }
     }
 
-    private fun UserInfoResponse.toDomain(): UserProfile =
-        UserProfile(
-            id = user.id,
-            name = user.name,
-            email = user.email,
-            avatarUrl = user.avatarUrl,
+    private fun UserInfoResponse.toDomain(): UserProfile {
+        val payload = resolvedUser()
+            ?: throw IllegalStateException("Missing user payload in response")
+        return UserProfile(
+            id = payload.id,
+            name = payload.name,
+            email = payload.email,
+            avatarUrl = payload.avatarUrl,
             cacheSize = null,
-            firebaseUid = user.firebaseUid,
-            appleUserId = user.appleUserId,
-            facebookUid = user.facebookUid,
-            thirdPartyProfiles = parseThirdPartyProfiles(user.userSettings),
-            hasPassword = user.hasPassword ?: false
+            firebaseUid = payload.firebaseUid,
+            appleUserId = payload.appleUserId,
+            facebookUid = payload.facebookUid,
+            thirdPartyProfiles = parseThirdPartyProfiles(payload.userSettings),
+            hasPassword = payload.hasPassword ?: false
         )
+    }
 
     private fun parseThirdPartyProfiles(settings: Map<String, com.massager.app.data.remote.dto.ThirdPartyProps?>?): Map<String, ThirdPartyProfile> {
         return settings.orEmpty().mapValues { (_, value) ->

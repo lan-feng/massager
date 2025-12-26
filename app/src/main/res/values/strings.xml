@@ -183,7 +183,7 @@
     <string name="profile_cancel">Cancel</string>
     <string name="toast_profile_updated">Profile updated successfully</string>
     <string name="profile_name_hint">Enter your name</string>
-    <string name="profile_name_error">Name must be 2-20 letters.</string>
+    <string name="profile_name_error">Name must be 2-20 characters.</string>
     <string name="home_welcome_title">Welcome to Massager</string>
     <string name="home_welcome_subtitle">Manage your wellness devices</string>
     <string name="home_common_devices_title">Common Device</string>

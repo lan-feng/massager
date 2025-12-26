@@ -94,6 +94,8 @@ import kotlinx.coroutines.withContext
 import com.massager.app.presentation.home.AppBottomTab
 import com.massager.app.presentation.theme.massagerExtendedColors
 import com.massager.app.presentation.components.ThemedSnackbarHost
+import com.massager.app.presentation.settings.components.SettingsEntry
+import com.massager.app.presentation.settings.components.SettingsSectionCard
 import com.massager.app.presentation.settings.StandardDualActionDialog
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
@@ -202,55 +204,61 @@ fun SettingsScreen(
                 }
 
                 item {
-                    SettingsGroup(
+                    SettingsSectionCard(
                         title = stringResource(R.string.settings_profile_section),
                         items = listOf(
-                            SettingsItem(
+                            SettingsEntry(
                                 icon = Icons.Outlined.PersonOutline,
                                 title = stringResource(R.string.settings_personal_info),
                                 onClick = onNavigatePersonalInfo
                             ),
-                            SettingsItem(
+                            SettingsEntry(
                                 icon = Icons.Outlined.Security,
                                 title = stringResource(R.string.settings_account_security),
                                 onClick = if (state.isGuestMode) {
                                     { onGuestRestricted(guestRestrictionMessage) }
                                 } else onNavigateAccountSecurity
                             )
-                        )
+                        ),
+                        modifier = Modifier
+                            .padding(horizontal = 20.dp, vertical = 8.dp)
                     )
                 }
 
                 item {
-                    SettingsGroup(
+                    SettingsSectionCard(
                         title = stringResource(R.string.settings_preferences_section),
                         items = listOf(
-                            SettingsItem(
+                            SettingsEntry(
                                 icon = Icons.Filled.Language,
                                 title = stringResource(id = R.string.settings_language_title),
                                 trailingText = languageLabel(state.appLanguage),
                                 onClick = { showLanguageDialog = true }
                             ),
-                            SettingsItem(
+                            SettingsEntry(
                                 icon = Icons.Filled.LightMode,
                                 title = stringResource(id = R.string.settings_theme_title),
                                 trailingText = themeLabel(state.appTheme),
                                 onClick = { showThemeDialog = true }
                             )
-                        )
+                        ),
+                        modifier = Modifier
+                            .padding(horizontal = 20.dp, vertical = 8.dp)
                     )
                 }
 
                 item {
-                    SettingsGroup(
+                    SettingsSectionCard(
                         title = stringResource(R.string.settings_other_section),
                         items = listOf(
-                            SettingsItem(
+                            SettingsEntry(
                                 icon = Icons.Filled.Info,
                                 title = stringResource(R.string.settings_about),
                                 onClick = onNavigateAbout
                             )
-                        )
+                        ),
+                        modifier = Modifier
+                            .padding(horizontal = 20.dp, vertical = 8.dp)
                     )
                 }
 
@@ -537,68 +545,10 @@ private fun HeaderSection(
 
 }
 
-private data class SettingsItem(
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val title: String,
-    val trailingText: String? = null,
-    val trailingContent: (@Composable () -> Unit)? = null,
-    val onClick: (() -> Unit)? = null
-)
-
 private data class OptionEntry<T>(
     val value: T,
     val label: String
 )
-
-@Composable
-private fun SettingsItemRow(item: SettingsItem) {
-    val interaction = remember(item.title) { MutableInteractionSource() }
-    val hasNavigation = item.onClick != null || item.trailingContent != null
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .clickable(
-                enabled = hasNavigation,
-                interactionSource = interaction,
-                indication = if (hasNavigation) {
-                    rememberRipple(color = MaterialTheme.massagerExtendedColors.band.copy(alpha = 0.16f))
-                } else null
-            ) { item.onClick?.invoke() }
-            .padding(vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Icon(
-            imageVector = item.icon,
-            contentDescription = item.title,
-            tint = MaterialTheme.massagerExtendedColors.band
-        )
-        Text(
-            text = item.title,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
-        when {
-            item.trailingContent != null -> item.trailingContent.invoke()
-            item.trailingText != null -> Text(
-                text = item.trailingText,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        if (hasNavigation) {
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-            )
-        }
-    }
-}
 
 @Composable
 private fun <T> PreferenceDialog(
@@ -652,42 +602,6 @@ private fun themeLabel(theme: AppTheme): String = when (theme) {
     AppTheme.System -> stringResource(id = R.string.settings_theme_system)
     AppTheme.Light -> stringResource(id = R.string.settings_theme_light)
     AppTheme.Dark -> stringResource(id = R.string.settings_theme_dark)
-}
-
-@Composable
-private fun SettingsGroup(
-    title: String,
-    items: List<SettingsItem>
-) {
-    Card(
-        modifier = Modifier
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .background(MaterialTheme.massagerExtendedColors.cardBackground)
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 20.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge.copy(
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            items.forEachIndexed { index, item ->
-                SettingsItemRow(item)
-                if (index != items.lastIndex) {
-                    Divider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
-                }
-            }
-        }
-    }
 }
 
 @Composable

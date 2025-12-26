@@ -12,39 +12,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -69,6 +47,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.rememberAsyncImagePainter
 import com.massager.app.R
 import com.massager.app.presentation.components.ThemedSnackbarHost
+import com.massager.app.presentation.settings.components.SettingsEntry
+import com.massager.app.presentation.settings.components.SettingsSectionCard
 import com.massager.app.presentation.theme.massagerExtendedColors
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
@@ -179,30 +159,36 @@ private fun PersonalInformationContent(
                 } else {
                     state.email
                 }
-                ProfileListCard {
-                    ProfileRow(
-                        title = stringResource(id = R.string.email_label),
-                        trailingText = displayEmail,
-                        onClick = null
-                    )
-                    Divider()
-                    ProfileRow(
-                        title = stringResource(id = R.string.avatar_label),
-                        trailingContent = {
-                            AvatarPreview(
-                                state = state,
-                                onClick = { showAvatarDialog = true }
-                            )
-                        },
-                        onClick = { showAvatarDialog = true }
-                    )
-                    Divider()
-                    ProfileRow(
-                        title = stringResource(id = R.string.name_label),
-                        trailingText = displayName,
-                        onClick = { showNameDialog = true }
-                    )
-                }
+                SettingsSectionCard(
+                    title = null,
+                    items = listOf(
+                        SettingsEntry(
+                            title = stringResource(id = R.string.email_label),
+                            trailingText = displayEmail
+                        ),
+                        SettingsEntry(
+                            title = stringResource(id = R.string.avatar_label),
+                            trailingContent = {
+                                AvatarPreview(
+                                    state = state,
+                                    onClick = { showAvatarDialog = true }
+                                )
+                            },
+                            onClick = { showAvatarDialog = true }
+                        ),
+                        SettingsEntry(
+                            title = stringResource(id = R.string.name_label),
+                            trailingText = displayName,
+                            onClick = { showNameDialog = true }
+                        )
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        horizontal = 20.dp,
+                        vertical = 16.dp
+                    ),
+                    cornerRadius = 24
+                )
             }
         }
     }
@@ -255,85 +241,6 @@ private fun PersonalInformationContent(
             }
         )
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ProfileListCard(
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.massagerExtendedColors.surfaceBright)
-    ) {
-        Column(content = content)
-    }
-}
-
-@Composable
-private fun ProfileRow(
-    title: String,
-    trailingText: String? = null,
-    trailingContent: (@Composable () -> Unit)? = null,
-    onClick: (() -> Unit)?
-) {
-    val modifier = if (onClick != null) {
-        Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-    } else {
-        Modifier.fillMaxWidth()
-    }
-
-    ListItem(
-        headlineContent = {
-            Text(text = title, style = MaterialTheme.typography.bodyLarge)
-        },
-        trailingContent = {
-            when {
-                trailingContent != null -> trailingContent.invoke()
-                trailingText != null -> {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End,
-                        modifier = Modifier
-                            .wrapContentWidth()
-                            .padding(start = 8.dp)
-                    ) {
-                        Text(
-                            text = trailingText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier.padding(end = if (onClick != null) 8.dp else 0.dp)
-                        )
-                        if (onClick != null) {
-                            Icon(
-                                imageVector = Icons.Filled.ChevronRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                            )
-                        }
-                    }
-                }
-                onClick != null -> {
-                    Icon(
-                        imageVector = Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                    )
-                }
-            }
-        },
-        modifier = modifier
-    )
 }
 
 @Composable
@@ -391,11 +298,6 @@ private fun AvatarPreview(
                 }
             }
         }
-        Icon(
-            imageVector = Icons.Filled.ChevronRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-        )
     }
 }
 
@@ -407,7 +309,7 @@ private fun EditNameDialog(
 ) {
     var name by remember(currentName) { mutableStateOf(currentName) }
     val trimmed = name.trim()
-    val isValid = trimmed.length in 2..20 && trimmed.all { it.isLetter() }
+    val isValid = trimmed.length in 2..20
 
     AlertDialog(
         onDismissRequest = onDismiss,

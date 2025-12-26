@@ -161,7 +161,7 @@
     <string name="profile_cancel">取消</string>
     <string name="toast_profile_updated">个人信息更新成功</string>
     <string name="profile_name_hint">请输入姓名</string>
-    <string name="profile_name_error">姓名需为 2-20 个字母。</string>
+    <string name="profile_name_error">姓名长度需为 2-20 个字符。</string>
     <string name="home_welcome_title">欢迎使用 MASSAGER</string>
     <string name="home_welcome_subtitle">管理您的健康理疗设备</string>
     <string name="home_common_devices_title">常用设备</string>
