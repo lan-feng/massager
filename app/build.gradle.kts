@@ -35,19 +35,19 @@ android {
         // Flavor name不能以 "test" 开头，使用 qa 代替
         create("qa") {
             dimension = "env"
-            buildConfigField("String", "BASE_URL", "\"http://162.14.82.152:9100/iot/api/\"")
+            buildConfigField("String", "BASE_URL", "\"https://ems.amzdoor.com:8443/iot/api/\"")
         }
     }
 
     buildTypes {
         getByName("debug") {
-            buildConfigField("String", "APP_ID", "\"test-app\"")
+            buildConfigField("String", "APP_ID", "\"ems\"")
             buildConfigField("Boolean", "CRASHLYTICS_ENABLED", "false")
             isDebuggable = true
         }
         getByName("release") {
             buildConfigField("String", "BASE_URL", "\"https://api.yourproductionurl.com/\"")
-            buildConfigField("String", "APP_ID", "\"massager-prod\"")
+            buildConfigField("String", "APP_ID", "\"ems\"")
             buildConfigField("Boolean", "CRASHLYTICS_ENABLED", "true")
             isMinifyEnabled = true
             proguardFiles(

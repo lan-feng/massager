@@ -35,7 +35,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Facebook
 import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
@@ -76,7 +75,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -106,7 +104,6 @@ fun LoginScreen(
     onForgotPassword: () -> Unit = {},
     onGuestLogin: () -> Unit = {},
     onGoogleLogin: () -> Unit = {},
-    onFacebookLogin: () -> Unit = {},
     onOpenUserAgreement: () -> Unit = {},
     onOpenPrivacyPolicy: () -> Unit = {},
     onConsumeError: () -> Unit = {}
@@ -114,7 +111,6 @@ fun LoginScreen(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var emailError by remember { mutableStateOf<String?>(null) }
@@ -392,7 +388,7 @@ fun LoginScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally)
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     SocialIconButton(
                         icon = painterResource(id = R.drawable.ic_google),
@@ -400,13 +396,6 @@ fun LoginScreen(
                         onClick = onGoogleLogin,
                         enabled = !state.isLoading,
                         tint = null
-                    )
-                    SocialIconButton(
-                        icon = rememberVectorPainter(image = Icons.Default.Facebook),
-                        contentDescription = stringResource(id = R.string.login_facebook_desc),
-                        onClick = onFacebookLogin,
-                        enabled = !state.isLoading,
-                        tint = Color(0xFF1877F2)
                     )
                 }
 
