@@ -388,9 +388,7 @@ class DeviceControlViewModel @Inject constructor(
 
     fun refreshAfterReturning() {
         val current = _uiState.value
-        if (current.isConnected && current.isProtocolReady) {
-            requestStatus()
-        } else if (!current.isConnecting) {
+        if (!current.isConnected && !current.isConnecting) {
             reconnect()
         }
     }
