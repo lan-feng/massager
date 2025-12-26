@@ -108,7 +108,6 @@ fun SettingsScreen(
     onToggleTemperature: () -> Unit,
     onSelectTheme: (AppTheme) -> Unit,
     onSelectLanguage: (AppLanguage) -> Unit,
-    onClearCache: () -> Unit,
     onUpdateName: (String) -> Unit,
     onUpdateAvatar: (ByteArray) -> Unit,
     onNavigatePersonalInfo: () -> Unit,
@@ -217,12 +216,6 @@ fun SettingsScreen(
                                 onClick = if (state.isGuestMode) {
                                     { onGuestRestricted(guestRestrictionMessage) }
                                 } else onNavigateAccountSecurity
-                            ),
-                            SettingsItem(
-                                icon = Icons.Outlined.Delete,
-                                title = stringResource(R.string.settings_clear_cache),
-                                trailingText = state.user.cacheSize,
-                                onClick = onClearCache
                             )
                         )
                     )

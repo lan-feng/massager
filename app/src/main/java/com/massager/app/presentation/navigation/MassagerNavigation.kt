@@ -366,7 +366,6 @@ fun MassagerNavHost(
                 onToggleTemperature = viewModel::toggleTemperatureUnit,
                 onSelectTheme = viewModel::setTheme,
                 onSelectLanguage = viewModel::setLanguage,
-                onClearCache = viewModel::clearCache,
                 onUpdateName = viewModel::updateUserName,
                 onUpdateAvatar = viewModel::updateAvatar,
                 onNavigatePersonalInfo = { navController.navigate(Screen.PersonalInfo.route) },
