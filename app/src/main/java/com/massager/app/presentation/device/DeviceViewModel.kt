@@ -205,9 +205,11 @@ class DeviceViewModel @Inject constructor(
             result.onSuccess {
                 _effects.emit(DeviceScanEffect.NavigateHome)
             }.onFailure { throwable ->
+                val message = throwable.message
                 _effects.emit(
                     DeviceScanEffect.ShowMessage(
-                        message = throwable.message ?: "Unable to add device"
+                        messageRes = if (message.isNullOrBlank()) R.string.device_add_failed else null,
+                        message = message
                     )
                 )
             }
@@ -241,16 +243,13 @@ class DeviceViewModel @Inject constructor(
             val payload = ComboInfoSerializer.append(current, entry).toJson()
             val result = updateDeviceComboInfoUseCase(ownerId, payload)
             result.onSuccess {
-                _effects.emit(
-                    DeviceScanEffect.ShowMessage(
-                        messageRes = R.string.device_scan_combo_success
-                    )
-                )
                 _effects.emit(DeviceScanEffect.ReturnToControl(device.address))
             }.onFailure { throwable ->
+                val message = throwable.message
                 _effects.emit(
                     DeviceScanEffect.ShowMessage(
-                        message = throwable.message ?: "Unable to add device"
+                        messageRes = if (message.isNullOrBlank()) R.string.device_add_failed else null,
+                        message = message
                     )
                 )
             }

@@ -23,7 +23,12 @@ class AuthInterceptor @Inject constructor(private val sessionManager: SessionMan
             }
         }
 
-        return chain.proceed(requestBuilder.build())
+        val request = requestBuilder.build()
+        val response = chain.proceed(request)
+        if (response.code == 401 && !request.header("Authorization").isNullOrBlank()) {
+            sessionManager.handleAuthExpired()
+        }
+        return response
     }
 
     private fun shouldAttachAuthHeader(path: String, existingAuthorization: String?): Boolean {

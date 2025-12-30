@@ -58,11 +58,19 @@ fun ManualAddDeviceScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     LaunchedEffect(Unit) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 ManualAddEffect.NavigateHome -> onNavigateHome()
-                is ManualAddEffect.ShowError -> snackbarHostState.showSnackbar(effect.message)
+                is ManualAddEffect.ShowError -> {
+                    val message = effect.message
+                        ?: effect.messageRes?.let { context.getString(it) }
+                    if (!message.isNullOrBlank()) {
+                        snackbarHostState.showSnackbar(message)
+                    }
+                }
             }
         }
     }

@@ -51,6 +51,16 @@ class AuthViewModel @Inject constructor(
                 )
             }
         }
+        viewModelScope.launch {
+            sessionManager.sessionEvents.collect { event ->
+                if (event is com.massager.app.data.local.SessionEvent.AuthExpired) {
+                    _uiState.value = AuthUiState(
+                        isAuthenticated = false,
+                        isGuest = false
+                    )
+                }
+            }
+        }
     }
 
     fun login(email: String, password: String) {

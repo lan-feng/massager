@@ -1,6 +1,7 @@
 package com.massager.app.presentation.device
 
 // 文件说明：手动添加设备流程的状态管理。
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.R
@@ -27,7 +28,10 @@ data class ManualAddUiState(
 
 sealed interface ManualAddEffect {
     data object NavigateHome : ManualAddEffect
-    data class ShowError(val message: String) : ManualAddEffect
+    data class ShowError(
+        @StringRes val messageRes: Int? = null,
+        val message: String? = null
+    ) : ManualAddEffect
 }
 
 @HiltViewModel
@@ -78,9 +82,11 @@ class ManualAddDeviceViewModel @Inject constructor(
                 _effects.emit(ManualAddEffect.NavigateHome)
             }.onFailure { throwable ->
                 _uiState.update { it.copy(isSubmitting = false, statusMessageRes = null) }
+                val message = throwable.message
                 _effects.emit(
                     ManualAddEffect.ShowError(
-                        throwable.message ?: "Unable to add device"
+                        messageRes = if (message.isNullOrBlank()) R.string.device_add_failed else null,
+                        message = message
                     )
                 )
             }

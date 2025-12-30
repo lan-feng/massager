@@ -29,7 +29,8 @@ data class HomeUiState(
     val devices: List<DeviceMetadata> = emptyList(),
     val measurements: List<TemperatureRecord> = emptyList(),
     val isRefreshing: Boolean = false,
-    val errorMessage: String? = null,
+    val errorMessageRes: Int? = null,
+    val errorMessageText: String? = null,
     val selectedDeviceIds: Set<String> = emptySet(),
     val isRenameDialogVisible: Boolean = false,
     val renameInput: String = "",
@@ -104,7 +105,7 @@ class HomeViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isRefreshing = true, errorMessage = null) }
+            _uiState.update { it.copy(isRefreshing = true, errorMessageRes = null, errorMessageText = null) }
             if (sessionManager.isGuestMode() && !guestSyncPromptShown) {
                 emitMessageRes(R.string.guest_mode_cloud_restricted)
                 guestSyncPromptShown = true
@@ -114,7 +115,8 @@ class HomeViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isRefreshing = false,
-                        errorMessage = error.message ?: "Unable to load devices"
+                        errorMessageText = error.message,
+                        errorMessageRes = error.message?.let { null } ?: R.string.home_error_load_devices
                     )
                 }
                 return@launch
@@ -128,7 +130,8 @@ class HomeViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isRefreshing = false,
-                            errorMessage = error.message ?: "Unable to load measurements"
+                            errorMessageText = error.message,
+                            errorMessageRes = error.message?.let { null } ?: R.string.home_error_load_measurements
                         )
                     }
                     return@launch
@@ -140,7 +143,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun clearError() {
-        _uiState.update { it.copy(errorMessage = null) }
+        _uiState.update { it.copy(errorMessageRes = null, errorMessageText = null) }
     }
 
     fun toggleDeviceSelection(deviceId: String) {
@@ -231,7 +234,6 @@ class HomeViewModel @Inject constructor(
             _uiState.update { it.copy(isActionInProgress = true) }
             val result = renameDeviceUseCase(deviceId, trimmedName)
             result.onSuccess {
-                emitMessageRes(R.string.device_renamed)
                 _uiState.update { current ->
                     current.copy(
                         isActionInProgress = false,
@@ -242,7 +244,12 @@ class HomeViewModel @Inject constructor(
                     )
                 }
             }.onFailure { throwable ->
-                emitMessageText(throwable.message ?: "Unable to rename device")
+                val message = throwable.message
+                if (message.isNullOrBlank()) {
+                    emitMessageRes(R.string.home_error_rename_device)
+                } else {
+                    emitMessageText(message)
+                }
                 _uiState.update { current ->
                     current.copy(isActionInProgress = false)
                 }
@@ -281,7 +288,6 @@ class HomeViewModel @Inject constructor(
                 }
             }
             if (failure == null) {
-                emitMessageRes(R.string.device_removed)
                 _uiState.update {
                     it.copy(
                         isActionInProgress = false,
@@ -290,7 +296,12 @@ class HomeViewModel @Inject constructor(
                     )
                 }
             } else {
-                emitMessageText(failure?.message ?: "Unable to remove device")
+                val message = failure?.message
+                if (message.isNullOrBlank()) {
+                    emitMessageRes(R.string.home_error_remove_device)
+                } else {
+                    emitMessageText(message)
+                }
                 _uiState.update { it.copy(isActionInProgress = false) }
             }
         }

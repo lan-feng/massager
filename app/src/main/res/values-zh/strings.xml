@@ -294,4 +294,25 @@
     <string name="error_name_empty">姓名不能为空</string>
     <string name="verification_code_sent">验证码已发送</string>
     <string name="verification_code_failed">验证码发送失败</string>
+    <string name="device_add_failed">添加设备失败</string>
+    <string name="home_error_load_devices">无法加载设备</string>
+    <string name="home_error_load_measurements">无法加载测量数据</string>
+    <string name="home_error_rename_device">无法重命名设备</string>
+    <string name="home_error_remove_device">无法移除设备</string>
+    <string name="profile_load_failed">加载资料失败</string>
+    <string name="profile_name_empty">姓名不能为空</string>
+    <string name="profile_name_too_short">姓名至少需要 2 个字符</string>
+    <string name="profile_name_updated">姓名已更新</string>
+    <string name="profile_name_update_failed">无法更新姓名</string>
+    <string name="profile_avatar_upload_failed">头像上传失败</string>
+    <string name="profile_avatar_upload_result_failed">上传失败</string>
+    <string name="profile_avatar_updated">头像已更新</string>
+    <string name="profile_avatar_update_failed">无法更新头像</string>
+    <string name="settings_temperature_unit_changed">温度单位已切换为 %1$s</string>
+    <string name="settings_cache_cleared">缓存清理成功（释放 %1$s）</string>
+    <string name="settings_cache_already_clean">缓存已是最新</string>
+    <string name="settings_cache_clear_failed">无法清除缓存</string>
+    <string name="delete_account_missing_user_id">无法获取用户ID，请重新登录后再试。</string>
+    <string name="delete_account_failed">注销失败，请稍后再试。</string>
+    <string name="password_reset_failed">密码重置失败</string>
 </resources>

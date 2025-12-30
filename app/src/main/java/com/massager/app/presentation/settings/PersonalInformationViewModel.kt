@@ -69,7 +69,7 @@ class PersonalInformationViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            toastMessage = throwable.message ?: "Failed to load profile"
+                            toastMessage = throwable.message ?: appContext.getString(R.string.profile_load_failed)
                         )
                     }
                 }
@@ -79,15 +79,14 @@ class PersonalInformationViewModel @Inject constructor(
     fun updateName(newName: String) {
         val trimmed = newName.trim()
         if (trimmed.isEmpty()) {
-            _uiState.update { it.copy(toastMessage = "Name cannot be empty") }
+            _uiState.update { it.copy(toastMessage = appContext.getString(R.string.profile_name_empty)) }
             return
         }
         if (sessionManager.isGuestMode()) {
             sessionManager.saveGuestName(trimmed)
             _uiState.update {
                 it.copy(
-                    name = trimmed,
-                    toastMessage = appContext.getString(R.string.profile_name_updated_local)
+                    name = trimmed
                 )
             }
             return
@@ -99,8 +98,7 @@ class PersonalInformationViewModel @Inject constructor(
                     _uiState.update { state ->
                         state.copy(
                             isLoading = false,
-                            name = profile.name,
-                            toastMessage = "Name updated"
+                            name = profile.name
                         )
                     }
                 }
@@ -108,7 +106,7 @@ class PersonalInformationViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            toastMessage = throwable.message ?: "Unable to update name"
+                            toastMessage = throwable.message ?: appContext.getString(R.string.profile_name_update_failed)
                         )
                     }
                 }
@@ -121,8 +119,7 @@ class PersonalInformationViewModel @Inject constructor(
             sessionManager.saveGuestAvatar(bytes)
             _uiState.update {
                 it.copy(
-                    avatarBytes = bytes,
-                    toastMessage = appContext.getString(R.string.profile_avatar_updated_local)
+                    avatarBytes = bytes
                 )
             }
             return
@@ -132,12 +129,18 @@ class PersonalInformationViewModel @Inject constructor(
             val fileName = "avatar_${System.currentTimeMillis()}.jpg"
             val uploaded = uploadAvatarUseCase(bytes, fileName)
             if (uploaded.isFailure) {
-                val message = uploaded.exceptionOrNull()?.message ?: "Unable to upload avatar"
+                val message = uploaded.exceptionOrNull()?.message
+                    ?: appContext.getString(R.string.profile_avatar_upload_failed)
                 _uiState.update { it.copy(isLoading = false, toastMessage = message) }
                 return@launch
             }
             val url = uploaded.getOrNull() ?: run {
-                _uiState.update { it.copy(isLoading = false, toastMessage = "Upload failed") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        toastMessage = appContext.getString(R.string.profile_avatar_upload_result_failed)
+                    )
+                }
                 return@launch
             }
             updateUserProfileUseCase.updateAvatarUrl(url)
@@ -146,8 +149,7 @@ class PersonalInformationViewModel @Inject constructor(
                         state.copy(
                             isLoading = false,
                             avatarUrl = profile.avatarUrl.orEmpty(),
-                            avatarBytes = bytes,
-                            toastMessage = "Avatar updated"
+                            avatarBytes = bytes
                         )
                     }
                 }
@@ -155,7 +157,7 @@ class PersonalInformationViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            toastMessage = throwable.message ?: "Unable to update avatar"
+                            toastMessage = throwable.message ?: appContext.getString(R.string.profile_avatar_update_failed)
                         )
                     }
                 }

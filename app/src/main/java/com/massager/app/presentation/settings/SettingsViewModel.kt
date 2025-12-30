@@ -87,7 +87,7 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            toastMessage = throwable.message ?: "Failed to load profile"
+                            toastMessage = throwable.message ?: appContext.getString(R.string.profile_load_failed)
                         )
                     }
                 }
@@ -99,8 +99,7 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { state ->
             val newUnit = state.user.tempUnit.toggle()
             state.copy(
-                user = state.user.copy(tempUnit = newUnit),
-                toastMessage = "Temperature unit changed to ${newUnit.display}"
+                user = state.user.copy(tempUnit = newUnit)
             )
         }
     }
@@ -108,22 +107,16 @@ class SettingsViewModel @Inject constructor(
     fun clearCache() = viewModelScope.launch {
         runCatching { cacheManager.clearCache() }
             .onSuccess { result ->
-                val message = if (result.freedBytes > 0) {
-                    "Cache cleared successfully (${result.freedDisplay} freed)"
-                } else {
-                    "Cache already clean"
-                }
                 _uiState.update { state ->
                     state.copy(
-                        user = state.user.copy(cacheSize = result.remainingDisplay),
-                        toastMessage = message
+                        user = state.user.copy(cacheSize = result.remainingDisplay)
                     )
                 }
             }
             .onFailure { throwable ->
                 _uiState.update {
                     it.copy(
-                        toastMessage = throwable.message ?: "Unable to clear cache"
+                        toastMessage = throwable.message ?: appContext.getString(R.string.settings_cache_clear_failed)
                     )
                 }
             }
@@ -154,7 +147,7 @@ class SettingsViewModel @Inject constructor(
         }
         val trimmed = newName.trim()
         if (trimmed.length < 2) {
-            _uiState.update { it.copy(toastMessage = "Name must be at least 2 characters") }
+            _uiState.update { it.copy(toastMessage = appContext.getString(R.string.profile_name_too_short)) }
             return
         }
         viewModelScope.launch {
@@ -164,8 +157,7 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update { state ->
                         state.copy(
                             isLoading = false,
-                            user = profile.toSettingsUser(state.user),
-                            toastMessage = "Name updated"
+                            user = profile.toSettingsUser(state.user)
                         )
                     }
                 }
@@ -173,7 +165,7 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            toastMessage = throwable.message ?: "Unable to update name"
+                            toastMessage = throwable.message ?: appContext.getString(R.string.profile_name_update_failed)
                         )
                     }
                 }
@@ -191,12 +183,18 @@ class SettingsViewModel @Inject constructor(
             val fileName = "avatar_${System.currentTimeMillis()}.jpg"
             val uploaded = uploadAvatarUseCase(bytes, fileName)
             if (uploaded.isFailure) {
-                val message = uploaded.exceptionOrNull()?.message ?: "Unable to upload avatar"
+                val message = uploaded.exceptionOrNull()?.message
+                    ?: appContext.getString(R.string.profile_avatar_upload_failed)
                 _uiState.update { it.copy(isLoading = false, toastMessage = message) }
                 return@launch
             }
             val url = uploaded.getOrNull() ?: run {
-                _uiState.update { it.copy(isLoading = false, toastMessage = "Upload failed") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        toastMessage = appContext.getString(R.string.profile_avatar_upload_result_failed)
+                    )
+                }
                 return@launch
             }
             updateUserProfileUseCase.updateAvatarUrl(url)
@@ -204,8 +202,7 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update { state ->
                         state.copy(
                             isLoading = false,
-                            user = profile.toSettingsUser(state.user).copy(avatarBytes = bytes),
-                            toastMessage = "Avatar updated"
+                            user = profile.toSettingsUser(state.user).copy(avatarBytes = bytes)
                         )
                     }
                 }
@@ -213,7 +210,7 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            toastMessage = throwable.message ?: "Unable to update avatar"
+                            toastMessage = throwable.message ?: appContext.getString(R.string.profile_avatar_update_failed)
                         )
                     }
                 }

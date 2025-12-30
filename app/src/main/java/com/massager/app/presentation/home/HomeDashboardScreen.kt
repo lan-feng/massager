@@ -149,8 +149,10 @@ fun HomeDashboardScreen(
         }
     }
 
-    LaunchedEffect(state.errorMessage) {
-        state.errorMessage?.let { message ->
+    LaunchedEffect(state.errorMessageRes, state.errorMessageText) {
+        val message = state.errorMessageText
+            ?: state.errorMessageRes?.let { context.getString(it) }
+        message?.let {
             snackbarHostState.showSnackbar(message)
             onDismissError()
         }

@@ -83,13 +83,12 @@ fun ChangePasswordScreen(
         viewModel.configure(requireOldPassword)
     }
 
-    LaunchedEffect(uiState.snackbarMessage) {
-        uiState.snackbarMessage?.let { message ->
+    LaunchedEffect(uiState.snackbarMessageRes, uiState.snackbarMessageText) {
+        val message = uiState.snackbarMessageText
+            ?: uiState.snackbarMessageRes?.let { context.getString(it) }
+        message?.let {
             coroutineScope.launch {
-                val resolved = if (message == "error_old_password_incorrect") {
-                    context.getString(R.string.error_old_password_incorrect)
-                } else message
-                snackbarHostState.showSnackbar(resolved)
+                snackbarHostState.showSnackbar(message)
                 viewModel.consumeSnackbar()
             }
         }
@@ -264,8 +263,10 @@ fun DeleteAccountConfirmScreen(
         }
     }
 
-    LaunchedEffect(uiState.errorMessage) {
-        uiState.errorMessage?.takeIf { it.isNotBlank() }?.let { message ->
+    LaunchedEffect(uiState.errorMessageRes, uiState.errorMessageText) {
+        val message = uiState.errorMessageText
+            ?: uiState.errorMessageRes?.let { context.getString(it) }
+        message?.takeIf { it.isNotBlank() }?.let {
             snackbarHostState.showSnackbar(message)
             viewModel.clearError()
         }

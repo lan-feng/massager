@@ -29,15 +29,36 @@ class ChangePasswordViewModel @Inject constructor(
     }
 
     fun onOldPasswordChanged(value: String) {
-        _uiState.update { it.copy(oldPassword = value, oldPasswordError = false, snackbarMessage = null) }
+        _uiState.update {
+            it.copy(
+                oldPassword = value,
+                oldPasswordError = false,
+                snackbarMessageRes = null,
+                snackbarMessageText = null
+            )
+        }
     }
 
     fun onNewPasswordChanged(value: String) {
-        _uiState.update { it.copy(newPassword = value, newPasswordError = false, snackbarMessage = null) }
+        _uiState.update {
+            it.copy(
+                newPassword = value,
+                newPasswordError = false,
+                snackbarMessageRes = null,
+                snackbarMessageText = null
+            )
+        }
     }
 
     fun onConfirmPasswordChanged(value: String) {
-        _uiState.update { it.copy(confirmPassword = value, confirmPasswordError = false, snackbarMessage = null) }
+        _uiState.update {
+            it.copy(
+                confirmPassword = value,
+                confirmPasswordError = false,
+                snackbarMessageRes = null,
+                snackbarMessageText = null
+            )
+        }
     }
 
     fun submit() {
@@ -58,17 +79,29 @@ class ChangePasswordViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isSubmitting = true, snackbarMessage = null) }
+            _uiState.update {
+                it.copy(
+                    isSubmitting = true,
+                    snackbarMessageRes = null,
+                    snackbarMessageText = null
+                )
+            }
             changePasswordUseCase(current.oldPassword, current.newPassword)
                 .onSuccess {
                     logoutUseCase()
                     _uiState.update { it.copy(isSubmitting = false, success = true) }
                 }
                 .onFailure { throwable ->
+                    val message = throwable.message
                     _uiState.update {
                         it.copy(
                             isSubmitting = false,
-                            snackbarMessage = throwable.message ?: "error_old_password_incorrect",
+                            snackbarMessageRes = if (message.isNullOrBlank()) {
+                                com.massager.app.R.string.error_old_password_incorrect
+                            } else {
+                                null
+                            },
+                            snackbarMessageText = message,
                             oldPasswordError = true
                         )
                     }
@@ -77,7 +110,7 @@ class ChangePasswordViewModel @Inject constructor(
     }
 
     fun consumeSnackbar() {
-        _uiState.update { it.copy(snackbarMessage = null) }
+        _uiState.update { it.copy(snackbarMessageRes = null, snackbarMessageText = null) }
     }
 
     fun consumeSuccess() {
@@ -93,7 +126,8 @@ data class ChangePasswordUiState(
     val newPasswordError: Boolean = false,
     val confirmPasswordError: Boolean = false,
     val isSubmitting: Boolean = false,
-    val snackbarMessage: String? = null,
+    val snackbarMessageRes: Int? = null,
+    val snackbarMessageText: String? = null,
     val success: Boolean = false,
     val requireOldPassword: Boolean = true
 ) {

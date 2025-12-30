@@ -628,7 +628,6 @@ fun RegisterScreen(
                                         countdown = 60
                                         val result = onSendVerificationCode(email.trim())
                                         if (result.isSuccess) {
-                                            snackbarHostState.showSnackbar(context.getString(R.string.verification_code_sent))
                                         } else {
                                             countdown = 0
                                             snackbarHostState.showSnackbar(
@@ -854,12 +853,13 @@ fun ForgetPasswordScreen(
 
     state.toastMessageRes?.let { resId ->
         LaunchedEffect(resId) {
-            snackbarHostState.showSnackbar(context.getString(resId))
             onConsumeToast()
         }
     }
 
-    state.errorMessage?.let { message ->
+    val resolvedErrorMessage = state.errorMessageText
+        ?: state.errorMessageRes?.let { context.getString(it) }
+    resolvedErrorMessage?.let { message ->
         LaunchedEffect(message) {
             snackbarHostState.showSnackbar(message)
             onConsumeError()
@@ -868,8 +868,6 @@ fun ForgetPasswordScreen(
 
     state.snackbarMessageRes?.let { resId ->
         LaunchedEffect(resId) {
-            val message = context.getString(resId)
-            snackbarHostState.showSnackbar(message)
             onConsumeSnackbar()
             if (resId == R.string.password_reset_success) onPasswordResetSuccess()
         }
@@ -952,11 +950,11 @@ fun ForgetPasswordScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 AnimatedVisibility(
-                    visible = state.errorMessage != null,
+                    visible = resolvedErrorMessage != null,
                     enter = fadeIn(),
                     exit = fadeOut()
                 ) {
-                    state.errorMessage?.let { message ->
+                    resolvedErrorMessage?.let { message ->
                         OutlinedCard(
                             modifier = Modifier
                                 .fillMaxWidth()

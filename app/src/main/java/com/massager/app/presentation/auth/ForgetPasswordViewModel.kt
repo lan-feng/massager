@@ -22,7 +22,8 @@ data class ForgetPasswordUiState(
     val countdownSeconds: Int = 0,
     val toastMessageRes: Int? = null,
     val snackbarMessageRes: Int? = null,
-    val errorMessage: String? = null
+    val errorMessageRes: Int? = null,
+    val errorMessageText: String? = null
 )
 
 @HiltViewModel
@@ -39,7 +40,7 @@ class ForgetPasswordViewModel @Inject constructor(
     fun sendCode(email: String) {
         if (_uiState.value.isSendingCode) return
         viewModelScope.launch {
-            _uiState.update { it.copy(isSendingCode = true, errorMessage = null) }
+            _uiState.update { it.copy(isSendingCode = true, errorMessageRes = null, errorMessageText = null) }
             resetPasswordUseCase.sendCode(email)
                 .onSuccess {
                     _uiState.update {
@@ -51,10 +52,12 @@ class ForgetPasswordViewModel @Inject constructor(
                     startCountdown()
                 }
                 .onFailure { throwable ->
+                    val message = throwable.message
                     _uiState.update {
                         it.copy(
                             isSendingCode = false,
-                            errorMessage = throwable.message ?: "Failed to send verification code"
+                            errorMessageRes = if (message.isNullOrBlank()) R.string.verification_code_failed else null,
+                            errorMessageText = message
                         )
                     }
                 }
@@ -64,7 +67,7 @@ class ForgetPasswordViewModel @Inject constructor(
     fun resetPassword(email: String, verificationCode: String, newPassword: String) {
         if (_uiState.value.isResetting) return
         viewModelScope.launch {
-            _uiState.update { it.copy(isResetting = true, errorMessage = null) }
+            _uiState.update { it.copy(isResetting = true, errorMessageRes = null, errorMessageText = null) }
             resetPasswordUseCase.reset(email, verificationCode, newPassword)
                 .onSuccess {
                     logoutUseCase()
@@ -76,10 +79,12 @@ class ForgetPasswordViewModel @Inject constructor(
                     }
                 }
                 .onFailure { throwable ->
+                    val message = throwable.message
                     _uiState.update {
                         it.copy(
                             isResetting = false,
-                            errorMessage = throwable.message ?: "Password reset failed"
+                            errorMessageRes = if (message.isNullOrBlank()) R.string.password_reset_failed else null,
+                            errorMessageText = message
                         )
                     }
                 }
@@ -91,7 +96,7 @@ class ForgetPasswordViewModel @Inject constructor(
     }
 
     fun consumeError() {
-        _uiState.update { it.copy(errorMessage = null) }
+        _uiState.update { it.copy(errorMessageRes = null, errorMessageText = null) }
     }
 
     fun consumeSnackbar() {

@@ -27,12 +27,12 @@ class DeleteAccountViewModel @Inject constructor(
 
         val userId = sessionManager.userId()?.toLongOrNull()
         if (userId == null) {
-            _uiState.update { it.copy(errorMessage = "Unable to get user ID, please re-login and try again") }
+            _uiState.update { it.copy(errorMessageRes = com.massager.app.R.string.delete_account_missing_user_id) }
             return
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            _uiState.update { it.copy(isLoading = true, errorMessageRes = null, errorMessageText = null) }
             deleteAccountUseCase(userId)
                 .onSuccess {
                     sessionManager.clear()
@@ -42,7 +42,9 @@ class DeleteAccountViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = throwable.message ?: "Failed to delete account, please try again later"
+                            errorMessageText = throwable.message,
+                            errorMessageRes = throwable.message?.let { null }
+                                ?: com.massager.app.R.string.delete_account_failed
                         )
                     }
                 }
@@ -54,12 +56,13 @@ class DeleteAccountViewModel @Inject constructor(
     }
 
     fun clearError() {
-        _uiState.update { it.copy(errorMessage = null) }
+        _uiState.update { it.copy(errorMessageRes = null, errorMessageText = null) }
     }
 }
 
 data class DeleteAccountUiState(
     val isLoading: Boolean = false,
-    val errorMessage: String? = null,
+    val errorMessageRes: Int? = null,
+    val errorMessageText: String? = null,
     val success: Boolean = false
 )

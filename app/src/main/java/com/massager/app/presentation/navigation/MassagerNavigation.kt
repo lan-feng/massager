@@ -157,6 +157,12 @@ fun MassagerNavHost(
                 popUpTo(Screen.Login.route) { inclusive = true }
             }
         }
+        if (previous && !current && currentRoute !in authStartRoutes) {
+            navController.navigate(Screen.Login.route) {
+                popUpTo(Screen.Home.route) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
         lastAuthState = current
     }
 

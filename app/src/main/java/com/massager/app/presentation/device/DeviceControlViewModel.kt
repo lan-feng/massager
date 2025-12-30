@@ -538,8 +538,7 @@ class DeviceControlViewModel @Inject constructor(
             return
         }
         modifyComboDevices(
-            updatedDevices = updated,
-            successMessageRes = R.string.device_removed
+            updatedDevices = updated
         ) {
             bluetoothService.disconnect(serial)
             if (serial.equals(selectedDeviceSerial, ignoreCase = true)) {
@@ -569,8 +568,7 @@ class DeviceControlViewModel @Inject constructor(
             return
         }
         modifyComboDevices(
-            updatedDevices = updated,
-            successMessageRes = R.string.device_renamed
+            updatedDevices = updated
         )
     }
 
@@ -704,7 +702,6 @@ class DeviceControlViewModel @Inject constructor(
 
     private fun modifyComboDevices(
         updatedDevices: List<ComboDeviceInfo>,
-        successMessageRes: Int? = null,
         afterSuccess: () -> Unit = {}
     ) {
         val deviceId = mainDeviceId ?: run {
@@ -721,9 +718,6 @@ class DeviceControlViewModel @Inject constructor(
                 comboDevices = updatedDevices
                 buildDeviceCards()
                 afterSuccess()
-                successMessageRes?.let { res ->
-                    postTransientMessage(appContext.getString(res))
-                }
             }.onFailure { throwable ->
                 postTransientMessage(
                     throwable.message

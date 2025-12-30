@@ -115,7 +115,6 @@ fun AccountSecurityScreen(
 
     LaunchedEffect(state.unbindSucceeded, state.unbindError) {
         if (state.unbindSucceeded) {
-            snackbarHostState.showSnackbar(context.getString(R.string.third_party_unbind_success))
             onConsumeUnbindResult()
         } else if (state.unbindError != null) {
             snackbarHostState.showSnackbar(state.unbindError ?: context.getString(R.string.third_party_unbind_failed))
@@ -125,7 +124,6 @@ fun AccountSecurityScreen(
 
     LaunchedEffect(state.bindSucceeded, state.bindError) {
         if (state.bindSucceeded) {
-            snackbarHostState.showSnackbar(context.getString(R.string.third_party_bind_success))
             onConsumeBindResult()
         } else if (state.bindError != null) {
             snackbarHostState.showSnackbar(state.bindError ?: context.getString(R.string.third_party_unbind_failed))

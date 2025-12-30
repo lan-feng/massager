@@ -6,6 +6,9 @@ import android.util.Base64
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 @Singleton
 class SessionManager @Inject constructor(
@@ -13,6 +16,8 @@ class SessionManager @Inject constructor(
 ) {
 
     private val prefs = context.getSharedPreferences("session_prefs", Context.MODE_PRIVATE)
+    private val _sessionEvents = MutableSharedFlow<SessionEvent>(extraBufferCapacity = 1)
+    val sessionEvents: SharedFlow<SessionEvent> = _sessionEvents.asSharedFlow()
 
     fun saveAuthToken(token: String) {
         prefs.edit().putString(KEY_TOKEN, token).apply()
@@ -67,6 +72,11 @@ class SessionManager @Inject constructor(
         prefs.edit().clear().apply()
     }
 
+    fun handleAuthExpired() {
+        clear()
+        _sessionEvents.tryEmit(SessionEvent.AuthExpired)
+    }
+
     fun activeOwnerId(): String =
         userId()?.takeIf { it.isNotBlank() }
             ?: if (isGuestMode()) GUEST_USER_ID else GUEST_USER_ID
@@ -83,4 +93,8 @@ class SessionManager @Inject constructor(
 
         const val GUEST_USER_ID = "guest"
     }
+}
+
+sealed class SessionEvent {
+    data object AuthExpired : SessionEvent()
 }
