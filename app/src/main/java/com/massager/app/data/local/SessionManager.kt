@@ -63,8 +63,19 @@ class SessionManager @Inject constructor(
         prefs.edit().putString(KEY_GUEST_AVATAR, encoded).apply()
     }
 
+    fun saveAccountAvatar(bytes: ByteArray) {
+        if (bytes.isEmpty()) return
+        val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+        prefs.edit().putString(KEY_ACCOUNT_AVATAR, encoded).apply()
+    }
+
     fun guestAvatar(): ByteArray? =
         prefs.getString(KEY_GUEST_AVATAR, null)?.let { encoded ->
+            runCatching { Base64.decode(encoded, Base64.NO_WRAP) }.getOrNull()
+        }
+
+    fun accountAvatar(): ByteArray? =
+        prefs.getString(KEY_ACCOUNT_AVATAR, null)?.let { encoded ->
             runCatching { Base64.decode(encoded, Base64.NO_WRAP) }.getOrNull()
         }
 
@@ -90,6 +101,7 @@ class SessionManager @Inject constructor(
         const val KEY_GUEST_MODE = "key_guest_mode"
         const val KEY_GUEST_NAME = "key_guest_name"
         const val KEY_GUEST_AVATAR = "key_guest_avatar"
+        const val KEY_ACCOUNT_AVATAR = "key_account_avatar"
 
         const val GUEST_USER_ID = "guest"
     }

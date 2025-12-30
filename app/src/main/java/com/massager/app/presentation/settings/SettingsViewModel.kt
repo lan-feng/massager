@@ -72,6 +72,7 @@ class SettingsViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = false, isGuestMode = true) }
             return
         }
+        val cachedAvatar = sessionManager.accountAvatar()
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             getUserProfileUseCase()
@@ -79,7 +80,9 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update { state ->
                         state.copy(
                             isLoading = false,
-                            user = profile.toSettingsUser(state.user)
+                            user = profile.toSettingsUser(state.user).copy(
+                                avatarBytes = cachedAvatar ?: state.user.avatarBytes
+                            )
                         )
                     }
                 }
@@ -199,6 +202,7 @@ class SettingsViewModel @Inject constructor(
             }
             updateUserProfileUseCase.updateAvatarUrl(url)
                 .onSuccess { profile ->
+                    sessionManager.saveAccountAvatar(bytes)
                     _uiState.update { state ->
                         state.copy(
                             isLoading = false,

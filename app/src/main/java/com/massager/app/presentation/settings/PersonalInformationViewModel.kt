@@ -145,6 +145,7 @@ class PersonalInformationViewModel @Inject constructor(
             }
             updateUserProfileUseCase.updateAvatarUrl(url)
                 .onSuccess { profile ->
+                    sessionManager.saveAccountAvatar(bytes)
                     _uiState.update { state ->
                         state.copy(
                             isLoading = false,

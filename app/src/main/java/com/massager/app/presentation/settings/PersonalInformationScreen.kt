@@ -367,7 +367,7 @@ private fun scaleBitmap(source: Bitmap, maxSize: Int = 512): Bitmap {
     )
 }
 
-private fun compressBitmap(source: Bitmap, quality: Int = 85): ByteArray {
+private fun compressBitmap(source: Bitmap, quality: Int = 80): ByteArray {
     val stream = ByteArrayOutputStream()
     source.compress(Bitmap.CompressFormat.JPEG, quality, stream)
     return stream.toByteArray()

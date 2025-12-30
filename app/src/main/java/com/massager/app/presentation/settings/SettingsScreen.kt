@@ -97,6 +97,10 @@ import com.massager.app.presentation.components.ThemedSnackbarHost
 import com.massager.app.presentation.settings.components.SettingsEntry
 import com.massager.app.presentation.settings.components.SettingsSectionCard
 import com.massager.app.presentation.settings.StandardDualActionDialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -117,6 +121,7 @@ fun SettingsScreen(
     onNavigateHistory: () -> Unit,
     onNavigateFavorites: () -> Unit,
     onNavigateAbout: () -> Unit,
+    onRefreshProfile: () -> Unit,
     onLogout: () -> Unit,
     onGuestRestricted: (String) -> Unit,
     onConsumeToast: () -> Unit
@@ -124,12 +129,23 @@ fun SettingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val guestRestrictionMessage = stringResource(id = R.string.guest_mode_cloud_restricted)
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showAvatarDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                onRefreshProfile()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()

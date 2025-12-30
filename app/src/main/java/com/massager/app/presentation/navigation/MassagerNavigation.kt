@@ -390,6 +390,7 @@ fun MassagerNavHost(
                 onNavigateHistory = { /* TODO */ },
                 onNavigateFavorites = { /* TODO */ },
                 onNavigateAbout = { navController.navigate(Screen.About.route) },
+                onRefreshProfile = viewModel::refreshProfile,
                 onLogout = {
                     viewModel.logout()
                     navController.navigate(Screen.Login.route) {
