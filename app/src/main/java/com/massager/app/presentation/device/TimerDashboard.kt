@@ -1,44 +1,31 @@
 package com.massager.app.presentation.device
 
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.keyframes
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,12 +35,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -61,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material3.MaterialTheme
 import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,134 +63,113 @@ fun TimerDashboard(
     val baseMinutes = timerMinutes.coerceIn(0, 60)
     val remainingMinutes = if (remainingSeconds > 0) (remainingSeconds + 59) / 60 else baseMinutes
     val displayMinutes = (if (isRunning) remainingMinutes else baseMinutes).coerceIn(0, 60)
-    val progress = (displayMinutes.toFloat() / 60f).coerceIn(0f, 1f)
     val dashboardBackground = controlPanelBackground()
+    val displaySeconds = if (isRunning) remainingSeconds.coerceAtLeast(0) else baseMinutes * 60
+    val hours = displaySeconds / 3600
+    val minutes = (displaySeconds % 3600) / 60
+    val seconds = displaySeconds % 60
+    val timeText = String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
 
     var showSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val increaseColor = Color(0xFF7AC99A)
     val decreaseColor = Color(0xFFE4BF87)
-    val increaseGradient = remember {
-        Brush.linearGradient(
-            listOf(
-                increaseColor.copy(alpha = 0.32f),
-                increaseColor.copy(alpha = 0.12f)
-            )
-        )
-    }
-    val decreaseGradient = remember {
-        Brush.linearGradient(
-            listOf(
-                decreaseColor.copy(alpha = 0.30f),
-                decreaseColor.copy(alpha = 0.12f)
-            )
-        )
-    }
+    val stopColor = MaterialTheme.massagerExtendedColors.danger
+    val increaseGradient = remember { Brush.verticalGradient(listOf(increaseColor.copy(alpha = 0.28f), increaseColor.copy(alpha = 0.08f))) }
+    val decreaseGradient = remember { Brush.verticalGradient(listOf(decreaseColor.copy(alpha = 0.28f), decreaseColor.copy(alpha = 0.08f))) }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 10.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(dashboardBackground)
-            .padding(horizontal = 12.dp, vertical = 14.dp)
+            .padding(horizontal = 18.dp, vertical = 18.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(50.dp, Alignment.CenterHorizontally)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(140.dp),
-                contentAlignment = Alignment.Center
+            Column(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Canvas(modifier = Modifier.size(140.dp)) {
-                    drawArc(
-                        color = brand.copy(alpha = 0.15f),
-                        startAngle = -90f,
-                        sweepAngle = 360f,
-                        useCenter = false,
-                        style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
-                    )
-                    drawArc(
-                        color = brand,
-                        startAngle = -90f,
-                        sweepAngle = 360f * progress,
-                        useCenter = false,
-                        style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
-                    )
-                }
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    Column(
                         modifier = Modifier
-                            .offset(y = 12.dp)
+                            .clip(RoundedCornerShape(14.dp))
                             .clickable(
                                 enabled = enabled,
                                 onClick = { showSheet = true }
                             )
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        Icon(
+                            imageVector = Icons.Filled.Timer,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
                         Text(
                             text = "${displayMinutes} min",
-                            style = MaterialTheme.typography.headlineSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 24.sp
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold
                             ),
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.width(1.dp))
-                        Icon(
-                            imageVector = Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
                     }
-                    TextButton(
-                        enabled = enabled,
-                        onClick = onToggleSession,
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = if (isRunning) MaterialTheme.massagerExtendedColors.danger else brand
+
+                    Text(
+                        text = timeText,
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontSize = 38.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = FontFamily.Monospace
                         ),
-                        shape = RoundedCornerShape(50),
-                        modifier = Modifier.offset(y = 4.dp)
-                    ) {
-                        Text(
-                            text = if (isRunning) stringResource(id = R.string.device_stop) else stringResource(id = R.string.timer_start),
-                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        )
-                    }
+                        color = brand
+                    )
                 }
             }
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                QuickAdjustButton(
-                    icon = Icons.Filled.Add,
-                    animationLabel = "plus",
-                    caption = "5 min",
-                    foreground = increaseColor,
-                    gradient = increaseGradient,
-                    borderColor = increaseColor,
+                ActionButton(
+                    modifier = Modifier.weight(1.2f),
+                    icon = Icons.Filled.Stop,
+                    label = stringResource(id = R.string.device_stop),
+                    containerColor = stopColor,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                     enabled = enabled,
-                    isRunning = isRunning,
-                    onClick = { onSelectTimer((displayMinutes + 5).coerceIn(0, 60)) }
+                    onClick = onToggleSession
                 )
-                QuickAdjustButton(
+                ActionButton(
+                    modifier = Modifier.weight(1f),
                     icon = Icons.Filled.Remove,
-                    animationLabel = "minus",
-                    caption = "5 min",
-                    foreground = decreaseColor,
-                    gradient = decreaseGradient,
-                    borderColor = decreaseColor,
+                    label = "- 5 min",
+                    containerBrush = decreaseGradient,
+                    containerColor = decreaseColor.copy(alpha = 0.15f),
+                    contentColor = decreaseColor,
                     enabled = enabled,
-                    isRunning = isRunning,
                     onClick = { onSelectTimer((displayMinutes - 5).coerceIn(0, 60)) }
+                )
+                ActionButton(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Filled.Add,
+                    label = "+ 5 min",
+                    containerBrush = increaseGradient,
+                    containerColor = increaseColor.copy(alpha = 0.15f),
+                    contentColor = increaseColor,
+                    enabled = enabled,
+                    onClick = { onSelectTimer((displayMinutes + 5).coerceIn(0, 60)) }
                 )
             }
         }
@@ -253,71 +218,46 @@ fun TimerDashboard(
 }
 
 @Composable
-private fun QuickAdjustButton(
+private fun ActionButton(
+    modifier: Modifier,
     icon: ImageVector,
-    animationLabel: String,
-    caption: String,
-    foreground: Color,
-    gradient: Brush,
-    borderColor: Color,
+    label: String,
+    containerColor: Color,
+    contentColor: Color,
     enabled: Boolean,
-    isRunning: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    containerBrush: Brush? = null
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val pulseTransition = rememberInfiniteTransition(label = "${animationLabel}_pulse")
-    val pulseScale by pulseTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.03f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 1200
-                1f at 0
-                1.03f at 600
-                1f at 1200
-            }
-        ),
-        label = "${animationLabel}_pulse_scale"
-    )
-    val targetScale = when {
-        isPressed -> 0.92f
-        isRunning && enabled -> pulseScale
-        else -> 1f
+    val backgroundModifier = if (containerBrush == null) {
+        Modifier.background(containerColor, RoundedCornerShape(16.dp))
+    } else {
+        Modifier
+            .background(containerColor, RoundedCornerShape(16.dp))
+            .background(containerBrush, RoundedCornerShape(16.dp))
     }
-    val scale by animateFloatAsState(targetValue = targetScale, label = "${animationLabel}_scale_anim")
-
     Box(
-        modifier = Modifier
-            .width(80.dp)
-            .scale(scale)
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.12f))
-            .background(gradient, RoundedCornerShape(14.dp))
-            .border(width = 1.5.dp, color = borderColor, shape = RoundedCornerShape(14.dp))
-            .clickable(
-                enabled = enabled,
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
-            .padding(vertical = 7.dp),
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .then(backgroundModifier)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             Icon(
                 imageVector = icon,
-                contentDescription = caption,
-                tint = foreground,
-                modifier = Modifier.size(30.dp)
+                contentDescription = label,
+                tint = contentColor,
+                modifier = Modifier.size(20.dp)
             )
 
             Text(
-                text = caption,
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                color = foreground
+                text = label,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = contentColor
             )
         }
     }
