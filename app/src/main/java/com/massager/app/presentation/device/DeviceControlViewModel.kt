@@ -267,26 +267,20 @@ class DeviceControlViewModel @Inject constructor(
     }
 
     fun selectTimer(minutes: Int) {
-        val current = _uiState.value
         val sanitized = minutes.coerceAtLeast(1)
-        if (current.isRunning) {
-            viewModelScope.launch {
-                val success = withSession { session -> session.selectTimer(sanitized) }
-                if (success) {
-                    currentAddress()?.let { address -> userTimerOverrides[address] = sanitized }
-                    _uiState.update {
-                        it.copy(
-                            timerMinutes = sanitized,
-                            remainingSeconds = sanitized * 60
-                        )
-                    }
-                } else {
-                    _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
+        viewModelScope.launch {
+            val success = withSession { session -> session.selectTimer(sanitized) }
+            if (success) {
+                currentAddress()?.let { address -> userTimerOverrides[address] = sanitized }
+                _uiState.update {
+                    it.copy(
+                        timerMinutes = sanitized,
+                        remainingSeconds = sanitized * 60
+                    )
                 }
+            } else {
+                _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
             }
-        } else {
-            currentAddress()?.let { address -> userTimerOverrides[address] = sanitized }
-            _uiState.update { it.copy(timerMinutes = sanitized, remainingSeconds = 0) }
         }
     }
 
@@ -319,7 +313,12 @@ class DeviceControlViewModel @Inject constructor(
         val sanitized = level.coerceIn(MIN_LEVEL, MAX_LEVEL)
         val shouldUpdateState = sanitized != current.level
         if (shouldUpdateState) {
-            _uiState.update { it.copy(level = sanitized) }
+            _uiState.update {
+                it.copy(
+                    level = sanitized,
+                    isRunning = sanitized > 0
+                )
+            }
         }
         Log.d(
             tag,
@@ -336,14 +335,8 @@ class DeviceControlViewModel @Inject constructor(
     }
 
     fun toggleSession() {
-        val current = _uiState.value
-        if (current.isRunning) {
-            Log.d(tag, "toggleSession: stop requested by user")
-            stopSession(userInitiated = true)
-        } else {
-            Log.d(tag, "toggleSession: start requested with zone=${current.zone} mode=${current.mode} level=${current.level} timer=${current.timerMinutes}")
-            startSession()
-        }
+        Log.d(tag, "toggleSession: stop requested by user")
+        stopSession(userInitiated = true)
     }
 
     fun reconnect(address: String? = null) {
@@ -863,61 +856,16 @@ class DeviceControlViewModel @Inject constructor(
         }
     }
 
-    private fun startSession() {
-        val current = _uiState.value
-        if (!current.isConnected) {
-            _uiState.update { it.copy(message = DeviceMessage.CommandFailed(R.string.device_status_disconnected)) }
-            return
-        }
-        if (!current.isProtocolReady) {
-            Log.w(tag, "startSession: protocol not ready, skipping start")
-            _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
-            return
-        }
-        val timerMinutes = current.timerMinutes.takeIf { it > 0 } ?: DEFAULT_TIMER_MINUTES
-        val zoneIndex = current.zone.index
-        val level = max(current.level, 1)
-
-        viewModelScope.launch {
-            val success = withSession { session ->
-                session.runProgram(
-                    zone = zoneIndex,
-                    mode = current.mode,
-                    level = level,
-                    timerMinutes = timerMinutes
-                )
-            }
-            if (success) {
-                currentAddress()?.let { addr ->
-                    userTimerOverrides[addr] = timerMinutes
-                    lastTelemetryRemainingSeconds[addr] = timerMinutes * 60
-                }
-                _uiState.update {
-                    it.copy(
-                        isRunning = true,
-                        level = level,
-                        timerMinutes = timerMinutes,
-                        remainingSeconds = timerMinutes * 60,
-                        message = DeviceMessage.SessionStarted(level = level, mode = current.mode)
-                    )
-                }
-                awaitingStopAck = false
-            } else {
-                _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
-            }
-        }
-    }
-
     private fun stopSession(userInitiated: Boolean) {
         val current = _uiState.value
         if (!current.isRunning && !userInitiated) return
         viewModelScope.launch {
-            val success = withSession { session -> session.stopProgram() }
+            val success = withSession { session -> session.selectLevel(MIN_LEVEL) }
             _uiState.update {
                 it.copy(
                     isRunning = false,
-                    // 保留当前档位与剩余时间，避免停止后重置到 0。
-                    level = current.level,
+                    // 点击停止将强度设为 0，且保留当前剩余时间。
+                    level = MIN_LEVEL,
                     remainingSeconds = current.remainingSeconds,
                     message = if (success) DeviceMessage.SessionStopped else DeviceMessage.CommandFailed()
                 )

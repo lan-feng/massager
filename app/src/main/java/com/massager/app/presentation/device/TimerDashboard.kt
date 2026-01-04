@@ -1,6 +1,7 @@
 package com.massager.app.presentation.device
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,28 +11,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,12 +39,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.text.style.TextAlign
 import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimerDashboard(
     isRunning: Boolean,
@@ -64,14 +61,15 @@ fun TimerDashboard(
     val remainingMinutes = if (remainingSeconds > 0) (remainingSeconds + 59) / 60 else baseMinutes
     val displayMinutes = (if (isRunning) remainingMinutes else baseMinutes).coerceIn(0, 60)
     val dashboardBackground = controlPanelBackground()
-    val displaySeconds = if (isRunning) remainingSeconds.coerceAtLeast(0) else baseMinutes * 60
+    val displaySeconds = if (isRunning) {
+        remainingSeconds.coerceAtLeast(0)
+    } else {
+        remainingSeconds.coerceAtLeast(0).takeIf { it > 0 } ?: baseMinutes * 60
+    }
     val hours = displaySeconds / 3600
     val minutes = (displaySeconds % 3600) / 60
     val seconds = displaySeconds % 60
     val timeText = String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
-
-    var showSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val increaseColor = Color(0xFF7AC99A)
     val decreaseColor = Color(0xFFE4BF87)
@@ -95,16 +93,21 @@ fun TimerDashboard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min)
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(1.dp, brand, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Column(
                         modifier = Modifier
                             .clip(RoundedCornerShape(14.dp))
                             .clickable(
                                 enabled = enabled,
-                                onClick = { showSheet = true }
+                                onClick = { onSelectTimer(30) }
                             )
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -113,26 +116,35 @@ fun TimerDashboard(
                         Icon(
                             imageVector = Icons.Filled.Timer,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = brand,
                             modifier = Modifier.size(22.dp)
                         )
                         Text(
-                            text = "${displayMinutes} min",
+                            text = "30 min",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.SemiBold
                             ),
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = brand
                         )
                     }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(1.dp)
+                            .background(brand)
+                    )
 
                     Text(
                         text = timeText,
                         style = MaterialTheme.typography.displaySmall.copy(
-                            fontSize = 38.sp,
+                            fontSize = 36.sp,
                             fontWeight = FontWeight.SemiBold,
                             fontFamily = FontFamily.Monospace
                         ),
-                        color = brand
+                        color = brand,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.End
                     )
                 }
             }
@@ -143,78 +155,45 @@ fun TimerDashboard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ActionButton(
-                    modifier = Modifier.weight(1.2f),
+                    modifier = Modifier.weight(2f),
                     icon = Icons.Filled.Stop,
                     label = stringResource(id = R.string.device_stop),
                     containerColor = stopColor,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     enabled = enabled,
+                    orientation = ActionButtonOrientation.Horizontal,
                     onClick = onToggleSession
                 )
                 ActionButton(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Filled.Remove,
-                    label = "- 5 min",
+                    label = "5 min",
                     containerBrush = decreaseGradient,
                     containerColor = decreaseColor.copy(alpha = 0.15f),
                     contentColor = decreaseColor,
                     enabled = enabled,
+                    orientation = ActionButtonOrientation.Vertical,
                     onClick = { onSelectTimer((displayMinutes - 5).coerceIn(0, 60)) }
                 )
                 ActionButton(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Filled.Add,
-                    label = "+ 5 min",
+                    label = "5 min",
                     containerBrush = increaseGradient,
                     containerColor = increaseColor.copy(alpha = 0.15f),
                     contentColor = increaseColor,
                     enabled = enabled,
+                    orientation = ActionButtonOrientation.Vertical,
                     onClick = { onSelectTimer((displayMinutes + 5).coerceIn(0, 60)) }
                 )
             }
         }
     }
+}
 
-    if (showSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showSheet = false },
-            sheetState = sheetState
-        ) {
-            val options = listOf(5, 10, 15, 20, 25, 30, 40, 50, 60)
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 360.dp)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(options) { value ->
-                    val isSelected = value == displayMinutes
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        tonalElevation = if (isSelected) 1.dp else 0.dp,
-                        color = if (isSelected) brand else MaterialTheme.massagerExtendedColors.surfaceBright,
-                        modifier = Modifier
-                            .height(64.dp)
-                            .clickable {
-                                onSelectTimer(value)
-                                showSheet = false
-                            }
-                    ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Text(
-                                text = "$value min",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
+private enum class ActionButtonOrientation {
+    Horizontal,
+    Vertical
 }
 
 @Composable
@@ -226,7 +205,8 @@ private fun ActionButton(
     contentColor: Color,
     enabled: Boolean,
     onClick: () -> Unit,
-    containerBrush: Brush? = null
+    containerBrush: Brush? = null,
+    orientation: ActionButtonOrientation = ActionButtonOrientation.Horizontal
 ) {
     val backgroundModifier = if (containerBrush == null) {
         Modifier.background(containerColor, RoundedCornerShape(16.dp))
@@ -235,30 +215,57 @@ private fun ActionButton(
             .background(containerColor, RoundedCornerShape(16.dp))
             .background(containerBrush, RoundedCornerShape(16.dp))
     }
+    val iconSize = if (orientation == ActionButtonOrientation.Horizontal) 28.dp else 22.dp
+    val spacing = if (orientation == ActionButtonOrientation.Horizontal) 6.dp else 1.dp
+    val contentPadding = if (orientation == ActionButtonOrientation.Horizontal) {
+        PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+    } else {
+        PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+    }
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .then(backgroundModifier)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(contentPadding),
         contentAlignment = Alignment.Center
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = contentColor,
-                modifier = Modifier.size(20.dp)
-            )
+        if (orientation == ActionButtonOrientation.Horizontal) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = contentColor,
+                    modifier = Modifier.size(iconSize)
+                )
 
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = contentColor
-            )
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = contentColor
+                )
+            }
+        } else {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(spacing)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = contentColor,
+                    modifier = Modifier.size(iconSize)
+                )
+
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = contentColor
+                )
+            }
         }
     }
 }
