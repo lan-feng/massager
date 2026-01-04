@@ -144,7 +144,7 @@ fun TimerDashboard(
                         ),
                         color = brand,
                         modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.End
+                        textAlign = TextAlign.Center
                     )
                 }
             }
