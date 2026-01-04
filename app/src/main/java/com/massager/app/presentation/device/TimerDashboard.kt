@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
 import java.util.Locale
@@ -144,7 +145,9 @@ fun TimerDashboard(
                         ),
                         color = brand,
                         modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

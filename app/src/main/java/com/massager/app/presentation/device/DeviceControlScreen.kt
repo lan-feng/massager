@@ -790,7 +790,7 @@ private fun DeviceSwitcherRow(
     val horizontalPadding = 0.dp
     val availableWidth = (screenWidth - horizontalPadding * 2 - cardSpacing*2).coerceAtLeast(200.dp)
     val selectedWidth = availableWidth * 0.7f
-    val unselectedWidth = availableWidth * 0.25f
+    val unselectedWidth = (availableWidth * 0.25f).coerceAtLeast(72.dp)
     val cardHeight = 100.dp
     val hasAttached = cards.any { !it.isMainDevice }
     LazyRow(

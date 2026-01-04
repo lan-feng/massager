@@ -104,8 +104,6 @@ fun DeviceSwitchCard(
         ConnectionState.DISCONNECTED -> error.copy(alpha = 0.4f)
         else -> Color.Transparent
     }
-    val contentHeight = 96.dp
-
     // Tapping a card should only switch selection; reconnect lives on the dedicated icon.
     val clickable = true
     val onClick = onCardTap
@@ -167,7 +165,7 @@ fun DeviceSwitchCard(
         Box(
             modifier = readyBackground
                 .padding(horizontal = 16.dp, vertical = 14.dp)
-                .height(contentHeight)
+                .heightIn(min = 72.dp)
         ) {
             if (isSelected) {
                 Row(
