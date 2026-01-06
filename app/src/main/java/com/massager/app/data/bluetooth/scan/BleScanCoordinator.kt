@@ -113,7 +113,7 @@ class BleScanCoordinator @Inject constructor(
                 message = context.getString(R.string.device_error_bluetooth_scan_permission)
             )
         }
-        if (!hasLocationPermission()) {
+        if (requiresLocationPermission() && !hasLocationPermission()) {
             return ScanStartResult.Error(
                 status = BleConnectionState.Status.BluetoothUnavailable,
                 message = context.getString(R.string.device_error_location_permission)
@@ -287,7 +287,7 @@ class BleScanCoordinator @Inject constructor(
             val adapter = bluetoothAdapter ?: return@Runnable
             if (!adapter.isEnabled) return@Runnable
             if (!hasScanPermission()) return@Runnable
-            if (!hasLocationPermission()) return@Runnable
+            if (requiresLocationPermission() && !hasLocationPermission()) return@Runnable
             val scanner = adapter.bluetoothLeScanner ?: return@Runnable
             startScanInternal(scanner)
         }
@@ -356,6 +356,12 @@ class BleScanCoordinator @Inject constructor(
             Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
         return fineGranted || coarseGranted
+    }
+
+    private fun requiresLocationPermission(): Boolean {
+        // Android 12+ (S) 允许使用 BLUETOOTH_SCAN/CONNECT（neverForLocation）在无定位权限下扫描；
+        // 旧版本仍需要定位权限才能返回扫描结果。
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S
     }
 
     private fun safeDeviceName(device: BluetoothDevice): String? {

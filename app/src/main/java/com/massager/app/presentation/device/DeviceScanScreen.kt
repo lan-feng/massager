@@ -99,15 +99,21 @@ fun DeviceScanScreen(
     onNavigateControl: (String?) -> Unit
 ) {
     val context = LocalContext.current
+    val requiresLocationPermission = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S
+    val locationPermissions = listOf(
+        android.Manifest.permission.ACCESS_FINE_LOCATION,
+        android.Manifest.permission.ACCESS_COARSE_LOCATION
+    )
     val runtimePermissions = remember {
         buildList {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                 add(android.Manifest.permission.BLUETOOTH_SCAN)
                 add(android.Manifest.permission.BLUETOOTH_CONNECT)
             }
-            // 兼容部分厂商仍要求位置权限
-            add(android.Manifest.permission.ACCESS_FINE_LOCATION)
-            add(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            // 旧版系统仍要求定位权限
+            if (requiresLocationPermission) {
+                addAll(locationPermissions)
+            }
         }
     }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -132,14 +138,12 @@ fun DeviceScanScreen(
     val missingPermissions = runtimePermissions.filter {
         ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
     }
-    val missingLocation = missingPermissions.any { perm ->
+    val missingLocation = requiresLocationPermission && missingPermissions.any { perm ->
         perm == android.Manifest.permission.ACCESS_FINE_LOCATION || perm == android.Manifest.permission.ACCESS_COARSE_LOCATION
     }
-    val permissionMessage = if (missingLocation) {
-        context.getString(R.string.device_error_location_permission)
-    } else {
-        context.getString(R.string.device_error_bluetooth_scan_permission)
-    }
+    val permissionMessage =
+        if (missingLocation) context.getString(R.string.device_error_location_permission)
+        else context.getString(R.string.device_error_bluetooth_scan_permission)
     var settingsDialogMessage by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(missingPermissions) {
         if (missingPermissions.isEmpty()) dialogSuppressed = false

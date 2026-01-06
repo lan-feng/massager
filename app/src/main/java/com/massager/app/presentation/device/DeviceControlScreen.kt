@@ -203,14 +203,20 @@ private fun DeviceControlContent(
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val requiresLocationPermission = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S
+    val locationPermissions = listOf(
+        android.Manifest.permission.ACCESS_FINE_LOCATION,
+        android.Manifest.permission.ACCESS_COARSE_LOCATION
+    )
     val runtimePermissions = remember {
         buildList {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                 add(android.Manifest.permission.BLUETOOTH_SCAN)
                 add(android.Manifest.permission.BLUETOOTH_CONNECT)
             }
-            add(android.Manifest.permission.ACCESS_FINE_LOCATION)
-            add(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (requiresLocationPermission) {
+                addAll(locationPermissions)
+            }
         }
     }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -225,6 +231,12 @@ private fun DeviceControlContent(
     val missingPermissions = runtimePermissions.filter {
         ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
     }
+    val missingLocation = requiresLocationPermission && missingPermissions.any { perm ->
+        perm == android.Manifest.permission.ACCESS_FINE_LOCATION || perm == android.Manifest.permission.ACCESS_COARSE_LOCATION
+    }
+    val permissionMessage =
+        if (missingLocation) context.getString(R.string.device_error_location_permission)
+        else context.getString(R.string.device_error_bluetooth_scan_permission)
     var permissionRequestFailed by remember { mutableStateOf(false) }
     LaunchedEffect(missingPermissions) {
         if (missingPermissions.isNotEmpty()) {
@@ -233,11 +245,9 @@ private fun DeviceControlContent(
                 permissionLauncher.launch(missingPermissions.toTypedArray())
             }.onFailure {
                 permissionRequestFailed = true
-                settingsDialogMessage = context.getString(R.string.device_error_bluetooth_scan_permission)
+                settingsDialogMessage = permissionMessage
                 scope.launch {
-                    snackbarHostState.showSnackbar(
-                        context.getString(R.string.device_error_bluetooth_scan_permission)
-                    )
+                    snackbarHostState.showSnackbar(permissionMessage)
                 }
             }
         } else {
@@ -248,8 +258,7 @@ private fun DeviceControlContent(
     }
     LaunchedEffect(missingPermissions, permissionRequested) {
         if (missingPermissions.isNotEmpty() && permissionRequested) {
-            settingsDialogMessage = settingsDialogMessage
-                ?: context.getString(R.string.device_error_bluetooth_scan_permission)
+            settingsDialogMessage = settingsDialogMessage ?: permissionMessage
         }
     }
     val isBluetoothOff = (BluetoothAdapter.getDefaultAdapter()?.isEnabled == false) ||
@@ -310,9 +319,7 @@ private fun DeviceControlContent(
             currentMissingPermissions.isNotEmpty() -> {
                 permissionLauncher.launch(currentMissingPermissions.toTypedArray())
                 scope.launch {
-                    snackbarHostState.showSnackbar(
-                        context.getString(R.string.device_error_bluetooth_scan_permission)
-                    )
+                    snackbarHostState.showSnackbar(permissionMessage)
                 }
             }
             bluetoothDisabled -> {
