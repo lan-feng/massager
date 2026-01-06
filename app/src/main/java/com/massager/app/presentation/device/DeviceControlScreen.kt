@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,6 +38,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.verticalScroll
 import com.massager.app.data.bluetooth.BleConnectionState
 import androidx.compose.material.icons.Icons
@@ -361,7 +364,8 @@ private fun DeviceControlContent(
             )
         },
         snackbarHost = { ThemedSnackbarHost(snackbarHostState) },
-        containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle
+        containerColor = MaterialTheme.massagerExtendedColors.surfaceSubtle,
+        contentWindowInsets = WindowInsets.safeDrawing
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -443,7 +447,8 @@ private fun DeviceControlContent(
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxSize(),
+                            .fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.safeDrawing),
                         contentAlignment = Alignment.Center
                     ) {
                         Surface(
@@ -744,6 +749,7 @@ private fun DeviceControlContent(
             Surface(
                 modifier = Modifier
                     .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
                     .background(MaterialTheme.massagerExtendedColors.surfaceSubtle),
                 color = MaterialTheme.massagerExtendedColors.surfaceSubtle
             ) {
