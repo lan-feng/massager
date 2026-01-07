@@ -65,7 +65,8 @@ fun TimerDashboard(
     val displaySeconds = if (isRunning) {
         remainingSeconds.coerceAtLeast(0)
     } else {
-        remainingSeconds.coerceAtLeast(0).takeIf { it > 0 } ?: baseMinutes * 60
+        // Show the actual remaining seconds; if none, keep at 0 instead of resetting to the preset timer.
+        remainingSeconds.coerceAtLeast(0).takeIf { it > 0 } ?: 0
     }
     val hours = displaySeconds / 3600
     val minutes = (displaySeconds % 3600) / 60

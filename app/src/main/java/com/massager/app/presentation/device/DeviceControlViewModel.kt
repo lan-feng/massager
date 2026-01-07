@@ -27,15 +27,19 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.massager.app.presentation.navigation.Screen
 import javax.inject.Inject
+import kotlin.math.abs
 import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 private const val MAX_LEVEL = 19
@@ -67,7 +71,9 @@ class DeviceControlViewModel @Inject constructor(
     private var pendingSelectionSerial: String? = null
     private var selectedDeviceSerial: String? = null
     private var hasProtocolSignal = false
-    private var protocolSignalTimeoutJob: kotlinx.coroutines.Job? = null
+    private var protocolSignalTimeoutJob: Job? = null
+    private var countdownJob: Job? = null
+    private var lastTickAtMillis: Long = 0L
     private val deviceUiCache = mutableMapOf<String, DeviceSnapshot>()
     private val heartbeatRequested = mutableSetOf<String>()
     private val lastHeartbeatSentAt = mutableMapOf<String, Long>()
@@ -98,6 +104,7 @@ class DeviceControlViewModel @Inject constructor(
         observeConnectionStates()
         observeProtocolMessages()
         observeComboDevices()
+        observeCountdown()
         attemptInitialConnection()
     }
 
@@ -230,6 +237,64 @@ class DeviceControlViewModel @Inject constructor(
         }
     }
 
+    private fun observeCountdown() {
+        viewModelScope.launch {
+            uiState.collect { state ->
+                if (state.isRunning && state.remainingSeconds > 0) {
+                    startCountdownIfNeeded()
+                } else {
+                    stopCountdownTimer()
+                }
+            }
+        }
+    }
+
+    private fun startCountdownIfNeeded() {
+        if (countdownJob?.isActive == true) return
+        refreshCountdownAnchor()
+        countdownJob = viewModelScope.launch {
+            while (isActive) {
+                delay(1_000L)
+                tickCountdown()
+            }
+        }
+    }
+
+    private fun stopCountdownTimer() {
+        countdownJob?.cancel()
+        countdownJob = null
+        lastTickAtMillis = 0L
+    }
+
+    private suspend fun tickCountdown() {
+        val now = System.currentTimeMillis()
+        val elapsedSeconds =
+            ((now - lastTickAtMillis).coerceAtLeast(0L) / 1000L).toInt().coerceAtLeast(1)
+        lastTickAtMillis = now
+        var targetAddress: String? = null
+        var shouldForceHeartbeat = false
+        _uiState.update { state ->
+            if (!state.isRunning) return@update state
+            val nextRemaining = (state.remainingSeconds - elapsedSeconds).coerceAtLeast(0)
+            if (nextRemaining < 5 && state.isProtocolReady) {
+                targetAddress = state.selectedDeviceSerial ?: state.deviceAddress
+                shouldForceHeartbeat = targetAddress != null
+            }
+            if (nextRemaining != state.remainingSeconds) {
+                state.copy(remainingSeconds = nextRemaining)
+            } else {
+                state
+            }
+        }
+        if (shouldForceHeartbeat) {
+            targetAddress?.let { maybeRequestHeartbeat(it, force = true) }
+        }
+    }
+
+    private fun refreshCountdownAnchor() {
+        lastTickAtMillis = System.currentTimeMillis()
+    }
+
     private fun mapTelemetry(message: ProtocolMessage): DeviceTelemetry? {
         telemetryMappers.forEach { mapper ->
             if (mapper.supports(message)) {
@@ -278,6 +343,7 @@ class DeviceControlViewModel @Inject constructor(
                         remainingSeconds = sanitized * 60
                     )
                 }
+                refreshCountdownAnchor()
             } else {
                 _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
             }
@@ -314,9 +380,11 @@ class DeviceControlViewModel @Inject constructor(
         val shouldUpdateState = sanitized != current.level
         if (shouldUpdateState) {
             _uiState.update {
+                val shouldSeedTimer = sanitized > 0 && !it.isRunning && it.remainingSeconds <= 0
                 it.copy(
                     level = sanitized,
-                    isRunning = sanitized > 0
+                    isRunning = sanitized > 0,
+                    remainingSeconds = if (shouldSeedTimer) max(1, it.timerMinutes) * 60 else it.remainingSeconds
                 )
             }
         }
@@ -639,7 +707,8 @@ class DeviceControlViewModel @Inject constructor(
                 address = address,
                 incomingTimerMinutes = cached.timerMinutes,
                 incomingRemainingSeconds = cached.remainingSeconds,
-                isRunning = cached.isRunning
+                isRunning = cached.isRunning,
+                localRemainingSeconds = cached.remainingSeconds
             )
             _uiState.update {
                 it.copy(
@@ -761,6 +830,10 @@ class DeviceControlViewModel @Inject constructor(
             telemetry.isRunning?.let { next = next.copy(isRunning = it) }
 
             val shouldUpdateControls = next.isRunning || telemetry.isRunning == true
+            if (telemetry.isRunning == false && (telemetry.remainingSeconds ?: 0) <= 0) {
+                // Heartbeat shows session ended; force level to 0.
+                next = next.copy(level = MIN_LEVEL)
+            }
             if (shouldUpdateControls) {
                 telemetry.zone?.let { next = next.copy(zone = BodyZone.fromIndex(it)) }
                 telemetry.mode?.let { next = next.copy(mode = it.coerceIn(0, 7)) }
@@ -810,15 +883,21 @@ class DeviceControlViewModel @Inject constructor(
 
             if (applyToSelected) {
                 val addressKey = targetAddress
-                telemetry.remainingSeconds?.let { remaining ->
-                    lastTelemetryRemainingSeconds[addressKey] = remaining.coerceAtLeast(0)
-                }
+                val currentRemaining = next.remainingSeconds
+                val remoteRemaining = telemetry.remainingSeconds
+                val shouldResyncToHeartbeat = next.isRunning &&
+                    remoteRemaining != null &&
+                    abs(remoteRemaining - currentRemaining) > 3
                 val (resolvedTimer, resolvedRemaining) = resolveTimerDisplay(
                     address = addressKey,
                     incomingTimerMinutes = telemetry.timerMinutes,
                     incomingRemainingSeconds = telemetry.remainingSeconds,
-                    isRunning = next.isRunning
+                    isRunning = next.isRunning,
+                    localRemainingSeconds = currentRemaining
                 )
+                if (shouldResyncToHeartbeat) {
+                    refreshCountdownAnchor()
+                }
                 next = next.copy(timerMinutes = resolvedTimer, remainingSeconds = resolvedRemaining)
             }
             next
@@ -834,18 +913,26 @@ class DeviceControlViewModel @Inject constructor(
         address: String?,
         incomingTimerMinutes: Int?,
         incomingRemainingSeconds: Int?,
-        isRunning: Boolean
+        isRunning: Boolean,
+        localRemainingSeconds: Int? = null
     ): Pair<Int, Int> {
         val userTimer = address?.let { userTimerOverrides[it] }
         val telemetryRemaining = address?.let { lastTelemetryRemainingSeconds[it] }
-        val remaining = incomingRemainingSeconds ?: telemetryRemaining
         return if (isRunning) {
-            val safeRemaining = (remaining ?: (incomingTimerMinutes ?: DEFAULT_TIMER_MINUTES) * 60)
-                .coerceAtLeast(0)
-            val minutes = max(1, (safeRemaining + 59) / 60)
-            minutes to safeRemaining
+            val incomingSafe = incomingRemainingSeconds?.coerceAtLeast(0)
+            val cachedIncoming = telemetryRemaining?.coerceAtLeast(0)
+            val localSafe = localRemainingSeconds?.coerceAtLeast(0)
+            val remoteCandidate = incomingSafe ?: cachedIncoming.takeIf { localSafe == null }
+            val baseRemaining = when {
+                remoteCandidate != null && localSafe != null && abs(remoteCandidate - localSafe) > 3 -> remoteCandidate
+                localSafe != null -> localSafe
+                remoteCandidate != null -> remoteCandidate
+                else -> ((incomingTimerMinutes ?: DEFAULT_TIMER_MINUTES) * 60).coerceAtLeast(0)
+            }
+            val minutes = max(1, (baseRemaining + 59) / 60)
+            minutes to baseRemaining
         } else {
-            val preferredRemaining = remaining?.takeIf { it > 0 }
+            val preferredRemaining = (incomingRemainingSeconds ?: telemetryRemaining)?.takeIf { it > 0 }
             val minutes = when {
                 userTimer != null -> userTimer
                 preferredRemaining != null -> (preferredRemaining + 59) / 60
