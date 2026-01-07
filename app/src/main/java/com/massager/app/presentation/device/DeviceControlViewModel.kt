@@ -795,10 +795,43 @@ class DeviceControlViewModel @Inject constructor(
         _uiState.update { it.copy(transientMessage = message) }
     }
 
+    private fun handleRemoteLevelCommand(level: Int, targetAddress: String?) {
+        val snapshot = _uiState.value
+        val isRemoteStart = level > 0 && snapshot.level == 0
+        val isRemoteStop = level == 0
+        if (!isRemoteStart && !isRemoteStop) return
+
+        val resolvedAddress = targetAddress ?: snapshot.selectedDeviceSerial ?: snapshot.deviceAddress
+        resolvedAddress?.let { addr -> maybeRequestHeartbeat(addr, force = true) }
+
+        if (isRemoteStart) {
+            _uiState.update { state ->
+                val shouldSeedTimer = state.remainingSeconds <= 0
+                val seededRemaining = if (shouldSeedTimer) max(1, state.timerMinutes) * 60 else state.remainingSeconds
+                state.copy(
+                    isRunning = true,
+                    remainingSeconds = seededRemaining
+                )
+            }
+        } else {
+            stopCountdownTimer()
+            _uiState.update { state ->
+                state.copy(
+                    isRunning = false,
+                    level = MIN_LEVEL
+                )
+            }
+        }
+    }
+
     private fun applyTelemetry(address: String?, telemetry: DeviceTelemetry) {
         Log.d(tag, "applyTelemetry: address=$address telemetry=$telemetry")
         val targetAddress = telemetry.address ?: address ?: return
         val applyToSelected = targetAddress.equals(_uiState.value.selectedDeviceSerial, ignoreCase = true)
+        val remoteLevelChange = telemetry.message as? DeviceTelemetryMessage.RemoteLevelChanged
+        if (applyToSelected && remoteLevelChange != null) {
+            handleRemoteLevelCommand(remoteLevelChange.level, targetAddress)
+        }
         telemetry.remainingSeconds?.let { remaining ->
             lastTelemetryRemainingSeconds[targetAddress] = remaining.coerceAtLeast(0)
         }
@@ -932,14 +965,23 @@ class DeviceControlViewModel @Inject constructor(
             val minutes = max(1, (baseRemaining + 59) / 60)
             minutes to baseRemaining
         } else {
-            val preferredRemaining = (incomingRemainingSeconds ?: telemetryRemaining)?.takeIf { it > 0 }
+            val preferredRemaining = when {
+                incomingRemainingSeconds != null -> incomingRemainingSeconds.coerceAtLeast(0)
+                localRemainingSeconds != null -> localRemainingSeconds.coerceAtLeast(0)
+                telemetryRemaining != null -> telemetryRemaining.coerceAtLeast(0)
+                else -> null
+            }
             val minutes = when {
                 userTimer != null -> userTimer
                 preferredRemaining != null -> (preferredRemaining + 59) / 60
                 incomingTimerMinutes != null && incomingTimerMinutes > 0 -> incomingTimerMinutes
                 else -> DEFAULT_TIMER_MINUTES
             }
-            minutes to (preferredRemaining ?: 0)
+            val resolvedRemaining = preferredRemaining
+                ?: localRemainingSeconds?.coerceAtLeast(0)
+                ?: telemetryRemaining?.coerceAtLeast(0)
+                ?: 0
+            minutes to resolvedRemaining
         }
     }
 
