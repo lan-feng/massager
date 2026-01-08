@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.R
 import com.massager.app.data.local.SessionManager
-import com.massager.app.domain.model.UserProfile
 import com.massager.app.domain.usecase.profile.GetUserProfileUseCase
 import com.massager.app.domain.usecase.profile.UpdateUserProfileUseCase
 import com.massager.app.domain.usecase.profile.UploadAvatarUseCase

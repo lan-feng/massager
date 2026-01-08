@@ -35,15 +35,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material3.AlertDialog
@@ -51,8 +45,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import com.massager.app.presentation.components.AppBottomNavigation
@@ -72,7 +64,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -82,7 +73,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.ripple.rememberRipple
 import com.massager.app.core.preferences.AppTheme
 import com.massager.app.core.preferences.AppLanguage
 import coil.compose.rememberAsyncImagePainter
@@ -96,7 +86,6 @@ import com.massager.app.presentation.theme.massagerExtendedColors
 import com.massager.app.presentation.components.ThemedSnackbarHost
 import com.massager.app.presentation.settings.components.SettingsEntry
 import com.massager.app.presentation.settings.components.SettingsSectionCard
-import com.massager.app.presentation.settings.StandardDualActionDialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.DisposableEffect
