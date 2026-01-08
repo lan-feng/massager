@@ -4,5 +4,6 @@
         <domain includeSubdomains="true">192.168.2.110</domain>
         <domain includeSubdomains="true">192.168.2.11</domain>
         <domain includeSubdomains="true">162.14.82.152</domain>
+        <domain includeSubdomains="true">apps.am.chat</domain>
     </domain-config>
 </network-security-config>

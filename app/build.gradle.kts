@@ -37,6 +37,10 @@ android {
             dimension = "env"
             buildConfigField("String", "BASE_URL", "\"https://ems.amzdoor.com:8443/iot/api/\"")
         }
+        create("pro") {
+            dimension = "env"
+            buildConfigField("String", "BASE_URL", "\"https://apps.am.chat/iot/api/\"")
+        }
     }
 
     buildTypes {
@@ -46,7 +50,6 @@ android {
             isDebuggable = true
         }
         getByName("release") {
-            buildConfigField("String", "BASE_URL", "\"http://apps.am.chat/\"")
             buildConfigField("String", "APP_ID", "\"ems\"")
             buildConfigField("Boolean", "CRASHLYTICS_ENABLED", "true")
             isMinifyEnabled = true
