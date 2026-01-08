@@ -15,7 +15,7 @@
     <string name="settings_tab_devices">Device</string>
     <string name="settings_tab_profile">Profile</string>
     <string name="settings_header_greeting">Hi, I am your smart customer service</string>
-    <string name="settings_user_id">Massager ID: %1$s</string>
+    <string name="settings_user_id">TheraLink ID: %1$s</string>
     <string name="settings_logout">Logout</string>
     <string name="settings_avatar_greeting">Nice to meet you, %1$s!</string>
     <string name="settings_avatar_content_desc">User avatar</string>
@@ -110,11 +110,11 @@
     <string name="update_now">Update Now</string>
     <string name="later">Later</string>
     <string name="check_update_progress">Checking for updates…</string>
-    <string name="about_logo_description">Massager logo</string>
+    <string name="about_logo_description">TheraLink logo</string>
     <string name="webview_loading">Loading…</string>
     <string name="privacy_policy_url">https://intestweb.com/ems/privacyPolicy.html</string>
     <string name="user_agreement_url">https://intestweb.com/ems/userAgreement.html</string>
-    <string name="copyright">Copyright © 2025 Massager All Rights Reserved</string>
+    <string name="copyright">Copyright © 2025 TheraLink All Rights Reserved</string>
     <string name="device_title">SmartPulse TENS Unit</string>
     <string name="device_info_title">Device Info</string>
     <string name="device_info_message">SmartPulse adapts stimulation presets based on the selected zone. Keep pads attached firmly before starting.</string>
@@ -172,7 +172,7 @@
     <string name="device_connection_instruction_blink">2. A flashing blue light indicates the device is waiting for Bluetooth connection</string>
     <string name="device_error_bluetooth_disabled">Bluetooth is turned off. Enable it in system settings to connect.</string>
     <string name="device_error_bluetooth_permission">Bluetooth permission is required. Grant access in system settings and try again.</string>
-    <string name="device_error_bluetooth_scan_permission">Nearby devices permission is required to scan for your massager. Grant access in settings.</string>
+    <string name="device_error_bluetooth_scan_permission">Nearby devices permission is required to scan for your TheraLink device. Grant access in settings.</string>
     <string name="device_error_location_permission">Location access is required to discover nearby devices. Please allow it in system settings.</string>
     <string name="device_timer_minutes_format">%1$d min</string>
     <string name="personal_info_title">Personal Information</string>
@@ -185,7 +185,7 @@
     <string name="toast_profile_updated">Profile updated successfully</string>
     <string name="profile_name_hint">Enter your name</string>
     <string name="profile_name_error">Name must be 2-20 characters.</string>
-    <string name="home_welcome_title">Welcome to Massager</string>
+    <string name="home_welcome_title">Welcome to TheraLink</string>
     <string name="home_welcome_subtitle">Manage your wellness devices</string>
     <string name="home_common_devices_title">Common Device</string>
     <string name="home_device_subtitle_default">SmartPulse TENS Device</string>
@@ -254,7 +254,7 @@
     <string name="password_reset_failed">Password reset failed</string>
     <string name="invalid_email">Invalid email format</string>
     <string name="resend_in_seconds">Resend in %1$ds</string>
-    <string name="home_management_title">Welcome to Massager</string>
+    <string name="home_management_title">Welcome to TheraLink</string>
     <string name="home_management_subtitle">Common Device</string>
     <string name="home_management_add_device">Add device</string>
     <string name="home_management_device_subtitle">SmartPulse TENS Device</string>
@@ -262,7 +262,7 @@
     <string name="home_management_select_device">Please select at least one device.</string>
     <string name="home_management_rename_single_hint">Select a single device to rename.</string>
     <string name="home_management_empty_title">No devices found</string>
-    <string name="home_management_empty_message">Add a device to begin managing your Massager accessories.</string>
+    <string name="home_management_empty_message">Add a device to begin managing your TheraLink accessories.</string>
     <string name="rename">Rename</string>
     <string name="remove_device">Remove device</string>
     <string name="cancel">Cancel</string>

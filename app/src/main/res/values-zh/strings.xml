@@ -15,7 +15,7 @@
     <string name="settings_tab_devices">设备</string>
     <string name="settings_tab_profile">我的</string>
     <string name="settings_header_greeting">您好，我是您的智能客服</string>
-    <string name="settings_user_id">Massager ID：%1$s</string>
+    <string name="settings_user_id">TheraLink ID：%1$s</string>
     <string name="settings_logout">退出登录</string>
     <string name="settings_avatar_greeting">很高兴认识你，%1$s！</string>
     <string name="settings_avatar_content_desc">用户头像</string>
@@ -92,11 +92,11 @@
     <string name="update_now">立即更新</string>
     <string name="later">稍后再说</string>
     <string name="check_update_progress">正在检查更新…</string>
-    <string name="about_logo_description">Massager 标志</string>
+    <string name="about_logo_description">TheraLink 标志</string>
     <string name="webview_loading">正在加载…</string>
     <string name="privacy_policy_url">https://intestweb.com/ems/privacyPolicy.html</string>
     <string name="user_agreement_url">https://intestweb.com/ems/userAgreement.html</string>
-    <string name="copyright">版权 ©2025 Massager 保留所有权利</string>
+    <string name="copyright">版权 ©2025 TheraLink 保留所有权利</string>
     <string name="device_title">SmartPulse TENS 设备</string>
     <string name="device_info_title">设备信息</string>
     <string name="device_info_message">SmartPulse 会根据选择的区域调整刺激预设，开始前请确保电极贴合牢固。</string>
@@ -219,7 +219,7 @@
     <string name="password_reset_success">密码重置成功！</string>
     <string name="invalid_email">邮箱格式不正确</string>
     <string name="resend_in_seconds">%1$d 秒后可重发</string>
-    <string name="home_management_title">欢迎来到 Massager</string>
+    <string name="home_management_title">欢迎来到 TheraLink</string>
     <string name="home_management_subtitle">常用设备</string>
     <string name="home_management_add_device">添加设备</string>
     <string name="home_management_device_subtitle">SmartPulse TENS 设备</string>
@@ -227,7 +227,7 @@
     <string name="home_management_select_device">请先选择至少一个设备。</string>
     <string name="home_management_rename_single_hint">请选择单个设备进行重命名。</string>
     <string name="home_management_empty_title">暂无设备</string>
-    <string name="home_management_empty_message">添加设备以管理您的 Massager 配件。</string>
+    <string name="home_management_empty_message">添加设备以管理您的 TheraLink 配件。</string>
     <string name="home_saved_devices_empty_title">添加您的第一个设备</string>
     <string name="home_saved_devices_empty_subtitle">点击添加您的EMS设备</string>
     <string name="home_saved_devices_empty_getting_started_title">开始使用</string>

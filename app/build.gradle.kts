@@ -46,7 +46,7 @@ android {
             isDebuggable = true
         }
         getByName("release") {
-            buildConfigField("String", "BASE_URL", "\"https://api.yourproductionurl.com/\"")
+            buildConfigField("String", "BASE_URL", "\"http://apps.am.chat/\"")
             buildConfigField("String", "APP_ID", "\"ems\"")
             buildConfigField("Boolean", "CRASHLYTICS_ENABLED", "true")
             isMinifyEnabled = true
@@ -54,6 +54,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -137,9 +138,4 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
-}
-
-tasks.matching { it.name.startsWith("uploadCrashlyticsMappingFile") }.configureEach {
-    // Disable Crashlytics mapping upload tasks since we aren't shipping to Play Store
-    enabled = false
 }
