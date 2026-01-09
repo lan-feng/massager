@@ -1,3 +1,19 @@
+import java.util.Properties
+
+// 加载签名配置（优先 app 模块下的 keystore.properties，若不存在再查项目根）
+val keystoreProperties = Properties().apply {
+    val moduleFile = file("keystore.properties")
+    val rootFile = rootProject.file("keystore.properties")
+    val target = when {
+        moduleFile.exists() -> moduleFile
+        rootFile.exists() -> rootFile
+        else -> null
+    }
+    if (target != null) {
+        load(target.inputStream())
+    }
+}
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -10,12 +26,24 @@ plugins {
 
 android {
     namespace = "com.massager.app"
-    compileSdk = 34
+    compileSdk = 35
+
+    signingConfigs {
+        create("release") {
+            val storeFilePath = keystoreProperties["storeFile"] as String?
+            if (storeFilePath != null) {
+                storeFile = file(storeFilePath)
+            }
+            storePassword = keystoreProperties["storePassword"] as String?
+            keyAlias = keystoreProperties["keyAlias"] as String?
+            keyPassword = keystoreProperties["keyPassword"] as String?
+        }
+    }
 
     defaultConfig {
         applicationId = "com.massager.app"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -57,7 +85,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            // 使用正式签名；keystore.properties 中缺失时需补充
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
