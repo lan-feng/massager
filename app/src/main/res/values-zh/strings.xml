@@ -94,8 +94,8 @@
     <string name="check_update_progress">正在检查更新…</string>
     <string name="about_logo_description">NovLify 标志</string>
     <string name="webview_loading">正在加载…</string>
-    <string name="privacy_policy_url">https://intestweb.com/ems/privacyPolicy.html</string>
-    <string name="user_agreement_url">https://intestweb.com/ems/userAgreement.html</string>
+    <string name="privacy_policy_url">https://novlify.tech/app/support/privacyPolicy.html</string>
+    <string name="user_agreement_url">https://novlify.tech/app/support/userAgreement.html</string>
     <string name="copyright">版权 ©2025 NovLify 保留所有权利</string>
     <string name="device_title">SmartPulse TENS 设备</string>
     <string name="device_info_title">设备信息</string>
@@ -118,10 +118,10 @@
     <string name="device_mode_1">揉捏</string>
     <string name="device_mode_2">刮痧</string>
     <string name="device_mode_3">按压</string>
-    <string name="device_mode_4">穴位</string>
-    <string name="device_mode_5">拔罐</string>
+    <string name="device_mode_4">聚焦</string>
+    <string name="device_mode_5">吸附</string>
     <string name="device_mode_6">激活</string>
-    <string name="device_mode_7">塑形</string>
+    <string name="device_mode_7">紧致</string>
     <string name="mode">模式选择</string>
     <string name="body_part_title">身体部位</string>
     <string name="device_level_label">强度</string>

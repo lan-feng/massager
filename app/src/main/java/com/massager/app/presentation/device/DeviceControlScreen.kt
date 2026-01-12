@@ -980,10 +980,10 @@ private fun ModeSelectionGrid(
         Triple(1, stringResource(id = R.string.device_mode_1), R.drawable.ic_mode_knead),
         Triple(2, stringResource(id = R.string.device_mode_2), R.drawable.ic_mode_scraping),
         Triple(3, stringResource(id = R.string.device_mode_3), R.drawable.ic_mode_pressure),
-        Triple(4, stringResource(id = R.string.device_mode_4), R.drawable.ic_mode_acupoint),
-        Triple(5, stringResource(id = R.string.device_mode_5), R.drawable.ic_mode_cupping),
-        Triple(6, stringResource(id = R.string.device_mode_6), R.drawable.ic_mode_activate),
-        Triple(7, stringResource(id = R.string.device_mode_7), R.drawable.ic_mode_shape)
+        Triple(4, stringResource(id = R.string.device_mode_4), R.drawable.ic_mode_focused),
+        Triple(5, stringResource(id = R.string.device_mode_5), R.drawable.ic_mode_suction),
+        Triple(6, stringResource(id = R.string.device_mode_6), R.drawable.ic_mode_energize),
+        Triple(7, stringResource(id = R.string.device_mode_7), R.drawable.ic_mode_tone)
     )
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val maxVisibleTiles = 3.5f

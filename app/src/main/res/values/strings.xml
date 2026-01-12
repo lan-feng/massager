@@ -112,8 +112,8 @@
     <string name="check_update_progress">Checking for updates…</string>
     <string name="about_logo_description">NovLify logo</string>
     <string name="webview_loading">Loading…</string>
-    <string name="privacy_policy_url">https://intestweb.com/ems/privacyPolicy.html</string>
-    <string name="user_agreement_url">https://intestweb.com/ems/userAgreement.html</string>
+    <string name="privacy_policy_url">https://novlify.tech/app/support/privacyPolicy.html</string>
+    <string name="user_agreement_url">https://novlify.tech/app/support/userAgreement.html</string>
     <string name="copyright">Copyright © 2025 NovLify All Rights Reserved</string>
     <string name="device_title">SmartPulse TENS Unit</string>
     <string name="device_info_title">Device Info</string>
@@ -136,10 +136,10 @@
     <string name="device_mode_1">Knead</string>
     <string name="device_mode_2">Scraping</string>
     <string name="device_mode_3">Pressure</string>
-    <string name="device_mode_4">Acupoint</string>
-    <string name="device_mode_5">Cupping</string>
-    <string name="device_mode_6">Activate</string>
-    <string name="device_mode_7">Shape</string>
+    <string name="device_mode_4">Focused</string>
+    <string name="device_mode_5">Suction</string>
+    <string name="device_mode_6">Energize</string>
+    <string name="device_mode_7">Tone</string>
     <string name="mode">Mode Selection</string>
     <string name="body_part_title">Body Part</string>
     <string name="device_level_label">Intensity</string>
