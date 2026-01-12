@@ -253,8 +253,8 @@ class BleScanCoordinator @Inject constructor(
 
     private fun buildDisplayName(rawName: String?, advertisement: ProtocolAdvertisement): String {
         // Show only the base name; avoid appending firmware/uniqueId to keep label concise.
-        return rawName?.takeIf { it.isNotBlank() }
-            ?: advertisement.uniqueId.orEmpty()
+        val sanitized = sanitizeName(rawName)
+        return sanitized.ifBlank { advertisement.uniqueId.orEmpty() }
     }
 
     private fun pruneStaleScanResultsLocked() {
@@ -374,6 +374,14 @@ class BleScanCoordinator @Inject constructor(
             }
         }
         return runCatching { device.name }.getOrNull()
+    }
+
+    private fun sanitizeName(rawName: String?): String {
+        if (rawName.isNullOrBlank()) return ""
+        val withoutEms = rawName.replace(Regex("(?i)ems"), "")
+        return withoutEms
+            .replace(Regex("[_\\-\\s]+"), " ")
+            .trim()
     }
 
     data class CachedScanDevice(
