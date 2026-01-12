@@ -602,7 +602,7 @@ private fun FocusedDeviceCard(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
-                    text = device.name.ifBlank { "BLE_EMS" },
+                    text = device.name.ifBlank { "BLE Device" },
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.massagerExtendedColors.textPrimary,
