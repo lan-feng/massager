@@ -975,16 +975,7 @@ private fun ModeSelectionGrid(
     onSelectMode: (Int) -> Unit,
     brand: Color
 ) {
-    val modeItems = listOf(
-        Triple(0, stringResource(id = R.string.device_mode_0), R.drawable.ic_mode_massage),
-        Triple(1, stringResource(id = R.string.device_mode_1), R.drawable.ic_mode_knead),
-        Triple(2, stringResource(id = R.string.device_mode_2), R.drawable.ic_mode_scraping),
-        Triple(3, stringResource(id = R.string.device_mode_3), R.drawable.ic_mode_pressure),
-        Triple(4, stringResource(id = R.string.device_mode_4), R.drawable.ic_mode_focused),
-        Triple(5, stringResource(id = R.string.device_mode_5), R.drawable.ic_mode_suction),
-        Triple(6, stringResource(id = R.string.device_mode_6), R.drawable.ic_mode_energize),
-        Triple(7, stringResource(id = R.string.device_mode_7), R.drawable.ic_mode_tone)
-    )
+    val modeItems = (0..7).map { index -> index to "Mode${index + 1}" }
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val maxVisibleTiles = 3.5f
     val horizontalPadding = 10.dp * 2 + 10.dp * (maxVisibleTiles - 1)
@@ -1014,11 +1005,10 @@ private fun ModeSelectionGrid(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 12.dp)
         ) {
-            items(modeItems) { (id, title, iconRes) ->
+            items(modeItems) { (id, title) ->
                 val isSelected = id == selectedMode
                 SelectionTile(
                     title = title,
-                    painter = painterResource(id = iconRes),
                     selected = isSelected,
                     enabled = isEnabled,
                     brand = brand,
