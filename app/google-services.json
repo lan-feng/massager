@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "950589863140-h2ed1c0l6309leh19d710bkpqljj8egv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.massager.app",
+            "certificate_hash": "a4c38b85e3e1d16b32275eaddcf4f234e748361f"
+          }
+        },
+        {
           "client_id": "950589863140-vlkdmq56tcqn14ijoijhtht64mqfu6fb.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -39,10 +47,10 @@
               "client_type": 3
             },
             {
-              "client_id": "950589863140-5vuqrst5rcko0g1fes2qiogk2alm24mh.apps.googleusercontent.com",
+              "client_id": "950589863140-2h0t1fgv2chvodhebofu30lgvc6nemct.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.hyj.ems"
+                "bundle_id": "com.hjy.ems"
               }
             }
           ]
