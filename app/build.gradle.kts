@@ -44,8 +44,8 @@ android {
         applicationId = "com.massager.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 7
+        versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -117,6 +117,13 @@ android {
 
 }
 
+// Strip advertising ID related transitive modules we don't use
+configurations.configureEach {
+    exclude(group = "com.google.android.gms", module = "play-services-ads-identifier")
+    exclude(group = "androidx.privacysandbox.ads", module = "ads-adservices")
+    exclude(group = "androidx.privacysandbox.ads", module = "ads-adservices-java")
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2023.10.01")
     implementation(composeBom)
@@ -160,7 +167,6 @@ dependencies {
 
     implementation("androidx.bluetooth:bluetooth:1.0.0-alpha02")
     implementation("com.google.android.gms:play-services-auth:20.7.0")
-    implementation("com.facebook.android:facebook-login:16.2.0")
     implementation("io.coil-kt:coil-compose:2.5.0")
 
     testImplementation("junit:junit:4.13.2")

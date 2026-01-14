@@ -31,3 +31,7 @@
     *** Companion;
 }
 -keepclassmembers class kotlinx.serialization.** { *; }
+
+# Ignore optional Advertising ID classes (we exclude play-services-ads-identifier)
+-dontwarn com.google.android.gms.ads.identifier.AdvertisingIdClient
+-dontwarn com.google.android.gms.ads.identifier.AdvertisingIdClient$Info
