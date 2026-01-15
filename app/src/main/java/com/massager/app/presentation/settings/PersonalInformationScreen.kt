@@ -1,10 +1,6 @@
 package com.massager.app.presentation.settings
 
 // 文件说明：个人信息编辑界面，提供姓名、邮箱、头像等表单交互。
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -32,9 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -42,13 +37,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.rememberAsyncImagePainter
 import com.massager.app.R
+import com.massager.app.core.avatar.DEFAULT_AVATAR_NAME
 import com.massager.app.presentation.components.ThemedSnackbarHost
 import com.massager.app.presentation.settings.components.SettingsEntry
 import com.massager.app.presentation.settings.components.SettingsSectionCard
 import com.massager.app.presentation.theme.massagerExtendedColors
-import java.io.ByteArrayOutputStream
-import kotlin.math.max
-import kotlin.math.roundToInt
 
 @Composable
 fun PersonalInformationScreen(
@@ -79,36 +72,17 @@ fun PersonalInformationScreen(
 private fun PersonalInformationContent(
     state: PersonalInfoUiState,
     onBack: () -> Unit,
-    onAvatarSelected: (ByteArray) -> Unit,
+    onAvatarSelected: (String) -> Unit,
     onNameUpdated: (String) -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     val scrollState = rememberScrollState()
-    val context = LocalContext.current
     var showAvatarDialog by remember { mutableStateOf(false) }
     var showNameDialog by remember { mutableStateOf(false) }
     var isLoaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         isLoaded = true
-    }
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        bitmap ?: return@rememberLauncherForActivityResult
-        processBitmap(bitmap, onAvatarSelected)
-    }
-
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri ?: return@rememberLauncherForActivityResult
-        val resolver = context.contentResolver
-        val bitmap = resolver.openInputStream(uri)?.use { stream ->
-            BitmapFactory.decodeStream(stream)
-        }
-        bitmap?.let { processBitmap(it, onAvatarSelected) }
     }
 
     Scaffold(
@@ -190,39 +164,11 @@ private fun PersonalInformationContent(
     }
 
     if (showAvatarDialog && !state.isGuestMode) {
-        AlertDialog(
-            onDismissRequest = { showAvatarDialog = false },
-            title = { Text(text = stringResource(id = R.string.change_avatar)) },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TextButton(
-                        onClick = {
-                            showAvatarDialog = false
-                            cameraLauncher.launch(null)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(text = stringResource(id = R.string.avatar_take_photo))
-                    }
-                    TextButton(
-                        onClick = {
-                            showAvatarDialog = false
-                            galleryLauncher.launch("image/*")
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(text = stringResource(id = R.string.avatar_choose_gallery))
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showAvatarDialog = false }) {
-                    Text(text = stringResource(id = R.string.profile_cancel))
-                }
+        AvatarSelectionDialog(
+            onDismiss = { showAvatarDialog = false },
+            onAvatarSelected = { name ->
+                onAvatarSelected(name)
+                showAvatarDialog = false
             }
         )
     }
@@ -244,10 +190,12 @@ private fun AvatarPreview(
     state: PersonalInfoUiState,
     onClick: () -> Unit
 ) {
-    val avatarBitmap = remember(state.avatarBytes) {
-        state.avatarBytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
+    val avatarName = state.avatarUrl.takeIf { it.isNotBlank() } ?: DEFAULT_AVATAR_NAME
+    val avatarPainter: Painter = when {
+        isLocalAvatarName(avatarName) -> painterResource(id = resolveAvatarDrawable(avatarName))
+        avatarName.isNotBlank() -> rememberAsyncImagePainter(model = avatarName)
+        else -> painterResource(id = resolveAvatarDrawable(DEFAULT_AVATAR_NAME))
     }
-    val hasRemote = !state.avatarUrl.isNullOrBlank()
     Row(
         modifier = Modifier
             .clickable(onClick = onClick),
@@ -267,32 +215,12 @@ private fun AvatarPreview(
                 .clip(CircleShape)
                 .background(Color.LightGray)
                 .size(48.dp)
-            when {
-                avatarBitmap != null -> {
-                    Image(
-                        bitmap = avatarBitmap,
-                        contentDescription = stringResource(id = R.string.avatar_label),
-                        modifier = modifier,
-                        contentScale = ContentScale.Crop
-                    )
-                }
-                hasRemote -> {
-                    Image(
-                        painter = rememberAsyncImagePainter(model = state.avatarUrl),
-                        contentDescription = stringResource(id = R.string.avatar_label),
-                        modifier = modifier,
-                        contentScale = ContentScale.Crop
-                    )
-                }
-                else -> {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_massager_logo),
-                        contentDescription = stringResource(id = R.string.avatar_label),
-                        modifier = modifier,
-                        contentScale = ContentScale.Crop
-                    )
-                }
-            }
+            Image(
+                painter = avatarPainter,
+                contentDescription = stringResource(id = R.string.avatar_label),
+                modifier = modifier,
+                contentScale = ContentScale.Crop
+            )
         }
     }
 }
@@ -340,32 +268,5 @@ private fun EditNameDialog(
             }
         }
     )
-}
-
-private fun processBitmap(
-    bitmap: Bitmap,
-    onResult: (ByteArray) -> Unit
-) {
-    val scaled = scaleBitmap(bitmap)
-    val compressed = compressBitmap(scaled)
-    onResult(compressed)
-}
-
-private fun scaleBitmap(source: Bitmap, maxSize: Int = 512): Bitmap {
-    val largestSide = max(source.width, source.height)
-    if (largestSide <= maxSize) return source
-    val scale = maxSize.toFloat() / largestSide
-    return Bitmap.createScaledBitmap(
-        source,
-        (source.width * scale).roundToInt(),
-        (source.height * scale).roundToInt(),
-        true
-    )
-}
-
-private fun compressBitmap(source: Bitmap, quality: Int = 80): ByteArray {
-    val stream = ByteArrayOutputStream()
-    source.compress(Bitmap.CompressFormat.JPEG, quality, stream)
-    return stream.toByteArray()
 }
 

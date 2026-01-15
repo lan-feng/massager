@@ -11,6 +11,7 @@ import com.massager.app.data.remote.upload.MultipartRequestBodyUtil
 import com.massager.app.domain.model.ThirdPartyProfile
 import com.massager.app.domain.model.UserProfile
 import com.massager.app.data.local.SessionManager
+import com.massager.app.core.avatar.sanitizeAvatarForGoogle
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -86,11 +87,13 @@ class UserRepository @Inject constructor(
     private fun UserInfoResponse.toDomain(): UserProfile {
         val payload = resolvedUser()
             ?: throw IllegalStateException("Missing user payload in response")
+        val hasGoogleAccount = !payload.firebaseUid.isNullOrBlank()
+        val avatarName = sanitizeAvatarForGoogle(payload.avatarUrl, hasGoogleAccount)
         return UserProfile(
             id = payload.id,
             name = payload.name,
             email = payload.email,
-            avatarUrl = payload.avatarUrl,
+            avatarUrl = avatarName,
             cacheSize = null,
             firebaseUid = payload.firebaseUid,
             appleUserId = payload.appleUserId,

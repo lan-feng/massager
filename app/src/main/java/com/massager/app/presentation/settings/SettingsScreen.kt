@@ -1,12 +1,6 @@
 package com.massager.app.presentation.settings
 
 // 文件说明：Compose 实现的设置主页面，汇集账户、安全与关于等入口。
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -64,23 +58,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.massager.app.core.avatar.DEFAULT_AVATAR_NAME
 import com.massager.app.core.preferences.AppTheme
 import com.massager.app.core.preferences.AppLanguage
 import coil.compose.rememberAsyncImagePainter
 import com.massager.app.R
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.massager.app.presentation.home.AppBottomTab
 import com.massager.app.presentation.theme.massagerExtendedColors
 import com.massager.app.presentation.components.ThemedSnackbarHost
@@ -90,9 +82,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import java.io.ByteArrayOutputStream
-import kotlin.math.max
-import kotlin.math.roundToInt
 
 
 @Composable
@@ -104,7 +93,7 @@ fun SettingsScreen(
     onSelectTheme: (AppTheme) -> Unit,
     onSelectLanguage: (AppLanguage) -> Unit,
     onUpdateName: (String) -> Unit,
-    onUpdateAvatar: (ByteArray) -> Unit,
+    onUpdateAvatar: (String) -> Unit,
     onNavigatePersonalInfo: () -> Unit,
     onNavigateAccountSecurity: () -> Unit,
     onNavigateHistory: () -> Unit,
@@ -117,7 +106,6 @@ fun SettingsScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val guestRestrictionMessage = stringResource(id = R.string.guest_mode_cloud_restricted)
     var showEditNameDialog by remember { mutableStateOf(false) }
@@ -134,34 +122,6 @@ fun SettingsScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        if (bitmap != null) {
-            coroutineScope.launch {
-                val compressed = withContext(Dispatchers.Default) {
-                    compressBitmap(bitmap)
-                }
-                onUpdateAvatar(compressed)
-            }
-        }
-    }
-
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        coroutineScope.launch {
-            val bitmap = loadBitmapFromUri(context, uri)
-            bitmap?.let {
-                val compressed = withContext(Dispatchers.Default) {
-                    compressBitmap(it)
-                }
-                onUpdateAvatar(compressed)
-            }
-        }
     }
 
     LaunchedEffect(state.toastMessage) {
@@ -362,15 +322,11 @@ fun SettingsScreen(
         }
 
         if (showAvatarDialog) {
-            AvatarOptionsDialog(
+            AvatarSelectionDialog(
                 onDismiss = { showAvatarDialog = false },
-                onTakePhoto = {
+                onAvatarSelected = { name ->
+                    onUpdateAvatar(name)
                     showAvatarDialog = false
-                    cameraLauncher.launch(null)
-                },
-                onChooseGallery = {
-                    showAvatarDialog = false
-                    galleryLauncher.launch("image/*")
                 }
             )
         }
@@ -432,10 +388,11 @@ private fun HeaderSection(
     isGuestMode: Boolean,
     onAvatarTap: () -> Unit
 ) {
-    val avatarBitmap = remember(user.avatarBytes) {
-        user.avatarBytes?.let { bytes ->
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-        }
+    val avatarName = user.avatarUrl?.takeIf { it.isNotBlank() } ?: DEFAULT_AVATAR_NAME
+    val avatarPainter: Painter = when {
+        isLocalAvatarName(avatarName) -> painterResource(id = resolveAvatarDrawable(avatarName))
+        avatarName.isNotBlank() -> rememberAsyncImagePainter(model = avatarName)
+        else -> painterResource(id = resolveAvatarDrawable(DEFAULT_AVATAR_NAME))
     }
     val displayName = if (isGuestMode && user.name.isBlank()) {
         stringResource(id = R.string.guest_placeholder_name)
@@ -504,25 +461,12 @@ private fun HeaderSection(
                                 isPressed = false
                             }
 
-                        when {
-                            avatarBitmap != null -> Image(
-                                bitmap = avatarBitmap,
-                                contentDescription = stringResource(R.string.settings_avatar_content_desc),
-                                modifier = imageModifier,
-                                contentScale = ContentScale.Crop
-                            )
-                            remoteAvatarPainter != null -> Image(
-                                painter = remoteAvatarPainter,
-                                contentDescription = stringResource(R.string.settings_avatar_content_desc),
-                                modifier = imageModifier,
-                                contentScale = ContentScale.Crop
-                            )
-                            else -> Image(
-                                painter = painterResource(id = R.drawable.ic_massager_logo),
-                                contentDescription = stringResource(R.string.settings_avatar_content_desc),
-                                modifier = imageModifier.padding(12.dp)
-                            )
-                        }
+                        Image(
+                            painter = avatarPainter,
+                            contentDescription = stringResource(R.string.settings_avatar_content_desc),
+                            modifier = imageModifier,
+                            contentScale = ContentScale.Crop
+                        )
                     }
 
                     Column(
@@ -657,64 +601,4 @@ private fun EditNameDialog(
     )
 }
 
-@Composable
-private fun AvatarOptionsDialog(
-    onDismiss: () -> Unit,
-    onTakePhoto: () -> Unit,
-    onChooseGallery: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(id = R.string.avatar_dialog_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(
-                    onClick = onTakePhoto,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(text = stringResource(id = R.string.avatar_take_photo))
-                }
-                TextButton(
-                    onClick = onChooseGallery,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(text = stringResource(id = R.string.avatar_choose_gallery))
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(id = R.string.avatar_option_cancel))
-            }
-        }
-    )
-}
 
-private suspend fun loadBitmapFromUri(context: Context, uri: Uri): Bitmap? =
-    withContext(Dispatchers.IO) {
-        runCatching {
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                BitmapFactory.decodeStream(stream)
-            }
-        }.getOrNull()
-    }
-
-private fun compressBitmap(source: Bitmap): ByteArray {
-    val maxSize = 512
-    val largestSide = max(source.width, source.height)
-    val scaledBitmap = if (largestSide > maxSize) {
-        val scale = maxSize.toFloat() / largestSide
-        Bitmap.createScaledBitmap(
-            source,
-            (source.width * scale).roundToInt(),
-            (source.height * scale).roundToInt(),
-            true
-        )
-    } else {
-        source
-    }
-    val stream = ByteArrayOutputStream()
-    scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, stream)
-    return stream.toByteArray()
-}

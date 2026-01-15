@@ -57,6 +57,20 @@ class SessionManager @Inject constructor(
 
     fun guestName(): String? = prefs.getString(KEY_GUEST_NAME, null)
 
+    fun saveGuestAvatarName(name: String) {
+        if (name.isBlank()) return
+        prefs.edit().putString(KEY_GUEST_AVATAR_NAME, name).apply()
+    }
+
+    fun guestAvatarName(): String? = prefs.getString(KEY_GUEST_AVATAR_NAME, null)
+
+    fun saveAccountAvatarName(name: String) {
+        if (name.isBlank()) return
+        prefs.edit().putString(KEY_ACCOUNT_AVATAR_NAME, name).apply()
+    }
+
+    fun accountAvatarName(): String? = prefs.getString(KEY_ACCOUNT_AVATAR_NAME, null)
+
     fun saveGuestAvatar(bytes: ByteArray) {
         if (bytes.isEmpty()) return
         val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
@@ -100,7 +114,9 @@ class SessionManager @Inject constructor(
         const val KEY_APP_ID = "key_app_id"
         const val KEY_GUEST_MODE = "key_guest_mode"
         const val KEY_GUEST_NAME = "key_guest_name"
+        const val KEY_GUEST_AVATAR_NAME = "key_guest_avatar_name"
         const val KEY_GUEST_AVATAR = "key_guest_avatar"
+        const val KEY_ACCOUNT_AVATAR_NAME = "key_account_avatar_name"
         const val KEY_ACCOUNT_AVATAR = "key_account_avatar"
 
         const val GUEST_USER_ID = "guest"

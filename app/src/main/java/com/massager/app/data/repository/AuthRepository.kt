@@ -3,6 +3,8 @@ package com.massager.app.data.repository
 // Handles login/registration, verification codes, logout, and session persistence for authentication flows.
 import com.massager.app.BuildConfig
 import androidx.room.withTransaction
+import com.massager.app.core.avatar.DEFAULT_AVATAR_NAME
+import com.massager.app.core.avatar.sanitizeAvatarForGoogle
 import com.massager.app.data.local.MassagerDatabase
 import com.massager.app.data.local.SessionManager
 import com.massager.app.data.remote.AuthApiService
@@ -75,6 +77,11 @@ class AuthRepository @Inject constructor(
             sessionManager.saveUserId(response.user.id.toString())
             sessionManager.saveAppId(response.user.appId ?: BuildConfig.APP_ID)
 
+            val avatarName = sanitizeAvatarForGoogle(
+                avatarUrl = response.user.avatarUrl ?: firebaseUser.photoUrl?.toString(),
+                hasGoogleAccount = true
+            ) ?: DEFAULT_AVATAR_NAME
+
             AuthResult.LoginSuccess(
                 user = User(
                     id = response.user.id.toString(),
@@ -82,7 +89,7 @@ class AuthRepository @Inject constructor(
                         firebaseUser.displayName ?: firebaseUser.email ?: "Google user"
                     },
                     email = response.user.email.ifBlank { firebaseUser.email.orEmpty() },
-                    avatarUrl = response.user.avatarUrl ?: firebaseUser.photoUrl?.toString(),
+                    avatarUrl = avatarName,
                     appId = response.user.appId
                 )
             )

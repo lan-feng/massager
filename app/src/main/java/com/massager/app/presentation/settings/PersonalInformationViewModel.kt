@@ -1,14 +1,14 @@
 package com.massager.app.presentation.settings
 
-// 文件说明：处理个人信息修改与头像上传的状态管理与提交逻辑。
+// 文件说明：处理个人信息修改与头像选择的状态管理与提交逻辑。
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.R
+import com.massager.app.core.avatar.DEFAULT_AVATAR_NAME
 import com.massager.app.data.local.SessionManager
 import com.massager.app.domain.usecase.profile.GetUserProfileUseCase
 import com.massager.app.domain.usecase.profile.UpdateUserProfileUseCase
-import com.massager.app.domain.usecase.profile.UploadAvatarUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -23,7 +23,6 @@ class PersonalInformationViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val getUserProfileUseCase: GetUserProfileUseCase,
     private val updateUserProfileUseCase: UpdateUserProfileUseCase,
-    private val uploadAvatarUseCase: UploadAvatarUseCase,
     private val sessionManager: SessionManager
 ) : ViewModel() {
 
@@ -37,7 +36,7 @@ class PersonalInformationViewModel @Inject constructor(
                     isLoading = false,
                     isGuestMode = true,
                     name = sessionManager.guestName().orEmpty().ifBlank { defaultGuestName() },
-                    avatarBytes = sessionManager.guestAvatar(),
+                    avatarUrl = sessionManager.guestAvatarName().orEmpty().ifBlank { DEFAULT_AVATAR_NAME },
                     toastMessage = null
                 )
             }
@@ -56,11 +55,13 @@ class PersonalInformationViewModel @Inject constructor(
             getUserProfileUseCase()
                 .onSuccess { profile ->
                     _uiState.update { state ->
+                        val avatarName = profile.avatarUrl.orEmpty().ifBlank { DEFAULT_AVATAR_NAME }
+                        sessionManager.saveAccountAvatarName(avatarName)
                         state.copy(
                             isLoading = false,
                             name = profile.name,
                             email = profile.email,
-                            avatarUrl = profile.avatarUrl.orEmpty()
+                            avatarUrl = avatarName
                         )
                     }
                 }
@@ -112,44 +113,26 @@ class PersonalInformationViewModel @Inject constructor(
         }
     }
 
-    fun updateAvatar(bytes: ByteArray) {
-        if (bytes.isEmpty()) return
+    fun updateAvatar(avatarName: String) {
+        val finalName = avatarName.ifBlank { DEFAULT_AVATAR_NAME }
         if (sessionManager.isGuestMode()) {
-            sessionManager.saveGuestAvatar(bytes)
+            sessionManager.saveGuestAvatarName(finalName)
             _uiState.update {
                 it.copy(
-                    avatarBytes = bytes
+                    avatarUrl = finalName
                 )
             }
             return
         }
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val fileName = "avatar_${System.currentTimeMillis()}.jpg"
-            val uploaded = uploadAvatarUseCase(bytes, fileName)
-            if (uploaded.isFailure) {
-                val message = uploaded.exceptionOrNull()?.message
-                    ?: appContext.getString(R.string.profile_avatar_upload_failed)
-                _uiState.update { it.copy(isLoading = false, toastMessage = message) }
-                return@launch
-            }
-            val url = uploaded.getOrNull() ?: run {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        toastMessage = appContext.getString(R.string.profile_avatar_upload_result_failed)
-                    )
-                }
-                return@launch
-            }
-            updateUserProfileUseCase.updateAvatarUrl(url)
+            updateUserProfileUseCase.updateAvatarUrl(finalName)
                 .onSuccess { profile ->
-                    sessionManager.saveAccountAvatar(bytes)
+                    sessionManager.saveAccountAvatarName(finalName)
                     _uiState.update { state ->
                         state.copy(
                             isLoading = false,
-                            avatarUrl = profile.avatarUrl.orEmpty(),
-                            avatarBytes = bytes
+                            avatarUrl = profile.avatarUrl.orEmpty().ifBlank { finalName }
                         )
                     }
                 }
@@ -174,8 +157,7 @@ class PersonalInformationViewModel @Inject constructor(
 data class PersonalInfoUiState(
     val name: String = "",
     val email: String = "",
-    val avatarUrl: String = "",
-    val avatarBytes: ByteArray? = null,
+    val avatarUrl: String = DEFAULT_AVATAR_NAME,
     val isLoading: Boolean = false,
     val toastMessage: String? = null,
     val isGuestMode: Boolean = false

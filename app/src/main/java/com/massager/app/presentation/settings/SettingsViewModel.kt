@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.R
+import com.massager.app.core.avatar.DEFAULT_AVATAR_NAME
 import com.massager.app.core.preferences.AppLanguage
 import com.massager.app.core.preferences.AppTheme
 import com.massager.app.core.preferences.LanguageManager
@@ -14,7 +15,6 @@ import com.massager.app.data.local.SessionManager
 import com.massager.app.domain.model.UserProfile
 import com.massager.app.domain.usecase.profile.GetUserProfileUseCase
 import com.massager.app.domain.usecase.profile.UpdateUserProfileUseCase
-import com.massager.app.domain.usecase.profile.UploadAvatarUseCase
 import com.massager.app.domain.usecase.settings.LogoutUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -32,7 +32,6 @@ class SettingsViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val getUserProfileUseCase: GetUserProfileUseCase,
     private val updateUserProfileUseCase: UpdateUserProfileUseCase,
-    private val uploadAvatarUseCase: UploadAvatarUseCase,
     private val cacheManager: AppCacheManager,
     private val themeManager: ThemeManager,
     private val languageManager: LanguageManager
@@ -72,17 +71,18 @@ class SettingsViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = false, isGuestMode = true) }
             return
         }
-        val cachedAvatar = sessionManager.accountAvatar()
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             getUserProfileUseCase()
                 .onSuccess { profile ->
                     _uiState.update { state ->
+                        val avatarName = profile.avatarUrl?.takeIf { it.isNotBlank() }
+                            ?: sessionManager.accountAvatarName()
+                            ?: DEFAULT_AVATAR_NAME
+                        sessionManager.saveAccountAvatarName(avatarName)
                         state.copy(
                             isLoading = false,
-                            user = profile.toSettingsUser(state.user).copy(
-                                avatarBytes = cachedAvatar ?: state.user.avatarBytes
-                            )
+                            user = profile.toSettingsUser(state.user).copy(avatarUrl = avatarName)
                         )
                     }
                 }
@@ -175,38 +175,21 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateAvatar(bytes: ByteArray) {
+    fun updateAvatar(avatarName: String) {
         if (isGuestMode()) {
             showGuestRestriction()
             return
         }
-        if (bytes.isEmpty()) return
+        val finalName = avatarName.ifBlank { DEFAULT_AVATAR_NAME }
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val fileName = "avatar_${System.currentTimeMillis()}.jpg"
-            val uploaded = uploadAvatarUseCase(bytes, fileName)
-            if (uploaded.isFailure) {
-                val message = uploaded.exceptionOrNull()?.message
-                    ?: appContext.getString(R.string.profile_avatar_upload_failed)
-                _uiState.update { it.copy(isLoading = false, toastMessage = message) }
-                return@launch
-            }
-            val url = uploaded.getOrNull() ?: run {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        toastMessage = appContext.getString(R.string.profile_avatar_upload_result_failed)
-                    )
-                }
-                return@launch
-            }
-            updateUserProfileUseCase.updateAvatarUrl(url)
+            updateUserProfileUseCase.updateAvatarUrl(finalName)
                 .onSuccess { profile ->
-                    sessionManager.saveAccountAvatar(bytes)
+                    sessionManager.saveAccountAvatarName(finalName)
                     _uiState.update { state ->
                         state.copy(
                             isLoading = false,
-                            user = profile.toSettingsUser(state.user).copy(avatarBytes = bytes)
+                            user = profile.toSettingsUser(state.user).copy(avatarUrl = finalName)
                         )
                     }
                 }
@@ -277,10 +260,9 @@ data class SettingsUser(
     val id: Long = -1L,
     val name: String = "",
     val email: String = "",
-    val avatarUrl: String? = null,
+    val avatarUrl: String? = DEFAULT_AVATAR_NAME,
     val cacheSize: String = "--",
-    val tempUnit: TemperatureUnit = TemperatureUnit.Fahrenheit,
-    val avatarBytes: ByteArray? = null
+    val tempUnit: TemperatureUnit = TemperatureUnit.Fahrenheit
 )
 
 enum class TemperatureUnit(val display: String) {
