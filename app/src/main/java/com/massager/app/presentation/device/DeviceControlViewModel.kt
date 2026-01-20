@@ -11,6 +11,7 @@ import com.massager.app.R
 import com.massager.app.core.logging.logTag
 import com.massager.app.data.bluetooth.BleConnectionState
 import com.massager.app.data.bluetooth.MassagerBluetoothService
+import com.massager.app.data.bluetooth.protocol.EmsV2ProtocolAdapter
 import com.massager.app.data.bluetooth.protocol.ProtocolMessage
 import com.massager.app.domain.device.DeviceSession
 import com.massager.app.domain.device.DeviceSessionRegistry
@@ -47,6 +48,8 @@ private const val MIN_LEVEL = 0
 private const val DEFAULT_TIMER_MINUTES = 30
 private const val CONNECTING_OVERLAY_DURATION_MS = 3_000L
 private const val PROTOCOL_SIGNAL_TIMEOUT_MS = 1_200L
+private const val LEVEL_COMMAND_DEBOUNCE_MS = 200L
+private const val LEVEL_HEARTBEAT_SUPPRESSION_WINDOW_MS = 5_000L
 
 @HiltViewModel
 class DeviceControlViewModel @Inject constructor(
@@ -79,6 +82,9 @@ class DeviceControlViewModel @Inject constructor(
     private val lastHeartbeatSentAt = mutableMapOf<String, Long>()
     private val userTimerOverrides = mutableMapOf<String, Int>()
     private val lastTelemetryRemainingSeconds = mutableMapOf<String, Int>()
+    private var levelDispatchJob: Job? = null
+    private var pendingLevelToSend: Int? = null
+    private var lastLocalLevelSetAtMillis: Long = 0L
 
     private val preferredName: String? =
         savedStateHandle.get<String>(Screen.DeviceControl.ARG_DEVICE_NAME)?.takeIf { it.isNotBlank() }
@@ -393,11 +399,39 @@ class DeviceControlViewModel @Inject constructor(
             "updateLevel: level=$sanitized dispatchCommand=$dispatchCommand isRunning=${current.isRunning}"
         )
         if (dispatchCommand && current.isProtocolReady) {
-            viewModelScope.launch {
-                Log.d(tag, "updateLevel: sending live level update level=$sanitized")
-                if (!withSession { session -> session.selectLevel(sanitized) }) {
-                    _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
-                }
+            enqueueLevelCommand(sanitized)
+        }
+    }
+
+    private fun enqueueLevelCommand(level: Int) {
+        lastLocalLevelSetAtMillis = System.currentTimeMillis()
+        pendingLevelToSend = level
+        levelDispatchJob?.cancel()
+        val job = viewModelScope.launch {
+            delay(LEVEL_COMMAND_DEBOUNCE_MS)
+            val targetLevel = pendingLevelToSend ?: level
+            pendingLevelToSend = null
+            if (!_uiState.value.isProtocolReady) {
+                Log.w(tag, "enqueueLevelCommand: protocol not ready, skip level dispatch")
+                lastLocalLevelSetAtMillis = 0L
+                return@launch
+            }
+            Log.d(tag, "enqueueLevelCommand: sending debounced level=$targetLevel")
+            val success = withSession { session -> session.selectLevel(targetLevel) }
+            if (success) {
+                lastLocalLevelSetAtMillis = System.currentTimeMillis()
+            } else {
+                lastLocalLevelSetAtMillis = 0L
+                _uiState.update { it.copy(message = DeviceMessage.CommandFailed()) }
+            }
+        }
+        levelDispatchJob = job
+        job.invokeOnCompletion { throwable ->
+            if (throwable != null && throwable !is kotlinx.coroutines.CancellationException) {
+                Log.w(tag, "enqueueLevelCommand: job completed with error", throwable)
+            }
+            if (levelDispatchJob === job) {
+                levelDispatchJob = null
             }
         }
     }
@@ -871,7 +905,9 @@ class DeviceControlViewModel @Inject constructor(
                 telemetry.zone?.let { next = next.copy(zone = BodyZone.fromIndex(it)) }
                 telemetry.mode?.let { next = next.copy(mode = it.coerceIn(0, 7)) }
                 telemetry.level?.let { level ->
-                    next = next.copy(level = level.coerceIn(MIN_LEVEL, MAX_LEVEL))
+                    if (shouldApplyTelemetryLevel(telemetry)) {
+                        next = next.copy(level = level.coerceIn(MIN_LEVEL, MAX_LEVEL))
+                    }
                 }
             }
 
@@ -940,6 +976,21 @@ class DeviceControlViewModel @Inject constructor(
         if (applyToSelected && addressKey != null) {
             cacheStateFor(addressKey, _uiState.value)
         }
+    }
+
+    private fun shouldApplyTelemetryLevel(telemetry: DeviceTelemetry): Boolean {
+        val isRemoteLevelChange = telemetry.message is DeviceTelemetryMessage.RemoteLevelChanged
+        if (isRemoteLevelChange) return true
+        val isHeartbeatLevel = telemetry.rawMessage is EmsV2ProtocolAdapter.EmsV2Message.Heartbeat
+        if (!isHeartbeatLevel) return true
+        val lastSetAt = lastLocalLevelSetAtMillis
+        if (lastSetAt <= 0) return true
+        val now = System.currentTimeMillis()
+        val withinWindow = now - lastSetAt < LEVEL_HEARTBEAT_SUPPRESSION_WINDOW_MS
+        if (withinWindow) {
+            Log.v(tag, "shouldApplyTelemetryLevel: suppress heartbeat level within window")
+        }
+        return !withinWindow
     }
 
     private fun resolveTimerDisplay(
