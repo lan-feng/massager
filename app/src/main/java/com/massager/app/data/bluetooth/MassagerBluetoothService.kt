@@ -364,6 +364,10 @@ class MassagerBluetoothService @Inject constructor(
             return false
         }
         val payload = adapter.encode(command)
+        Log.d(
+            TAG,
+            "sendProtocolCommand: address=$targetAddress command=$command payload=${payload.toDebugHexString()}"
+        )
         val result = writeCharacteristic(serviceUuid, characteristicUuid, payload, writeType, session.address)
         if (!result) Log.e(TAG, "sendProtocolCommand: write failed service=$serviceUuid characteristic=$characteristicUuid command=$command")
         return result
