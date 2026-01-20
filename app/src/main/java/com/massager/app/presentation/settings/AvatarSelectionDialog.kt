@@ -61,13 +61,13 @@ fun AvatarSelectionDialog(
                                 ) {
                                     Image(
                                         painter = painterResource(id = option.drawableRes),
-                                        contentDescription = avatarLabel(option.name),
+                                        contentDescription = option.label,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                                 Text(
-                                    text = avatarLabel(option.name),
+                                    text = option.label,
                                     style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -88,12 +88,4 @@ fun AvatarSelectionDialog(
             }
         }
     )
-}
-
-private fun avatarLabel(name: String): String = when (name) {
-    "ic_avatar_cap" -> "Cap"
-    "ic_avatar_glasses" -> "Glasses"
-    "ic_avatar_hoodie" -> "Hoodie"
-    "ic_avatar_short_hair" -> "Short hair"
-    else -> "Default"
 }

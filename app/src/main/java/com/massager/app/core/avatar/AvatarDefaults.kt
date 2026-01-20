@@ -1,7 +1,7 @@
 package com.massager.app.core.avatar
 
 // Default avatar selection shared across modules.
-const val DEFAULT_AVATAR_NAME = "ic_avatar_cap"
+const val DEFAULT_AVATAR_NAME = "baseballCap"
 
 /**
  * For Google-linked accounts, ignore remote avatar URLs (e.g. Google profile photos)

@@ -36,7 +36,7 @@ class PersonalInformationViewModel @Inject constructor(
                     isLoading = false,
                     isGuestMode = true,
                     name = sessionManager.guestName().orEmpty().ifBlank { defaultGuestName() },
-                    avatarUrl = sessionManager.guestAvatarName().orEmpty().ifBlank { DEFAULT_AVATAR_NAME },
+                    avatarUrl = normalizeAvatarName(sessionManager.guestAvatarName()),
                     toastMessage = null
                 )
             }
@@ -55,7 +55,7 @@ class PersonalInformationViewModel @Inject constructor(
             getUserProfileUseCase()
                 .onSuccess { profile ->
                     _uiState.update { state ->
-                        val avatarName = profile.avatarUrl.orEmpty().ifBlank { DEFAULT_AVATAR_NAME }
+                        val avatarName = normalizeAvatarName(profile.avatarUrl)
                         sessionManager.saveAccountAvatarName(avatarName)
                         state.copy(
                             isLoading = false,
@@ -114,7 +114,7 @@ class PersonalInformationViewModel @Inject constructor(
     }
 
     fun updateAvatar(avatarName: String) {
-        val finalName = avatarName.ifBlank { DEFAULT_AVATAR_NAME }
+        val finalName = normalizeAvatarName(avatarName)
         if (sessionManager.isGuestMode()) {
             sessionManager.saveGuestAvatarName(finalName)
             _uiState.update {

@@ -76,9 +76,11 @@ class SettingsViewModel @Inject constructor(
             getUserProfileUseCase()
                 .onSuccess { profile ->
                     _uiState.update { state ->
-                        val avatarName = profile.avatarUrl?.takeIf { it.isNotBlank() }
-                            ?: sessionManager.accountAvatarName()
-                            ?: DEFAULT_AVATAR_NAME
+                        val avatarName = normalizeAvatarName(
+                            profile.avatarUrl?.takeIf { it.isNotBlank() }
+                                ?: sessionManager.accountAvatarName()
+                                ?: DEFAULT_AVATAR_NAME
+                        )
                         sessionManager.saveAccountAvatarName(avatarName)
                         state.copy(
                             isLoading = false,
@@ -180,7 +182,7 @@ class SettingsViewModel @Inject constructor(
             showGuestRestriction()
             return
         }
-        val finalName = avatarName.ifBlank { DEFAULT_AVATAR_NAME }
+        val finalName = normalizeAvatarName(avatarName)
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             updateUserProfileUseCase.updateAvatarUrl(finalName)
