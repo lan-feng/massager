@@ -23,6 +23,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.massager.app.R
 import com.massager.app.core.preferences.LanguageManager
@@ -95,6 +96,7 @@ fun MassagerNavHost(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val appLocaleState = LocalAppLocale.current
+    val navBackStackEntry = navController.currentBackStackEntryAsState()
     var preservedLocales by remember { mutableStateOf(appLocaleState.locales) }
 
     LaunchedEffect(appLocaleState.locales) {
@@ -119,6 +121,10 @@ fun MassagerNavHost(
     var onExternalGoogleBindFailed by remember { mutableStateOf<((String?) -> Unit)?>(null) }
 
     LaunchedEffect(preservedLocales) {
+        applyLocalesToResources(context, preservedLocales)
+    }
+    LaunchedEffect(navBackStackEntry.value?.destination?.route, preservedLocales) {
+        // Re-apply locales on navigation changes in case any screen interaction reset them.
         applyLocalesToResources(context, preservedLocales)
     }
 
