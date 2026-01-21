@@ -3,17 +3,21 @@ package com.massager.app.presentation.navigation
 // 文件说明：构建应用导航图，连接各功能模块的路由。
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -48,6 +52,7 @@ import com.massager.app.presentation.settings.PersonalInformationViewModel
 import com.massager.app.presentation.settings.SettingsScreen
 import com.massager.app.presentation.settings.SettingsViewModel
 import com.massager.app.presentation.settings.WebDocumentScreen
+import com.massager.app.core.preferences.LocalAppLocale
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -60,6 +65,26 @@ private enum class GoogleLoginSource { AuthFlow, AccountSecurity }
 
 private const val DEVICE_SCAN_RESULT_KEY = "device_scan_result_serial"
 
+private fun applyLocalesToResources(context: Context, locales: LocaleList) {
+    if (locales.size() == 0) return
+    LocaleList.setDefault(locales)
+    Locale.setDefault(locales[0])
+
+    val appResources = context.applicationContext.resources
+    if (appResources.configuration.locales != locales) {
+        val appConfig = Configuration(appResources.configuration).apply { setLocales(locales) }
+        @Suppress("DEPRECATION")
+        appResources.updateConfiguration(appConfig, appResources.displayMetrics)
+    }
+
+    val contextResources = context.resources
+    if (contextResources.configuration.locales != locales) {
+        val contextConfig = Configuration(contextResources.configuration).apply { setLocales(locales) }
+        @Suppress("DEPRECATION")
+        contextResources.updateConfiguration(contextConfig, contextResources.displayMetrics)
+    }
+}
+
 @Composable
 fun MassagerNavHost(
     navController: NavHostController = rememberNavController(),
@@ -68,8 +93,15 @@ fun MassagerNavHost(
     val authViewModel: AuthViewModel = hiltViewModel()
     val authState = authViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    var preservedLocales by remember { mutableStateOf(configuration.locales) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val appLocaleState = LocalAppLocale.current
+    var preservedLocales by remember { mutableStateOf(appLocaleState.locales) }
+
+    LaunchedEffect(appLocaleState.locales) {
+        if (preservedLocales != appLocaleState.locales) {
+            preservedLocales = appLocaleState.locales
+        }
+    }
 
     val googleSignInClient = remember {
         val webClientId = context.getString(R.string.default_web_client_id)
@@ -87,14 +119,17 @@ fun MassagerNavHost(
     var onExternalGoogleBindFailed by remember { mutableStateOf<((String?) -> Unit)?>(null) }
 
     LaunchedEffect(preservedLocales) {
-        if (preservedLocales.size() > 0) {
-            LocaleList.setDefault(preservedLocales)
-            Locale.setDefault(preservedLocales[0])
-            val resources = context.applicationContext.resources
-            val config = Configuration(resources.configuration).apply { setLocales(preservedLocales) }
-            @Suppress("DEPRECATION")
-            resources.updateConfiguration(config, resources.displayMetrics)
+        applyLocalesToResources(context, preservedLocales)
+    }
+
+    DisposableEffect(lifecycleOwner, preservedLocales) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                applyLocalesToResources(context, preservedLocales)
+            }
         }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
@@ -103,14 +138,9 @@ fun MassagerNavHost(
         // Google 登录返回后强制恢复持久化语言，避免外部 Activity 覆盖为英文
         val localesToRestore = LanguageManager.getPersistedLocales(context.applicationContext)
         if (localesToRestore.size() > 0) {
-            LocaleList.setDefault(localesToRestore)
-            Locale.setDefault(localesToRestore[0])
-            val resources = context.applicationContext.resources
-            val config = Configuration(resources.configuration).apply { setLocales(localesToRestore) }
-            @Suppress("DEPRECATION")
-            resources.updateConfiguration(config, resources.displayMetrics)
+            applyLocalesToResources(context, localesToRestore)
+            preservedLocales = localesToRestore
         }
-        preservedLocales = localesToRestore
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
             val account = task.getResult(ApiException::class.java)
@@ -462,7 +492,7 @@ fun MassagerNavHost(
                 onDismissLogoutDialog = { viewModel.toggleLogoutDialog(false) },
                 onBindGoogle = {
                     googleLoginSource = GoogleLoginSource.AccountSecurity
-                    preservedLocales = configuration.locales
+                    preservedLocales = appLocaleState.locales
                     onExternalGoogleBindSuccess = viewModel::onExternalBindSuccess
                     onExternalGoogleBindFailed = viewModel::onExternalBindFailed
                     viewModel.onExternalBindStart()
