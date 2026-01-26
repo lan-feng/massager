@@ -9,6 +9,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -17,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,7 +47,9 @@ import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -61,6 +65,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,6 +79,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -155,6 +163,7 @@ private fun applyNameNumbering(items: List<DisplayItem>): List<DisplayItem> {
     }
 }
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun HomeDashboardScreen(
     state: HomeUiState,
@@ -175,7 +184,8 @@ fun HomeDashboardScreen(
     onRemoveConfirm: () -> Unit,
     onRemoveDismiss: () -> Unit,
     onDismissError: () -> Unit,
-    onTabSelected: (AppBottomTab) -> Unit
+    onTabSelected: (AppBottomTab) -> Unit,
+    onSelectForAction: (DeviceMetadata) -> Unit
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -185,6 +195,7 @@ fun HomeDashboardScreen(
     val numberedNameById = remember(displayItems) { displayItems.associate { it.device.id to it.device.name } }
     var selectedCardLayout by remember { mutableStateOf<SelectedCardLayout?>(null) }
     var contentRootOffset by remember { mutableStateOf(Offset.Zero) }
+    val showOverlay = focusedDevice != null && !state.suppressOverlay
 
     LaunchedEffect(effects) {
         effects.collectLatest { effect ->
@@ -232,20 +243,26 @@ fun HomeDashboardScreen(
     ) { padding ->
         val backgroundColor = MaterialTheme.colorScheme.background
         val scrimBase = MaterialTheme.colorScheme.onSurface
-        val isFocusVisible = focusedDevice != null
+        val isFocusVisible = showOverlay
         val blurRadius by animateDpAsState(targetValue = if (isFocusVisible) 12.dp else 0.dp, animationSpec = tween(220), label = "focusBlur")
         val scrimAlpha by animateFloatAsState(targetValue = if (isFocusVisible) 0.35f else 0f, animationSpec = tween(200), label = "focusScrim")
-        val blurModifier = if (blurRadius > 0.dp) Modifier.blur(blurRadius) else Modifier
+    val blurModifier = if (blurRadius > 0.dp) Modifier.blur(blurRadius) else Modifier
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(color = backgroundColor)
-                .padding(padding)
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = state.isRefreshing,
+        onRefresh = onRefreshClick
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(color = backgroundColor)
+            .padding(padding)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .pullRefresh(pullRefreshState)
                     .onGloballyPositioned { coordinates ->
                         contentRootOffset = coordinates.positionInRoot()
                     }
@@ -276,7 +293,15 @@ fun HomeDashboardScreen(
                             onDeviceToggle = onDeviceToggle,
                             onDeviceOpen = onDeviceOpen,
                             onSelectedBounds = { selectedCardLayout = it },
-                            contentOrigin = contentRootOffset
+                            contentOrigin = contentRootOffset,
+                            onQuickRename = { device ->
+                                onSelectForAction(device)
+                                onRenameClick()
+                            },
+                            onQuickRemove = { device ->
+                                onSelectForAction(device)
+                                onRemoveClick()
+                            }
                         )
                     }
                 }
@@ -295,8 +320,18 @@ fun HomeDashboardScreen(
                             .zIndex(1f)
                     )
                 }
+                PullRefreshIndicator(
+                    refreshing = state.isRefreshing,
+                    state = pullRefreshState,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 8.dp)
+                        .zIndex(3f),
+                    backgroundColor = MaterialTheme.massagerExtendedColors.surfaceBright,
+                    contentColor = MaterialTheme.massagerExtendedColors.band
+                )
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = focusedDevice != null,
+                    visible = showOverlay,
                     enter = fadeIn(animationSpec = tween(200)) + scaleIn(initialScale = 0.98f, animationSpec = tween(220)),
                     exit = fadeOut(animationSpec = tween(160)) + scaleOut(targetScale = 0.98f, animationSpec = tween(160)),
                     modifier = Modifier.zIndex(2f)
@@ -353,7 +388,9 @@ private fun DeviceList(
     onDeviceToggle: (DeviceMetadata) -> Unit,
     onDeviceOpen: (DeviceMetadata) -> Unit,
     onSelectedBounds: (SelectedCardLayout) -> Unit,
-    contentOrigin: Offset
+    contentOrigin: Offset,
+    onQuickRename: (DeviceMetadata) -> Unit,
+    onQuickRemove: (DeviceMetadata) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -381,18 +418,20 @@ private fun DeviceList(
                 onlineStatus = status,
                 onClick = {
                     if (item.isAttached) {
-                        onDeviceOpen(item.host)
-                    } else {
-                        if (isManagementActive) {
-                            onDeviceToggle(device)
-                        } else {
-                            onDeviceOpen(device)
-                        }
-                    }
-                },
+                onDeviceOpen(item.host)
+            } else {
+                if (isManagementActive) {
+                    onDeviceToggle(device)
+                } else {
+                    onDeviceOpen(device)
+                }
+            }
+        },
                 onLongPress = {
                     if (!item.isAttached) onDeviceToggle(device)
-                }
+                },
+                onRename = { onQuickRename(device) },
+                onRemove = { onQuickRemove(device) }
             )
         }
         item { Spacer(modifier = Modifier.height(80.dp)) }
@@ -429,38 +468,28 @@ private fun HeaderSection(
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        val refreshLabel = if (isScanningOnline) "Refreshing..." else "Refresh"
-        val timeText = lastCheckedAt?.let {
-            val formatter = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
-            "Checked at ${formatter.format(java.util.Date(it))}"
-        }
-
-        Button(
+        IconButton(
             onClick = onRefresh,
             enabled = !isScanningOnline,
-            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-            shape = RoundedCornerShape(6.dp),
             modifier = Modifier
-                .size(width = 100.dp, height = 34.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.massagerExtendedColors.band,
-                contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
-            )
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.massagerExtendedColors.surfaceBright)
         ) {
-            Text(
-                text = refreshLabel,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        if (!isScanningOnline && timeText != null) {
-            Text(
-                text = timeText,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.massagerExtendedColors.textMuted,
-                    fontSize = 12.sp
+            val infinite = rememberInfiniteTransition(label = "refresh_spin")
+            val rotation by infinite.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 900, easing = LinearEasing)
                 ),
-                modifier = Modifier.padding(bottom = 2.dp)
+                label = "refresh_rotation"
+            )
+            Icon(
+                imageVector = Icons.Filled.Refresh,
+                contentDescription = stringResource(id = R.string.home_refresh),
+                tint = if (isScanningOnline) MaterialTheme.massagerExtendedColors.textMuted else MaterialTheme.massagerExtendedColors.band,
+                modifier = Modifier.rotate(if (isScanningOnline) rotation else 0f)
             )
         }
         Spacer(modifier = Modifier.weight(1f))
@@ -490,7 +519,9 @@ private fun DeviceCardItem(
     onSelectedBounds: (SelectedCardLayout) -> Unit = {},
     contentOrigin: Offset = Offset.Zero,
     onClick: () -> Unit,
-    onLongPress: () -> Unit
+    onLongPress: () -> Unit,
+    onRename: () -> Unit,
+    onRemove: () -> Unit
 ) {
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
@@ -498,54 +529,148 @@ private fun DeviceCardItem(
         visible = visible,
         enter = fadeIn() + scaleIn(initialScale = 0.95f)
     ) {
-        Box {
-            DeviceCard(
-                device = device,
-                isSelected = isSelected,
-                isScanningOnline = isScanningOnline,
-                onlineStatus = onlineStatus,
-                onClick = onClick,
-                onLongPress = onLongPress,
-                modifier = Modifier.onGloballyPositioned { coordinates ->
-                    if (isSelected) {
-                        val bounds = coordinates.boundsInRoot()
-                        val offset = bounds.topLeft - contentOrigin
-                        onSelectedBounds(
-                            SelectedCardLayout(
-                                offset = offset,
-                                size = IntSize(
-                                    bounds.width.roundToInt(),
-                                    bounds.height.roundToInt()
-                                )
-                            )
-                        )
-                    }
-                }
-            )
-            if (showSelectionBadge) {
-                AnimatedVisibility(
-                    visible = isSelected,
-                    enter = fadeIn()
-                ) {
-                    Box(
+        SwipeableDeviceRow(
+            onRename = onRename,
+            onRemove = onRemove,
+            content = { dragOffsetPx, resetSwipe ->
+                Box {
+                    DeviceCard(
+                        device = device,
+                        isSelected = isSelected,
+                        isScanningOnline = isScanningOnline,
+                        onlineStatus = onlineStatus,
+                        onClick = {
+                            if (dragOffsetPx > 4f) {
+                                resetSwipe()
+                            } else {
+                                onClick()
+                            }
+                        },
+                        onLongPress = onLongPress,
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .offset(x = (-12).dp, y = 12.dp)
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.massagerExtendedColors.success),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
+                            .offset { IntOffset((-dragOffsetPx).roundToInt(), 0) }
+                            .onGloballyPositioned { coordinates ->
+                                if (isSelected) {
+                                    val bounds = coordinates.boundsInRoot()
+                                    val offset = bounds.topLeft - contentOrigin
+                                    onSelectedBounds(
+                                        SelectedCardLayout(
+                                            offset = offset,
+                                            size = IntSize(
+                                                bounds.width.roundToInt(),
+                                                bounds.height.roundToInt()
+                                            )
+                                        )
+                                    )
+                                }
+                            }
+                    )
+                    if (showSelectionBadge) {
+                        AnimatedVisibility(
+                            visible = isSelected,
+                            enter = fadeIn()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = (-12).dp, y = 12.dp)
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.massagerExtendedColors.success),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun SwipeableDeviceRow(
+    onRename: () -> Unit,
+    onRemove: () -> Unit,
+    content: @Composable (dragOffsetPx: Float, resetSwipe: () -> Unit) -> Unit
+) {
+    val density = LocalDensity.current
+    val maxOffsetPx = with(density) { 120.dp.toPx() }
+    var dragOffsetPx by remember { mutableStateOf(0f) }
+    val animatedOffsetPx by animateFloatAsState(targetValue = dragOffsetPx, label = "swipe_offset")
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(maxOffsetPx) {
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { _, dragAmount ->
+                        val next = (dragOffsetPx + (-dragAmount)).coerceIn(0f, maxOffsetPx)
+                        dragOffsetPx = next
+                    },
+                    onDragEnd = {
+                        dragOffsetPx = if (dragOffsetPx > maxOffsetPx * 0.3f) maxOffsetPx else 0f
+                    },
+                    onDragCancel = { dragOffsetPx = 0f }
+                )
+            }
+    ) {
+        Row(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ActionIconButton(
+                icon = Icons.Filled.Edit,
+                tint = MaterialTheme.massagerExtendedColors.band,
+                onClick = {
+                    dragOffsetPx = 0f
+                    onRename()
+                }
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            ActionIconButton(
+                icon = Icons.Filled.Delete,
+                tint = MaterialTheme.massagerExtendedColors.danger,
+                onClick = {
+                    dragOffsetPx = 0f
+                    onRemove()
+                }
+            )
         }
+
+        content(animatedOffsetPx) { dragOffsetPx = 0f }
+    }
+}
+
+@Composable
+private fun ActionIconButton(
+    icon: ImageVector,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(tint.copy(alpha = 0.12f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(22.dp)
+        )
     }
 }
 

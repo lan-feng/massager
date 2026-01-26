@@ -306,6 +306,7 @@ fun MassagerNavHost(
                 onRemoveConfirm = viewModel::confirmRemove,
                 onRemoveDismiss = viewModel::dismissRemoveDialog,
                 onDismissError = viewModel::clearError,
+                onSelectForAction = { device -> viewModel.selectSingleDevice(device.id) },
                 onTabSelected = { tab ->
                     when (tab) {
                         AppBottomTab.Home -> Unit

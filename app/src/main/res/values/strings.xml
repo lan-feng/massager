@@ -195,6 +195,7 @@
     <string name="home_device_empty_description">Tap the button to pair your first device.</string>
     <string name="home_device_empty_action">Add Device</string>
     <string name="home_add_device_content_desc">Add device</string>
+    <string name="home_refresh">Refresh</string>
     <string name="home_dismiss_action">Dismiss</string>
     <string name="home_saved_devices_empty_title">Add Your First Device</string>
     <string name="home_saved_devices_empty_subtitle">Tap to add your device</string>

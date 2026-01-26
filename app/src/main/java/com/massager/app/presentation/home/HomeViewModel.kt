@@ -36,6 +36,7 @@ data class HomeUiState(
     val errorMessageRes: Int? = null,
     val errorMessageText: String? = null,
     val selectedDeviceIds: Set<String> = emptySet(),
+    val suppressOverlay: Boolean = false,
     val isRenameDialogVisible: Boolean = false,
     val renameInput: String = "",
     val renameInputError: Int? = null,
@@ -210,6 +211,19 @@ class HomeViewModel @Inject constructor(
         _uiState.update { it.copy(errorMessageRes = null, errorMessageText = null) }
     }
 
+    fun selectSingleDevice(deviceId: String) {
+        if (deviceId.isBlank()) return
+        _uiState.update { state ->
+            state.copy(
+                selectedDeviceIds = setOf(deviceId),
+                suppressOverlay = true,
+                renameInputError = null,
+                isRenameDialogVisible = false,
+                isRemoveDialogVisible = false
+            )
+        }
+    }
+
     fun toggleDeviceSelection(deviceId: String) {
         _uiState.update { state ->
             val updatedSelection = state.selectedDeviceIds.toMutableSet().also { set ->
@@ -219,6 +233,7 @@ class HomeViewModel @Inject constructor(
             }.toSet()
             state.copy(
                 selectedDeviceIds = updatedSelection,
+                suppressOverlay = false,
                 renameInputError = null,
                 isRenameDialogVisible = state.isRenameDialogVisible && updatedSelection.isNotEmpty(),
                 isRemoveDialogVisible = state.isRemoveDialogVisible && updatedSelection.isNotEmpty()
@@ -230,6 +245,7 @@ class HomeViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 selectedDeviceIds = emptySet(),
+                suppressOverlay = false,
                 isRenameDialogVisible = false,
                 isRemoveDialogVisible = false,
                 renameInput = "",
@@ -304,7 +320,8 @@ class HomeViewModel @Inject constructor(
                         isRenameDialogVisible = false,
                         renameInput = "",
                         renameInputError = null,
-                        selectedDeviceIds = emptySet()
+                        selectedDeviceIds = emptySet(),
+                        suppressOverlay = false
                     )
                 }
             }.onFailure { throwable ->
@@ -356,7 +373,8 @@ class HomeViewModel @Inject constructor(
                     it.copy(
                         isActionInProgress = false,
                         isRemoveDialogVisible = false,
-                        selectedDeviceIds = emptySet()
+                        selectedDeviceIds = emptySet(),
+                        suppressOverlay = false
                     )
                 }
             } else {
