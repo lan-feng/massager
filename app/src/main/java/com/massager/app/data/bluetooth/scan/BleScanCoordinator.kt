@@ -379,9 +379,10 @@ class BleScanCoordinator @Inject constructor(
     private fun sanitizeName(rawName: String?): String {
         if (rawName.isNullOrBlank()) return ""
         val withoutEms = rawName.replace(Regex("(?i)ems"), "")
-        return withoutEms
+        val sanitized = withoutEms
             .replace(Regex("[_\\-\\s]+"), " ")
             .trim()
+        return if (sanitized.equals("BLE", ignoreCase = true)) "N8" else sanitized
     }
 
     data class CachedScanDevice(

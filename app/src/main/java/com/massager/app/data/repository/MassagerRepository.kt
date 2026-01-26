@@ -12,6 +12,7 @@ import com.massager.app.data.remote.dto.DeviceBindRequest
 import com.massager.app.data.remote.dto.DeviceComboInfoUpdateRequest
 import com.massager.app.data.remote.dto.DeviceDto
 import com.massager.app.di.IoDispatcher
+import com.massager.app.domain.model.ComboInfoSerializer
 import com.massager.app.domain.model.DeviceMetadata
 import com.massager.app.domain.model.TemperatureRecord
 import kotlinx.coroutines.CoroutineDispatcher
@@ -90,32 +91,34 @@ class MassagerRepository @Inject constructor(
         runCatching {
             if (sessionManager.isGuestMode()) {
                 val now = Instant.now()
+                val normalizedName = normalizeAlias(displayName)
                 val generatedId = deviceSerial
                     .takeIf { it.isNotBlank() }
                     ?: uniqueId
                     ?: now.toEpochMilli().toString()
-            val ownerId = sessionManager.activeOwnerId()
-            val entity = DeviceEntity(
-                id = generatedId,
-                name = displayName.ifBlank { deviceSerial.ifBlank { "Local Device" } },
-                serial = deviceSerial.ifBlank { uniqueId },
-                uniqueId = uniqueId,
-                ownerId = ownerId,
-                status = "online",
-                batteryLevel = 100,
-                lastSeenAt = now
-            )
+                val ownerId = sessionManager.activeOwnerId()
+                val entity = DeviceEntity(
+                    id = generatedId,
+                    name = normalizedName ?: displayName.ifBlank { deviceSerial.ifBlank { "Local Device" } },
+                    serial = deviceSerial.ifBlank { uniqueId },
+                    uniqueId = uniqueId,
+                    ownerId = ownerId,
+                    status = "online",
+                    batteryLevel = 100,
+                    lastSeenAt = now
+                )
                 database.deviceDao().upsert(entity)
                 entity.toDeviceMetadata(deviceCatalog)
             } else {
                 val ownerId = sessionManager.accountOwnerId()
                     ?: throw IllegalStateException("Missing account owner id")
                 val type = deviceCatalog.resolveType(productId, displayName)
+                val normalizedAlias = normalizeAlias(displayName) ?: displayName.takeIf { it.isNotBlank() }
                 val response = api.bindDevice(
                     DeviceBindRequest(
                         deviceSerial = deviceSerial,
                         deviceType = type,
-                        nameAlias = displayName.takeIf { it.isNotBlank() },
+                        nameAlias = normalizedAlias,
                         firmwareVersion = firmwareVersion,
                         uniqueId = uniqueId
                     )
@@ -125,7 +128,7 @@ class MassagerRepository @Inject constructor(
                 }
                 val dto = response.data ?: throw IllegalStateException("Empty bind response")
                 val entity = dto.toEntity(
-                    defaultAlias = displayName,
+                    defaultAlias = normalizedAlias,
                     ownerIdOverride = ownerId
                 )
                 database.deviceDao().upsert(entity)
@@ -148,11 +151,12 @@ class MassagerRepository @Inject constructor(
     suspend fun renameDevice(deviceId: String, newName: String): Result<DeviceMetadata> =
         withContext(ioDispatcher) {
             runCatching {
+                val normalizedName = normalizeAlias(newName) ?: newName
                 if (sessionManager.isGuestMode()) {
                     val existing = database.deviceDao().findById(deviceId)
                         ?: throw IllegalStateException("Device not found locally")
-                    database.deviceDao().updateName(deviceId, newName)
-                    return@runCatching existing.copy(name = newName).toDeviceMetadata(deviceCatalog)
+                    database.deviceDao().updateName(deviceId, normalizedName)
+                    return@runCatching existing.copy(name = normalizedName).toDeviceMetadata(deviceCatalog)
                 }
                 val ownerId = sessionManager.accountOwnerId()
                     ?: throw IllegalStateException("Missing account owner id")
@@ -161,7 +165,7 @@ class MassagerRepository @Inject constructor(
                 val response = api.updateDevice(
                     com.massager.app.data.remote.dto.DeviceUpdateRequest(
                         id = idLong,
-                        nameAlias = newName
+                        nameAlias = normalizedName
                     )
                 )
                 if (response.success.not()) {
@@ -170,13 +174,13 @@ class MassagerRepository @Inject constructor(
                 val dto = response.data
                 if (dto != null) {
                     val entity = dto.toEntity(
-                        defaultAlias = newName,
+                        defaultAlias = normalizedName,
                         ownerIdOverride = ownerId
                     )
                     database.deviceDao().upsert(entity)
                     entity.toDeviceMetadata(deviceCatalog)
                 } else {
-                    database.deviceDao().updateName(deviceId, newName)
+                    database.deviceDao().updateName(deviceId, normalizedName)
                     database.deviceDao().findById(deviceId)?.toDeviceMetadata(deviceCatalog)
                         ?: throw IllegalStateException("Device not found locally after rename")
                 }
@@ -326,14 +330,19 @@ class MassagerRepository @Inject constructor(
         }
     }
 
+    private fun normalizeAlias(alias: String?): String? {
+        if (alias.isNullOrBlank()) return null
+        return if (alias.equals("BLE", ignoreCase = true)) "N8" else alias
+    }
+
     private fun DeviceDto.toEntity(
         defaultAlias: String? = null,
         ownerIdOverride: String? = null
     ): DeviceEntity =
         DeviceEntity(
             id = id.toString(),
-            name = nameAlias?.takeIf { it.isNotBlank() }
-                ?: defaultAlias?.takeIf { it.isNotBlank() }
+            name = normalizeAlias(nameAlias)
+                ?: normalizeAlias(defaultAlias)
                 ?: deviceSerial?.takeIf { it.isNotBlank() }
                 ?: id.toString(),
             serial = deviceSerial,
@@ -346,15 +355,18 @@ class MassagerRepository @Inject constructor(
         )
 
     private fun DeviceEntity.toDeviceMetadata(deviceCatalog: DeviceCatalog): DeviceMetadata {
-        val type = deviceCatalog.resolveType(productId = null, name = name)
+        val displayName = normalizeAlias(name) ?: name
+        val type = deviceCatalog.resolveType(productId = null, name = displayName)
+        val attached = ComboInfoSerializer.parse(comboInfo).devices
         return DeviceMetadata(
             id = id,
-            name = name,
+            name = displayName,
             serialNo = uniqueId ?: id,
             macAddress = serial,
             isConnected = status?.equals("online", ignoreCase = true) == true,
             deviceType = type,
-            iconResId = deviceCatalog.iconForType(type)
+            iconResId = deviceCatalog.iconForType(type),
+            attachedDevices = attached
         )
     }
 

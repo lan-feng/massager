@@ -46,6 +46,7 @@ android {
         targetSdk = 35
         versionCode = 8
         versionName = "1.1"
+        buildConfigField("Boolean", "ATTACHED_DEVICE_ENABLED", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massager.app.R
 import com.massager.app.data.local.SessionManager
+import com.massager.app.data.bluetooth.MassagerBluetoothService
 import com.massager.app.domain.model.DeviceMetadata
 import com.massager.app.domain.model.TemperatureRecord
 import com.massager.app.domain.usecase.device.ObserveDevicesUseCase
@@ -23,7 +24,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.cancel
 
 data class HomeUiState(
     val devices: List<DeviceMetadata> = emptyList(),
@@ -36,7 +40,10 @@ data class HomeUiState(
     val renameInput: String = "",
     val renameInputError: Int? = null,
     val isRemoveDialogVisible: Boolean = false,
-    val isActionInProgress: Boolean = false
+    val isActionInProgress: Boolean = false,
+    val isScanningOnline: Boolean = false,
+    val lastCheckedAt: Long? = null,
+    val onlineStatus: Map<String, Boolean> = emptyMap()
 ) {
     val isManagementActive: Boolean
         get() = selectedDeviceIds.isNotEmpty()
@@ -55,7 +62,8 @@ class HomeViewModel @Inject constructor(
     private val refreshMeasurementsUseCase: RefreshMeasurementsUseCase,
     private val renameDeviceUseCase: RenameDeviceUseCase,
     private val removeDeviceUseCase: RemoveDeviceUseCase,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val bluetoothService: MassagerBluetoothService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -101,6 +109,12 @@ class HomeViewModel @Inject constructor(
             }
         }
         refresh()
+        checkOnlineStatus()
+    }
+
+    fun refreshAll() {
+        refresh()
+        checkOnlineStatus()
     }
 
     fun refresh() {
@@ -139,6 +153,56 @@ class HomeViewModel @Inject constructor(
             }
 
             _uiState.update { it.copy(isRefreshing = false) }
+        }
+    }
+
+    fun checkOnlineStatus() {
+        if (_uiState.value.isScanningOnline) return
+        viewModelScope.launch {
+            val devicesSnapshot = _uiState.value.devices
+            val targetMap = devicesSnapshot.mapNotNull { device ->
+                device.macAddress?.lowercase()?.takeIf { it.isNotBlank() }?.let { addr -> addr to device.id }
+            }.toMap()
+            if (targetMap.isEmpty()) {
+                _uiState.update {
+                    it.copy(
+                        onlineStatus = emptyMap(),
+                        isScanningOnline = false,
+                        lastCheckedAt = System.currentTimeMillis()
+                    )
+                }
+                return@launch
+            }
+            _uiState.update { it.copy(isScanningOnline = true, lastCheckedAt = null) }
+            val found = mutableSetOf<String>()
+            withTimeoutOrNull(5_000L) {
+                bluetoothService.restartScan()
+                bluetoothService.scanResults
+                    .takeWhile { results ->
+                        results.forEach { scan ->
+                            val address = scan.address?.lowercase() ?: return@forEach
+                            targetMap[address]?.let(found::add)
+                        }
+                        found.size < targetMap.size
+                    }
+                    .collect { /* no-op, work done in predicate */ }
+            }
+            bluetoothService.stopScan()
+            val statusMap = devicesSnapshot.associate { device ->
+                val online = if (device.macAddress.isNullOrBlank()) {
+                    false
+                } else {
+                    found.contains(device.id)
+                }
+                device.id to online
+            }
+            _uiState.update {
+                it.copy(
+                    isScanningOnline = false,
+                    lastCheckedAt = System.currentTimeMillis(),
+                    onlineStatus = statusMap
+                )
+            }
         }
     }
 

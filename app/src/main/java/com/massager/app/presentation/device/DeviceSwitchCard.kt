@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -70,6 +71,7 @@ enum class ConnectionState {
 @Composable
 fun DeviceSwitchCard(
     name: String,
+    label: String? = null,
     subtitle: String,
     isSelected: Boolean,
     connectionState: ConnectionState,
@@ -179,13 +181,19 @@ fun DeviceSwitchCard(
                             .weight(0.5f)
                             .padding(top = 6.dp, end = 8.dp)
                     ) {
-                        Text(
-                            text = name,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.massagerExtendedColors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            label?.let {
+                                LabelChip(text = it, color = brand)
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            Text(
+                                text = name,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.massagerExtendedColors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
 
                         Text(
                             text = subtitle,
@@ -321,6 +329,19 @@ fun DeviceSwitchCard(
             }
         }
     }
+}
+
+@Composable
+private fun LabelChip(text: String, color: Color) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+        color = color,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.dp, color, RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    )
 }
 
 @Composable

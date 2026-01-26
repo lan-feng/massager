@@ -36,7 +36,7 @@ object ComboInfoSerializer {
                                 deviceType = item.optInt(DEVICE_TYPE_KEY).takeIf { item.has(DEVICE_TYPE_KEY) },
                                 firmwareVersion = item.optString(FIRMWARE_KEY).takeIf { it.isNotBlank() },
                                 uniqueId = item.optString(UNIQUE_ID_KEY).takeIf { it.isNotBlank() },
-                                nameAlias = item.optString(NAME_ALIAS_KEY).takeIf { it.isNotBlank() }
+                                nameAlias = normalizeAlias(item.optString(NAME_ALIAS_KEY))
                             )
                         )
                     }
@@ -70,7 +70,7 @@ object ComboInfoSerializer {
             device.deviceType?.let { obj.put(DEVICE_TYPE_KEY, it) }
             device.firmwareVersion?.let { obj.put(FIRMWARE_KEY, it) }
             device.uniqueId?.let { obj.put(UNIQUE_ID_KEY, it) }
-            device.nameAlias?.let { obj.put(NAME_ALIAS_KEY, it) }
+            normalizeAlias(device.nameAlias)?.let { obj.put(NAME_ALIAS_KEY, it) }
             array.put(obj)
         }
         root.put(DEVICES_KEY, array)
@@ -83,4 +83,9 @@ object ComboInfoSerializer {
     private const val FIRMWARE_KEY = "firmware_version"
     private const val UNIQUE_ID_KEY = "unique_id"
     private const val NAME_ALIAS_KEY = "name_alias"
+
+    private fun normalizeAlias(alias: String?): String? {
+        if (alias.isNullOrBlank()) return null
+        return if (alias.equals("BLE", ignoreCase = true)) "N8" else alias
+    }
 }

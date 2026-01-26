@@ -259,10 +259,23 @@ fun MassagerNavHost(
         composable(Screen.Home.route) {
             val viewModel: HomeViewModel = hiltViewModel()
             val homeState = viewModel.uiState.collectAsStateWithLifecycle()
+            val homeLifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(homeLifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        viewModel.refreshAll()
+                    }
+                }
+                homeLifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { homeLifecycleOwner.lifecycle.removeObserver(observer) }
+            }
             HomeDashboardScreen(
                 state = homeState.value,
                 effects = viewModel.effects,
                 currentTab = AppBottomTab.Home,
+                isScanningOnline = homeState.value.isScanningOnline,
+                lastCheckedAt = homeState.value.lastCheckedAt,
+                onRefreshClick = viewModel::refreshAll,
                 onAddDevice = {
                     val excludedSerials = homeState.value.devices.mapNotNull { it.macAddress }
                     navController.navigate(

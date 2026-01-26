@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -59,6 +60,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -96,6 +98,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import kotlin.math.roundToInt
 import com.massager.app.R
+import com.massager.app.domain.model.ComboDeviceInfo
 import com.massager.app.domain.model.DeviceMetadata
 import com.massager.app.presentation.components.AppBottomNavigation
 import com.massager.app.presentation.components.ThemedSnackbarHost
@@ -104,12 +107,62 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.collectLatest
 
 private data class SelectedCardLayout(val offset: Offset, val size: IntSize)
+private data class DisplayItem(
+    val device: DeviceMetadata,
+    val isAttached: Boolean,
+    val host: DeviceMetadata
+)
+
+private fun buildDisplayItems(devices: List<DeviceMetadata>): List<DisplayItem> =
+    buildList {
+        devices.forEach { host ->
+            add(DisplayItem(host, isAttached = false, host = host))
+            host.attachedDevices.forEachIndexed { index, attached ->
+                val generatedId = attached.deviceSerial
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "${host.id}-attached-$index"
+                val displayName = attached.nameAlias?.takeIf { it.isNotBlank() }
+                    ?: attached.deviceSerial
+                    ?: "Attached"
+                add(
+                    DisplayItem(
+                        device = DeviceMetadata(
+                            id = generatedId,
+                            name = displayName,
+                            serialNo = attached.uniqueId ?: attached.deviceSerial ?: generatedId,
+                            macAddress = attached.deviceSerial,
+                            isConnected = false,
+                            deviceType = attached.deviceType,
+                            iconResId = host.iconResId,
+                            attachedDevices = emptyList()
+                        ),
+                        isAttached = true,
+                        host = host
+                    )
+                )
+            }
+        }
+    }
+
+private fun applyNameNumbering(items: List<DisplayItem>): List<DisplayItem> {
+    val nameCounters = mutableMapOf<String, Int>()
+    return items.map { item ->
+        val baseName = item.device.name
+        val nextIndex = (nameCounters[baseName] ?: 0) + 1
+        nameCounters[baseName] = nextIndex
+        val numberedName = if (nextIndex == 1) baseName else "$baseName ($nextIndex)"
+        item.copy(device = item.device.copy(name = numberedName))
+    }
+}
 
 @Composable
 fun HomeDashboardScreen(
     state: HomeUiState,
     effects: SharedFlow<HomeEffect>,
     currentTab: AppBottomTab,
+    isScanningOnline: Boolean,
+    lastCheckedAt: Long?,
+    onRefreshClick: () -> Unit,
     onAddDevice: () -> Unit,
     onDeviceToggle: (DeviceMetadata) -> Unit,
     onDeviceOpen: (DeviceMetadata) -> Unit,
@@ -128,6 +181,8 @@ fun HomeDashboardScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val focusedDeviceId = state.selectedDeviceIds.firstOrNull()
     val focusedDevice = state.devices.firstOrNull { it.id == focusedDeviceId }
+    val displayItems = remember(state.devices) { applyNameNumbering(buildDisplayItems(state.devices)) }
+    val numberedNameById = remember(displayItems) { displayItems.associate { it.device.id to it.device.name } }
     var selectedCardLayout by remember { mutableStateOf<SelectedCardLayout?>(null) }
     var contentRootOffset by remember { mutableStateOf(Offset.Zero) }
 
@@ -200,7 +255,12 @@ fun HomeDashboardScreen(
                         .fillMaxSize()
                         .then(blurModifier)
                 ) {
-                    HeaderSection(onAddDevice = onAddDevice)
+                    HeaderSection(
+                        isScanningOnline = isScanningOnline,
+                        lastCheckedAt = lastCheckedAt,
+                        onRefresh = onRefreshClick,
+                        onAddDevice = onAddDevice
+                    )
                     if (state.devices.isEmpty()) {
                         EmptyDeviceState(
                             modifier = Modifier.fillMaxSize(),
@@ -208,9 +268,11 @@ fun HomeDashboardScreen(
                         )
                     } else {
                         DeviceList(
-                            devices = state.devices,
+                            displayItems = displayItems,
                             focusedDeviceId = focusedDeviceId,
                             isManagementActive = state.isManagementActive,
+                            isScanningOnline = isScanningOnline,
+                            onlineStatus = state.onlineStatus,
                             onDeviceToggle = onDeviceToggle,
                             onDeviceOpen = onDeviceOpen,
                             onSelectedBounds = { selectedCardLayout = it },
@@ -241,7 +303,7 @@ fun HomeDashboardScreen(
                 ) {
                     focusedDevice?.let { device ->
                         SelectedDeviceOverlay(
-                            device = device,
+                            device = device.copy(name = numberedNameById[device.id] ?: device.name),
                             layout = selectedCardLayout,
                             onClick = {
                                 if (state.isManagementActive) {
@@ -283,9 +345,11 @@ fun HomeDashboardScreen(
 
 @Composable
 private fun DeviceList(
-    devices: List<DeviceMetadata>,
+    displayItems: List<DisplayItem>,
     focusedDeviceId: String?,
     isManagementActive: Boolean,
+    isScanningOnline: Boolean,
+    onlineStatus: Map<String, Boolean>,
     onDeviceToggle: (DeviceMetadata) -> Unit,
     onDeviceOpen: (DeviceMetadata) -> Unit,
     onSelectedBounds: (SelectedCardLayout) -> Unit,
@@ -297,23 +361,38 @@ private fun DeviceList(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(
-            items = devices,
-            key = { it.id }
-        ) { device ->
+            items = displayItems,
+            key = { it.device.id }
+        ) { item ->
+            val device = item.device
+            val isMainSelected = device.id == focusedDeviceId && !item.isAttached
+            val status = if (item.isAttached) {
+                onlineStatus[item.host.id]
+            } else {
+                onlineStatus[device.id]
+            }
             DeviceCardItem(
                 device = device,
-                isSelected = device.id == focusedDeviceId,
-                showSelectionBadge = focusedDeviceId == null,
+                isSelected = isMainSelected,
+                showSelectionBadge = focusedDeviceId == null && !item.isAttached,
                 onSelectedBounds = onSelectedBounds,
                 contentOrigin = contentOrigin,
+                isScanningOnline = isScanningOnline,
+                onlineStatus = status,
                 onClick = {
-                    if (isManagementActive) {
-                        onDeviceToggle(device)
+                    if (item.isAttached) {
+                        onDeviceOpen(item.host)
                     } else {
-                        onDeviceOpen(device)
+                        if (isManagementActive) {
+                            onDeviceToggle(device)
+                        } else {
+                            onDeviceOpen(device)
+                        }
                     }
                 },
-                onLongPress = { onDeviceToggle(device) }
+                onLongPress = {
+                    if (!item.isAttached) onDeviceToggle(device)
+                }
             )
         }
         item { Spacer(modifier = Modifier.height(80.dp)) }
@@ -336,24 +415,55 @@ enum class AppBottomTab(
 }
 
 @Composable
-private fun HeaderSection(onAddDevice: () -> Unit) {
+private fun HeaderSection(
+    isScanningOnline: Boolean,
+    lastCheckedAt: Long?,
+    onRefresh: () -> Unit,
+    onAddDevice: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
             .padding(top = 28.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-//            Text(
-//                text = stringResource(id = R.string.home_management_title),
-//                style = MaterialTheme.typography.titleLarge.copy(
-//                    fontWeight = FontWeight.SemiBold,
-//                    fontSize = 20.sp,
-//                    color = MaterialTheme.massagerExtendedColors.textPrimary
-//                )
-//            )
+        val refreshLabel = if (isScanningOnline) "Refreshing..." else "Refresh"
+        val timeText = lastCheckedAt?.let {
+            val formatter = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
+            "Checked at ${formatter.format(java.util.Date(it))}"
         }
+
+        Button(
+            onClick = onRefresh,
+            enabled = !isScanningOnline,
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(6.dp),
+            modifier = Modifier
+                .size(width = 100.dp, height = 34.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.massagerExtendedColors.band,
+                contentColor = MaterialTheme.massagerExtendedColors.textOnAccent
+            )
+        ) {
+            Text(
+                text = refreshLabel,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (!isScanningOnline && timeText != null) {
+            Text(
+                text = timeText,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = MaterialTheme.massagerExtendedColors.textMuted,
+                    fontSize = 12.sp
+                ),
+                modifier = Modifier.padding(bottom = 2.dp)
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
         IconButton(
             onClick = onAddDevice,
             modifier = Modifier
@@ -375,6 +485,8 @@ private fun DeviceCardItem(
     device: DeviceMetadata,
     isSelected: Boolean,
     showSelectionBadge: Boolean = true,
+    isScanningOnline: Boolean,
+    onlineStatus: Boolean?,
     onSelectedBounds: (SelectedCardLayout) -> Unit = {},
     contentOrigin: Offset = Offset.Zero,
     onClick: () -> Unit,
@@ -390,6 +502,8 @@ private fun DeviceCardItem(
             DeviceCard(
                 device = device,
                 isSelected = isSelected,
+                isScanningOnline = isScanningOnline,
+                onlineStatus = onlineStatus,
                 onClick = onClick,
                 onLongPress = onLongPress,
                 modifier = Modifier.onGloballyPositioned { coordinates ->
@@ -440,6 +554,8 @@ private fun DeviceCardItem(
 private fun DeviceCard(
     device: DeviceMetadata,
     isSelected: Boolean,
+    isScanningOnline: Boolean,
+    onlineStatus: Boolean?,
     onClick: () -> Unit,
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier
@@ -484,18 +600,20 @@ private fun DeviceCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(
-                    text = device.name,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.massagerExtendedColors.textPrimary
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = device.name,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.massagerExtendedColors.textPrimary
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "SerialNo ${device.serialNo ?: device.id}",
+                    text = "SN ${device.serialNo ?: device.id}",
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = MaterialTheme.massagerExtendedColors.textMuted,
                         fontSize = 12.sp
@@ -503,6 +621,10 @@ private fun DeviceCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+            if (!isScanningOnline && onlineStatus != null) {
+                Spacer(modifier = Modifier.width(6.dp))
+                StatusIndicator(isOnline = onlineStatus)
             }
             Icon(
                 imageVector = Icons.Filled.ChevronRight,
@@ -601,18 +723,20 @@ private fun FocusedDeviceCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = device.name.ifBlank { "N8 Device" },
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.massagerExtendedColors.textPrimary,
+                            fontSize = 17.sp
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Text(
-                    text = device.name.ifBlank { "BLE Device" },
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.massagerExtendedColors.textPrimary,
-                        fontSize = 17.sp
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "SerialNo ${device.serialNo ?: device.id}",
+                    text = "SN ${device.serialNo ?: device.id}",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = MaterialTheme.massagerExtendedColors.textMuted,
                         fontSize = 14.sp
@@ -700,6 +824,28 @@ private fun PanelRow(
             imageVector = icon,
             contentDescription = null,
             tint = iconTint
+        )
+    }
+}
+
+@Composable
+private fun StatusIndicator(isOnline: Boolean) {
+    val color = if (isOnline) MaterialTheme.massagerExtendedColors.success else MaterialTheme.massagerExtendedColors.textMuted
+    val label = if (isOnline) "online" else "offline"
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = color
         )
     }
 }

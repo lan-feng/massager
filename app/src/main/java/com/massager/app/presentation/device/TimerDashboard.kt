@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Timer
@@ -48,11 +49,13 @@ fun TimerDashboard(
     isRunning: Boolean,
     remainingSeconds: Int,
     timerMinutes: Int,
+    level: Int,
     brand: Color,
     brandSoft: Color, // kept for API parity; not used currently
     enabled: Boolean,
     onSelectTimer: (Int) -> Unit,
-    onToggleSession: () -> Unit
+    onToggleSession: () -> Unit,
+    onStartSession: () -> Unit
 ) {
     val baseMinutes = timerMinutes.coerceIn(0, 60)
     val remainingMinutes = if (remainingSeconds > 0) (remainingSeconds + 59) / 60 else baseMinutes
@@ -74,6 +77,12 @@ fun TimerDashboard(
     val stopColor = MaterialTheme.massagerExtendedColors.danger
     val increaseGradient = remember { Brush.verticalGradient(listOf(increaseColor.copy(alpha = 0.28f), increaseColor.copy(alpha = 0.08f))) }
     val decreaseGradient = remember { Brush.verticalGradient(listOf(decreaseColor.copy(alpha = 0.28f), decreaseColor.copy(alpha = 0.08f))) }
+    val isStartMode = level == 0 && !isRunning
+    val primaryLabel = stringResource(id = if (isStartMode) R.string.device_start else R.string.device_stop)
+    val primaryIcon = if (isStartMode) Icons.Filled.PlayArrow else Icons.Filled.Stop
+    val primaryContainerColor = if (isStartMode) brand else stopColor
+    val primaryContentColor = MaterialTheme.colorScheme.onPrimary
+    val primaryAction = if (isStartMode) onStartSession else onToggleSession
 
     Box(
         modifier = Modifier
@@ -156,13 +165,13 @@ fun TimerDashboard(
             ) {
                 ActionButton(
                     modifier = Modifier.weight(2f),
-                    icon = Icons.Filled.Stop,
-                    label = stringResource(id = R.string.device_stop),
-                    containerColor = stopColor,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    icon = primaryIcon,
+                    label = primaryLabel,
+                    containerColor = primaryContainerColor,
+                    contentColor = primaryContentColor,
                     enabled = enabled,
                     orientation = ActionButtonOrientation.Horizontal,
-                    onClick = onToggleSession
+                    onClick = primaryAction
                 )
                 ActionButton(
                     modifier = Modifier.weight(1f),

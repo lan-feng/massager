@@ -102,6 +102,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.massager.app.BuildConfig
 import com.massager.app.R
 import com.massager.app.presentation.theme.massagerExtendedColors
 import com.massager.app.presentation.navigation.DeviceScanSource
@@ -147,6 +148,7 @@ fun DeviceControlScreen(
 
     DeviceControlContent(
         state = state,
+        attachedDeviceEnabled = BuildConfig.ATTACHED_DEVICE_ENABLED,
         onBack = onBack,
         onAddDevice = onAddDevice,
         onComboResult = viewModel::handleComboResult,
@@ -169,6 +171,7 @@ fun DeviceControlScreen(
 @Composable
 private fun DeviceControlContent(
     state: DeviceControlUiState,
+    attachedDeviceEnabled: Boolean = BuildConfig.ATTACHED_DEVICE_ENABLED,
     onBack: () -> Unit,
     onAddDevice: (List<String>) -> Unit = {},
     onComboResult: (String?) -> Unit,
@@ -375,13 +378,18 @@ private fun DeviceControlContent(
         ) {
             DeviceSwitcherRow(
                 cards = state.deviceCards,
+                isAttachedDeviceEnabled = attachedDeviceEnabled,
                 onSelect = onSelectDevice,
                 onLongPress = { card ->
                     if (!card.isMainDevice && card.deviceSerial != null) {
                         manageTarget = card
                     }
                 },
-                onAddDevice = { showScanDialog = true },
+                onAddDevice = {
+                    if (attachedDeviceEnabled) {
+                        showScanDialog = true
+                    }
+                },
                 deviceStatuses = state.deviceStatuses,
                 isMuted = state.isMuted,
                 onToggleMute = onToggleMute,
@@ -397,11 +405,17 @@ private fun DeviceControlContent(
                     isRunning = state.isRunning,
                     remainingSeconds = state.remainingSeconds,
                     timerMinutes = state.timerMinutes,
+                    level = state.level,
                     brand = brand,
                     brandSoft = brandSoft,
                     enabled = state.isProtocolReady && controlsEnabled,
                     onSelectTimer = { minutes -> onSelectTimer(minutes.coerceIn(0, 60)) },
-                    onToggleSession = onToggleSession
+                    onToggleSession = onToggleSession,
+                    onStartSession = {
+                        if (state.level == 0) {
+                            onCommitLevel(1)
+                        }
+                    }
                 )
             }
             Box(modifier = Modifier.alpha(controlsAlpha)) {
@@ -775,6 +789,7 @@ private fun DeviceControlContent(
 @Composable
 private fun DeviceSwitcherRow(
     cards: List<DeviceCardState>,
+    isAttachedDeviceEnabled: Boolean,
     onSelect: (String?) -> Unit,
     onLongPress: (DeviceCardState) -> Unit,
     onAddDevice: () -> Unit,
@@ -786,11 +801,13 @@ private fun DeviceSwitcherRow(
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val cardSpacing = 12.dp
     val horizontalPadding = 0.dp
-    val availableWidth = (screenWidth - horizontalPadding * 2 - cardSpacing*2).coerceAtLeast(200.dp)
-    val selectedWidth = availableWidth * 0.7f
-    val unselectedWidth = (availableWidth * 0.25f).coerceAtLeast(72.dp)
+    val baseAvailableWidth = (screenWidth - horizontalPadding * 2 - cardSpacing * 2).coerceAtLeast(200.dp)
+    val singleCardWidth = baseAvailableWidth
+    val selectedWidth = baseAvailableWidth * 0.7f
+    val unselectedWidth = (baseAvailableWidth * 0.25f).coerceAtLeast(72.dp)
     val cardHeight = 100.dp
     val hasAttached = cards.any { !it.isMainDevice }
+    val showAddSlot = isAttachedDeviceEnabled && !hasAttached
     LazyRow(
         modifier = Modifier
             .fillMaxWidth()
@@ -804,7 +821,11 @@ private fun DeviceSwitcherRow(
         }) { card ->
             val cardStatus = card.deviceSerial?.let { deviceStatuses[it] }
             val cardWidth by animateDpAsState(
-                targetValue = if (card.isSelected) selectedWidth else unselectedWidth,
+                targetValue = when {
+                    !isAttachedDeviceEnabled && cards.size == 1 -> singleCardWidth
+                    card.isSelected -> selectedWidth
+                    else -> unselectedWidth
+                },
                 label = "device_switcher_width"
             )
             val connectionState = mapConnectionState(cardStatus)
@@ -832,7 +853,7 @@ private fun DeviceSwitcherRow(
                 onLongPress = if (!card.isMainDevice) ({ onLongPress(card) }) else null
             )
         }
-        if (!hasAttached) {
+        if (showAddSlot) {
             item {
                 AddDeviceBox(
                     onAddDevice = onAddDevice,

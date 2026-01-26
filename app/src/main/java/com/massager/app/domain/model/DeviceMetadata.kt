@@ -10,7 +10,8 @@ data class DeviceMetadata(
     val macAddress: String?,
     val isConnected: Boolean,
     val deviceType: Int? = null,
-    @DrawableRes val iconResId: Int? = null
+    @DrawableRes val iconResId: Int? = null,
+    val attachedDevices: List<ComboDeviceInfo> = emptyList()
 )
 
 data class RecoveryMassagerOption(
