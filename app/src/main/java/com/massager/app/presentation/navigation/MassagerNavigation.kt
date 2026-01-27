@@ -275,7 +275,7 @@ fun MassagerNavHost(
                 currentTab = AppBottomTab.Home,
                 isScanningOnline = homeState.value.isScanningOnline,
                 lastCheckedAt = homeState.value.lastCheckedAt,
-                onRefreshClick = viewModel::refreshAll,
+                onRefreshClick = { viewModel.refreshAll(isUserInitiated = true) },
                 onAddDevice = {
                     val excludedSerials = homeState.value.devices.mapNotNull { it.macAddress }
                     navController.navigate(

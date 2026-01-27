@@ -387,10 +387,11 @@ class DeviceControlViewModel @Inject constructor(
         if (shouldUpdateState) {
             _uiState.update {
                 val shouldSeedTimer = sanitized > 0 && !it.isRunning && it.remainingSeconds <= 0
+                val seedMinutes = max(it.timerMinutes, DEFAULT_TIMER_MINUTES)
                 it.copy(
                     level = sanitized,
                     isRunning = sanitized > 0,
-                    remainingSeconds = if (shouldSeedTimer) max(1, it.timerMinutes) * 60 else it.remainingSeconds
+                    remainingSeconds = if (shouldSeedTimer) seedMinutes * 60 else it.remainingSeconds
                 )
             }
         }
@@ -557,7 +558,7 @@ class DeviceControlViewModel @Inject constructor(
     private fun buildDeviceCards() {
         val cards = buildList {
             val mainName = preferredName?.takeIf { it.isNotBlank() }
-                ?: _uiState.value.deviceName.takeIf { it.isNotBlank() }
+                ?: stripIndexSuffix(_uiState.value.deviceName).takeIf { it.isNotBlank() }
                 ?: targetAddress.orEmpty()
             add(
                 DeviceCardState(
@@ -568,11 +569,17 @@ class DeviceControlViewModel @Inject constructor(
                 )
             )
             comboDevices.forEach { device ->
-                val displayName = device.nameAlias?.takeIf { it.isNotBlank() } ?: device.deviceSerial
+                val baseName = stripIndexSuffix(device.nameAlias?.takeIf { it.isNotBlank() } ?: device.deviceSerial)
+                val index = device.index ?: 1
+                val displayName = if (index <= 1 || baseName == null) {
+                    baseName
+                } else {
+                    "$baseName ($index)"
+                }
                 add(
                     DeviceCardState(
                         deviceSerial = device.deviceSerial,
-                        displayName = displayName,
+                        displayName = displayName ?: device.deviceSerial,
                         isSelected = isSerialSelected(device.deviceSerial),
                         isMainDevice = false
                     )
@@ -796,6 +803,12 @@ class DeviceControlViewModel @Inject constructor(
         }
     }
 
+    private fun stripIndexSuffix(name: String?): String {
+        if (name.isNullOrBlank()) return name.orEmpty()
+        val regex = Regex("""\s*\(\d+\)$""")
+        return name.replace(regex, "")
+    }
+
     private fun modifyComboDevices(
         updatedDevices: List<ComboDeviceInfo>,
         afterSuccess: () -> Unit = {}
@@ -806,7 +819,11 @@ class DeviceControlViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _uiState.update { it.copy(isComboUpdating = true) }
-            val payload = ComboInfoPayload(updatedDevices)
+            val current = ComboInfoSerializer.parse(comboInfoRaw)
+            val payload = ComboInfoPayload(
+                devices = updatedDevices,
+                index = current.index
+            )
             val json = payload.toJson()
             val result = updateDeviceComboInfoUseCase(deviceId, json)
             result.onSuccess {
@@ -841,7 +858,8 @@ class DeviceControlViewModel @Inject constructor(
         if (isRemoteStart) {
             _uiState.update { state ->
                 val shouldSeedTimer = state.remainingSeconds <= 0
-                val seededRemaining = if (shouldSeedTimer) max(1, state.timerMinutes) * 60 else state.remainingSeconds
+                val seedMinutes = max(state.timerMinutes, DEFAULT_TIMER_MINUTES)
+                val seededRemaining = if (shouldSeedTimer) seedMinutes * 60 else state.remainingSeconds
                 state.copy(
                     isRunning = true,
                     remainingSeconds = seededRemaining

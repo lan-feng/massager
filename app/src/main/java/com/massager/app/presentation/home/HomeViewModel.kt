@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.massager.app.R
 import com.massager.app.data.local.SessionManager
 import com.massager.app.data.bluetooth.MassagerBluetoothService
+import com.massager.app.data.bluetooth.scan.BleScanCoordinator
 import com.massager.app.domain.model.DeviceMetadata
 import com.massager.app.domain.model.TemperatureRecord
 import com.massager.app.domain.usecase.device.ObserveDevicesUseCase
@@ -75,6 +76,7 @@ class HomeViewModel @Inject constructor(
 
     private var guestEntryPromptShown = false
     private var guestSyncPromptShown = false
+    private var lastOnlineStatusCache: Map<String, Boolean> = emptyMap()
 
     init {
         viewModelScope.launch {
@@ -113,9 +115,9 @@ class HomeViewModel @Inject constructor(
         checkOnlineStatus()
     }
 
-    fun refreshAll() {
+    fun refreshAll(isUserInitiated: Boolean = false) {
         refresh()
-        checkOnlineStatus()
+        checkOnlineStatus(isUserInitiated)
     }
 
     fun refresh() {
@@ -157,10 +159,11 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun checkOnlineStatus() {
+    fun checkOnlineStatus(isUserInitiated: Boolean = false) {
         if (_uiState.value.isScanningOnline) return
+        val devicesSnapshot = _uiState.value.devices
+        if (devicesSnapshot.isEmpty()) return
         viewModelScope.launch {
-            val devicesSnapshot = _uiState.value.devices
             val targetMap = devicesSnapshot.mapNotNull { device ->
                 device.macAddress?.lowercase()?.takeIf { it.isNotBlank() }?.let { addr -> addr to device.id }
             }.toMap()
@@ -174,29 +177,55 @@ class HomeViewModel @Inject constructor(
                 }
                 return@launch
             }
-            _uiState.update { it.copy(isScanningOnline = true, lastCheckedAt = null) }
-            val found = mutableSetOf<String>()
-            withTimeoutOrNull(5_000L) {
-                bluetoothService.restartScan()
-                bluetoothService.scanResults
-                    .takeWhile { results ->
-                        results.forEach { scan ->
-                            val address = scan.address?.lowercase() ?: return@forEach
-                            targetMap[address]?.let(found::add)
-                        }
-                        found.size < targetMap.size
-                    }
-                    .collect { /* no-op, work done in predicate */ }
+            _uiState.update {
+                it.copy(
+                    isScanningOnline = true,
+                    lastCheckedAt = null,
+                    // 清空当前 UI 状态，等待扫描结果逐步填充
+                    onlineStatus = emptyMap()
+                )
             }
-            bluetoothService.stopScan()
-            val statusMap = devicesSnapshot.associate { device ->
-                val online = if (device.macAddress.isNullOrBlank()) {
-                    false
-                } else {
-                    found.contains(device.id)
+            val scanStartResult = bluetoothService.restartScan()
+            if (scanStartResult is BleScanCoordinator.ScanStartResult.Error) {
+                _uiState.update {
+                    it.copy(
+                        isScanningOnline = false,
+                        lastCheckedAt = System.currentTimeMillis(),
+                        onlineStatus = lastOnlineStatusCache
+                    )
                 }
-                device.id to online
+                return@launch
             }
+            val found = mutableSetOf<String>()
+            var sawAnyAdvertisements = false
+            val scanJob = launch {
+                bluetoothService.scanResults.collect { results ->
+                    if (results.isNotEmpty()) sawAnyAdvertisements = true
+                    results.forEach { scan ->
+                        val address = scan.address?.lowercase() ?: return@forEach
+                        targetMap[address]?.let(found::add)
+                    }
+                    // 仅更新已匹配设备，未匹配的保持空白
+                    val interimStatus: Map<String, Boolean> = found.associateWith { true }
+                    _uiState.update { it.copy(onlineStatus = interimStatus) }
+                    if (found.size >= targetMap.size) this.cancel()
+                }
+            }
+            withTimeoutOrNull(5_000L) { scanJob.join() }
+            if (scanJob.isActive) scanJob.cancel()
+            bluetoothService.stopScan()
+            val statusMap = when {
+                sawAnyAdvertisements -> devicesSnapshot.associate { device ->
+                    device.id to found.contains(device.id) // 扫描结束后未匹配到的统一标记为离线
+                }
+                lastOnlineStatusCache.isNotEmpty() -> devicesSnapshot.associate { device ->
+                    device.id to (lastOnlineStatusCache[device.id] ?: false)
+                }
+                else -> devicesSnapshot.associate { device ->
+                    device.id to false
+                }
+            }
+            lastOnlineStatusCache = statusMap
             _uiState.update {
                 it.copy(
                     isScanningOnline = false,
@@ -210,6 +239,8 @@ class HomeViewModel @Inject constructor(
     fun clearError() {
         _uiState.update { it.copy(errorMessageRes = null, errorMessageText = null) }
     }
+
+    private fun emitMessageText(message: String) = enqueueMessage(message)
 
     fun selectSingleDevice(deviceId: String) {
         if (deviceId.isBlank()) return
@@ -401,9 +432,13 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun emitMessageText(message: String) {
+    private fun emitMessageTextInternal(message: String) {
         viewModelScope.launch {
             _effects.emit(HomeEffect.ShowMessageText(message))
         }
+    }
+
+    private fun enqueueMessage(message: String) {
+        emitMessageTextInternal(message)
     }
 }

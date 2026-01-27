@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
 import org.json.JSONException
 import org.json.JSONObject
 import java.time.Instant
@@ -43,7 +44,8 @@ class MassagerRepository @Inject constructor(
     fun deviceMetadata(): Flow<List<DeviceMetadata>> {
         val ownerId = sessionManager.activeOwnerId()
         return database.deviceDao().getDevicesForOwner(ownerId).map { devices ->
-            devices
+            val ensured = backfillDeviceIndexes(devices)
+            ensured
                 .sortedWith(
                     compareByDescending<DeviceEntity> {
                         it.status?.equals("online", ignoreCase = true) == true
@@ -62,6 +64,7 @@ class MassagerRepository @Inject constructor(
             }
             val ownerId = sessionManager.accountOwnerId()
                 ?: throw IllegalStateException("Missing account owner id")
+            val previous = database.deviceDao().listDevicesForOwner(ownerId)
             val typesToRequest = deviceTypes.ifEmpty { deviceCatalog.reservedDeviceTypes }
             val response = api.fetchDevicesByType(typesToRequest.joinToString(","))
             if (response.success.not()) {
@@ -73,11 +76,12 @@ class MassagerRepository @Inject constructor(
                 type == null || allowedTypeSet.contains(type)
             }
             val entities = devices.map { dto -> dto.toEntity(ownerIdOverride = ownerId) }
-            database.withTransaction {
-                database.deviceDao().clearForOwner(ownerId)
-                database.deviceDao().upsertAll(entities)
-            }
-            entities.map { entity -> entity.toDeviceMetadata(deviceCatalog) }
+            val merged = mergeDeviceIndexes(entities, previous)
+                database.withTransaction {
+                    database.deviceDao().clearForOwner(ownerId)
+                    database.deviceDao().upsertAll(merged)
+                }
+            merged.map { entity -> entity.toDeviceMetadata(deviceCatalog) }
         }
     }
 
@@ -89,20 +93,27 @@ class MassagerRepository @Inject constructor(
         uniqueId: String? = null
     ): Result<DeviceMetadata> = withContext(ioDispatcher) {
         runCatching {
+            val normalizedAlias = normalizeAlias(displayName) ?: displayName.takeIf { it.isNotBlank() }
             if (sessionManager.isGuestMode()) {
                 val now = Instant.now()
-                val normalizedName = normalizeAlias(displayName)
+                val ownerId = sessionManager.activeOwnerId()
+                val generatedAlias = generateWindowsAlias(
+                    baseName = normalizedAlias ?: displayName,
+                    existingNames = existingDisplayNames(ownerId)
+                )
+                val nextIndex = nextDeviceIndex(ownerId)
                 val generatedId = deviceSerial
                     .takeIf { it.isNotBlank() }
                     ?: uniqueId
                     ?: now.toEpochMilli().toString()
-                val ownerId = sessionManager.activeOwnerId()
+                val comboWithIndex = ComboInfoSerializer.withIndex(null, nextIndex)
                 val entity = DeviceEntity(
                     id = generatedId,
-                    name = normalizedName ?: displayName.ifBlank { deviceSerial.ifBlank { "Local Device" } },
+                    name = generatedAlias.ifBlank { normalizedAlias ?: displayName.ifBlank { deviceSerial.ifBlank { "Local Device" } } },
                     serial = deviceSerial.ifBlank { uniqueId },
                     uniqueId = uniqueId,
                     ownerId = ownerId,
+                    comboInfo = comboWithIndex,
                     status = "online",
                     batteryLevel = 100,
                     lastSeenAt = now
@@ -112,27 +123,40 @@ class MassagerRepository @Inject constructor(
             } else {
                 val ownerId = sessionManager.accountOwnerId()
                     ?: throw IllegalStateException("Missing account owner id")
+                val generatedAlias = generateWindowsAlias(
+                    baseName = normalizedAlias ?: displayName,
+                    existingNames = existingDisplayNames(ownerId)
+                )
                 val type = deviceCatalog.resolveType(productId, displayName)
-                val normalizedAlias = normalizeAlias(displayName) ?: displayName.takeIf { it.isNotBlank() }
+                val nextIndex = nextDeviceIndex(ownerId)
+                val comboWithIndex = ComboInfoSerializer.withIndex(null, nextIndex)
                 val response = api.bindDevice(
                     DeviceBindRequest(
                         deviceSerial = deviceSerial,
                         deviceType = type,
-                        nameAlias = normalizedAlias,
+                        nameAlias = generatedAlias,
                         firmwareVersion = firmwareVersion,
-                        uniqueId = uniqueId
+                        uniqueId = uniqueId,
+                        comboInfo = comboWithIndex
                     )
                 )
                 if (response.success.not()) {
                     throw IllegalStateException(response.message ?: "Failed to bind device")
                 }
                 val dto = response.data ?: throw IllegalStateException("Empty bind response")
+                val comboRaw = dto.comboInfo ?: comboWithIndex
                 val entity = dto.toEntity(
-                    defaultAlias = normalizedAlias,
+                    defaultAlias = generatedAlias,
                     ownerIdOverride = ownerId
                 )
-                database.deviceDao().upsert(entity)
-                entity.toDeviceMetadata(deviceCatalog)
+                val indexedEntity = entity.copy(
+                    name = generatedAlias.ifBlank { entity.name },
+                    comboInfo = comboWithIndex ?: comboRaw
+                )
+                database.deviceDao().upsert(indexedEntity)
+                // Persist combo_info keyed by id and serial to avoid being cleared by subsequent refresh.
+                comboWithIndex?.let { updateLocalComboInfo(deviceSerial, it, resolvedId = dto.id) }
+                indexedEntity.toDeviceMetadata(deviceCatalog)
             }
         }
     }
@@ -177,8 +201,11 @@ class MassagerRepository @Inject constructor(
                         defaultAlias = normalizedName,
                         ownerIdOverride = ownerId
                     )
-                    database.deviceDao().upsert(entity)
-                    entity.toDeviceMetadata(deviceCatalog)
+                    val existing = database.deviceDao().findById(deviceId)
+                        ?: database.deviceDao().findBySerial(deviceId)
+                    val merged = mergeDeviceIndexes(listOf(entity), existing?.let { listOf(it) } ?: emptyList()).first()
+                    database.deviceDao().upsert(merged)
+                    merged.toDeviceMetadata(deviceCatalog)
                 } else {
                     database.deviceDao().updateName(deviceId, normalizedName)
                     database.deviceDao().findById(deviceId)?.toDeviceMetadata(deviceCatalog)
@@ -330,9 +357,67 @@ class MassagerRepository @Inject constructor(
         }
     }
 
+    private suspend fun existingDisplayNames(ownerId: String): List<String> {
+        val devices = database.deviceDao().listDevicesForOwner(ownerId)
+        if (devices.isEmpty()) return emptyList()
+        return buildList {
+            devices.forEach { device ->
+                val normalized = normalizeAlias(device.name) ?: device.name
+                if (!normalized.isNullOrBlank()) add(normalized.trim())
+                val payload = ComboInfoSerializer.parse(device.comboInfo)
+                payload.devices.forEach { attached ->
+                    val alias = normalizeAlias(attached.nameAlias) ?: attached.deviceSerial
+                    if (!alias.isNullOrBlank()) add(alias.trim())
+                }
+            }
+        }
+    }
+
+    private fun generateWindowsAlias(
+        baseName: String?,
+        existingNames: Collection<String>
+    ): String {
+        val sanitizedBase = stripIndexSuffix(baseName).ifBlank { "N8" }
+        val pattern = Regex("^${Regex.escape(sanitizedBase)}\\s*\\((\\d+)\\)$", RegexOption.IGNORE_CASE)
+        var isBaseTaken = false
+        val usedIndexes = mutableSetOf<Int>()
+        existingNames.forEach { existing ->
+            val candidate = existing.trim()
+            if (candidate.equals(sanitizedBase, ignoreCase = true)) {
+                isBaseTaken = true
+                usedIndexes.add(1)
+            } else {
+                val match = pattern.matchEntire(candidate)
+                val idx = match?.groupValues?.getOrNull(1)?.toIntOrNull()
+                if (idx != null && idx > 0) usedIndexes.add(idx)
+            }
+        }
+        if (!isBaseTaken) return sanitizedBase
+        var index = 2
+        while (usedIndexes.contains(index)) {
+            index += 1
+        }
+        return "$sanitizedBase ($index)"
+    }
+
+    private fun stripIndexSuffix(name: String?): String {
+        if (name.isNullOrBlank()) return ""
+        val regex = Regex("""\s*\(\d+\)$""")
+        return name.replace(regex, "").trim()
+    }
+
     private fun normalizeAlias(alias: String?): String? {
         if (alias.isNullOrBlank()) return null
         return if (alias.equals("BLE", ignoreCase = true)) "N8" else alias
+    }
+
+    private suspend fun nextDeviceIndex(ownerId: String): Int {
+        val existing = database.deviceDao().listDevicesForOwner(ownerId)
+        val maxStored = existing
+            .mapNotNull { device -> ComboInfoSerializer.parse(device.comboInfo).index }
+            .maxOrNull()
+        val currentMax = maxStored ?: existing.size
+        return currentMax + 1
     }
 
     private fun DeviceDto.toEntity(
@@ -357,13 +442,15 @@ class MassagerRepository @Inject constructor(
     private fun DeviceEntity.toDeviceMetadata(deviceCatalog: DeviceCatalog): DeviceMetadata {
         val displayName = normalizeAlias(name) ?: name
         val type = deviceCatalog.resolveType(productId = null, name = displayName)
-        val attached = ComboInfoSerializer.parse(comboInfo).devices
+        val payload = ComboInfoSerializer.parse(comboInfo)
+        val attached = payload.devices
         return DeviceMetadata(
             id = id,
             name = displayName,
             serialNo = uniqueId ?: id,
             macAddress = serial,
             isConnected = status?.equals("online", ignoreCase = true) == true,
+            index = payload.index,
             deviceType = type,
             iconResId = deviceCatalog.iconForType(type),
             attachedDevices = attached
@@ -384,6 +471,61 @@ class MassagerRepository @Inject constructor(
         if (byId != null) return byId
         val bySerial = database.deviceDao().findBySerial(deviceId)?.id?.toLongOrNull()
         return bySerial
+    }
+
+    private fun backfillDeviceIndexes(
+        devices: List<DeviceEntity>
+    ): List<DeviceEntity> {
+        if (devices.isEmpty()) return devices
+        val missing = devices.any { ComboInfoSerializer.parse(it.comboInfo).index == null }
+        if (!missing) return devices
+
+        var maxIndex = devices.mapNotNull { ComboInfoSerializer.parse(it.comboInfo).index }.maxOrNull() ?: 0
+        val updated = devices.map { device ->
+            val payload = ComboInfoSerializer.parse(device.comboInfo)
+            val assignedIndex = payload.index ?: run {
+                maxIndex += 1
+                maxIndex
+            }
+            val comboWithIndex = ComboInfoSerializer.withIndex(device.comboInfo, assignedIndex)
+            device.copy(
+                name = normalizeAlias(device.name) ?: device.name,
+                comboInfo = comboWithIndex
+            )
+        }
+        // Persist the backfilled combo_info so numbering is stable for future launches.
+        runBlocking(ioDispatcher) {
+            database.deviceDao().upsertAll(updated)
+        }
+        return updated
+    }
+
+    private fun mergeDeviceIndexes(
+        incoming: List<DeviceEntity>,
+        previous: List<DeviceEntity>
+    ): List<DeviceEntity> {
+        val indexByKey = mutableMapOf<String, Int>()
+        previous.forEach { device ->
+            val payload = ComboInfoSerializer.parse(device.comboInfo)
+            payload.index?.let { idx ->
+                indexByKey[device.id] = idx
+                device.serial?.let { indexByKey[it] = idx }
+            }
+        }
+        var maxIndex = indexByKey.values.maxOrNull() ?: 0
+        return incoming.map { entity ->
+            val currentIndex = ComboInfoSerializer.parse(entity.comboInfo).index
+            val preserved = indexByKey[entity.id] ?: entity.serial?.let { indexByKey[it] }
+            val finalIndex = currentIndex ?: preserved ?: run {
+                maxIndex += 1
+                maxIndex
+            }
+            val comboWithIndex = ComboInfoSerializer.withIndex(entity.comboInfo, finalIndex)
+            entity.copy(
+                name = normalizeAlias(entity.name) ?: entity.name,
+                comboInfo = comboWithIndex
+            )
+        }
     }
 
 }

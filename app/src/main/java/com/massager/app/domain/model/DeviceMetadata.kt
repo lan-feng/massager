@@ -9,6 +9,7 @@ data class DeviceMetadata(
     val serialNo: String?,
     val macAddress: String?,
     val isConnected: Boolean,
+    val index: Int? = null,
     val deviceType: Int? = null,
     @DrawableRes val iconResId: Int? = null,
     val attachedDevices: List<ComboDeviceInfo> = emptyList()

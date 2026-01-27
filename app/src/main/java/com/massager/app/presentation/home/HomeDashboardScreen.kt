@@ -106,7 +106,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import kotlin.math.roundToInt
 import com.massager.app.R
-import com.massager.app.domain.model.ComboDeviceInfo
 import com.massager.app.domain.model.DeviceMetadata
 import com.massager.app.presentation.components.AppBottomNavigation
 import com.massager.app.presentation.components.ThemedSnackbarHost
@@ -118,25 +117,36 @@ private data class SelectedCardLayout(val offset: Offset, val size: IntSize)
 private data class DisplayItem(
     val device: DeviceMetadata,
     val isAttached: Boolean,
-    val host: DeviceMetadata
+    val host: DeviceMetadata,
+    val baseName: String,
+    val index: Int?
 )
 
 private fun buildDisplayItems(devices: List<DeviceMetadata>): List<DisplayItem> =
     buildList {
         devices.forEach { host ->
-            add(DisplayItem(host, isAttached = false, host = host))
+            val hostBase = host.name.ifBlank { "N8" }
+            add(
+                DisplayItem(
+                    device = host,
+                    isAttached = false,
+                    host = host,
+                    baseName = hostBase,
+                    index = host.index
+                )
+            )
             host.attachedDevices.forEachIndexed { index, attached ->
                 val generatedId = attached.deviceSerial
                     ?.takeIf { it.isNotBlank() }
                     ?: "${host.id}-attached-$index"
-                val displayName = attached.nameAlias?.takeIf { it.isNotBlank() }
+                val baseName = attached.nameAlias?.takeIf { it.isNotBlank() }
                     ?: attached.deviceSerial
                     ?: "Attached"
                 add(
                     DisplayItem(
                         device = DeviceMetadata(
                             id = generatedId,
-                            name = displayName,
+                            name = baseName,
                             serialNo = attached.uniqueId ?: attached.deviceSerial ?: generatedId,
                             macAddress = attached.deviceSerial,
                             isConnected = false,
@@ -145,7 +155,9 @@ private fun buildDisplayItems(devices: List<DeviceMetadata>): List<DisplayItem> 
                             attachedDevices = emptyList()
                         ),
                         isAttached = true,
-                        host = host
+                        host = host,
+                        baseName = baseName,
+                        index = attached.index
                     )
                 )
             }
@@ -153,13 +165,10 @@ private fun buildDisplayItems(devices: List<DeviceMetadata>): List<DisplayItem> 
     }
 
 private fun applyNameNumbering(items: List<DisplayItem>): List<DisplayItem> {
-    val nameCounters = mutableMapOf<String, Int>()
     return items.map { item ->
-        val baseName = item.device.name
-        val nextIndex = (nameCounters[baseName] ?: 0) + 1
-        nameCounters[baseName] = nextIndex
-        val numberedName = if (nextIndex == 1) baseName else "$baseName ($nextIndex)"
-        item.copy(device = item.device.copy(name = numberedName))
+        val baseName = item.device.name.ifBlank { item.baseName }.ifBlank { "N8" }
+        val displayName = item.device.name.ifBlank { baseName }
+        item.copy(device = item.device.copy(name = displayName))
     }
 }
 
@@ -370,8 +379,13 @@ fun HomeDashboardScreen(
     }
 
     if (state.isRemoveDialogVisible) {
+        val targetName = state.selectedDeviceIds.firstOrNull()?.let { id ->
+            numberedNameById[id]
+                ?: state.devices.firstOrNull { it.id == id }?.name
+        }
         RemoveDeviceDialog(
             isProcessing = state.isActionInProgress,
+            deviceName = targetName,
             onDismiss = onRemoveDismiss,
             onConfirm = onRemoveConfirm
         )
@@ -747,7 +761,7 @@ private fun DeviceCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (!isScanningOnline && onlineStatus != null) {
+            if (onlineStatus != null) {
                 Spacer(modifier = Modifier.width(6.dp))
                 StatusIndicator(isOnline = onlineStatus)
             }
@@ -1033,6 +1047,7 @@ private fun RenameDeviceDialog(
 @Composable
 private fun RemoveDeviceDialog(
     isProcessing: Boolean,
+    deviceName: String?,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -1040,7 +1055,20 @@ private fun RemoveDeviceDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(id = R.string.remove_device_confirm_title)) },
         text = {
-            Text(text = stringResource(id = R.string.remove_device_confirm_message))
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                deviceName?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.massagerExtendedColors.textPrimary
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Text(text = stringResource(id = R.string.remove_device_confirm_message))
+            }
         },
         confirmButton = {
             TextButton(
