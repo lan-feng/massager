@@ -29,6 +29,11 @@ import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+
+private const val AUTO_REFRESH_COOLDOWN_MS = 15_000L
+private const val MANUAL_REFRESH_DEBOUNCE_MS = 1_200L
 
 data class HomeUiState(
     val devices: List<DeviceMetadata> = emptyList(),
@@ -56,6 +61,13 @@ sealed interface HomeEffect {
     data class ShowMessageText(val message: String) : HomeEffect
 }
 
+enum class RefreshTrigger {
+    Initial,
+    User,
+    AutoResume,
+    DeviceAdded
+}
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     observeDevicesUseCase: ObserveDevicesUseCase,
@@ -77,6 +89,10 @@ class HomeViewModel @Inject constructor(
     private var guestEntryPromptShown = false
     private var guestSyncPromptShown = false
     private var lastOnlineStatusCache: Map<String, Boolean> = emptyMap()
+    private var lastRefreshTimestamp: Long = 0L
+    private var lastManualRefreshTimestamp: Long = 0L
+    private var manualRefreshJob: Job? = null
+    private var initialRefreshDone = false
 
     init {
         viewModelScope.launch {
@@ -111,16 +127,59 @@ class HomeViewModel @Inject constructor(
                 _uiState.update { it.copy(measurements = measurements) }
             }
         }
-        refresh()
-        checkOnlineStatus()
+        refreshAll(RefreshTrigger.Initial)
     }
 
-    fun refreshAll(isUserInitiated: Boolean = false) {
-        refresh()
-        checkOnlineStatus(isUserInitiated)
+    fun refreshAll(trigger: RefreshTrigger = RefreshTrigger.AutoResume) {
+        val now = System.currentTimeMillis()
+        when (trigger) {
+            RefreshTrigger.Initial -> {
+                if (initialRefreshDone) return
+                initialRefreshDone = true
+                performRefresh(RefreshTrigger.Initial)
+            }
+            RefreshTrigger.User -> {
+                val elapsedSinceManual = if (lastManualRefreshTimestamp == 0L) {
+                    Long.MAX_VALUE
+                } else {
+                    now - lastManualRefreshTimestamp
+                }
+                if (elapsedSinceManual < MANUAL_REFRESH_DEBOUNCE_MS) {
+                    manualRefreshJob?.cancel()
+                    manualRefreshJob = viewModelScope.launch {
+                        delay(MANUAL_REFRESH_DEBOUNCE_MS - elapsedSinceManual)
+                        performRefresh(RefreshTrigger.User)
+                    }
+                } else {
+                    performRefresh(RefreshTrigger.User)
+                }
+            }
+
+            RefreshTrigger.AutoResume -> {
+                if (now - lastRefreshTimestamp < AUTO_REFRESH_COOLDOWN_MS) return
+                performRefresh(RefreshTrigger.AutoResume)
+            }
+
+            RefreshTrigger.DeviceAdded -> {
+                performRefresh(trigger)
+            }
+        }
     }
 
-    fun refresh() {
+    private fun performRefresh(trigger: RefreshTrigger) {
+        if (_uiState.value.isRefreshing) return
+        val now = System.currentTimeMillis()
+        lastRefreshTimestamp = now
+        if (trigger == RefreshTrigger.User) {
+            lastManualRefreshTimestamp = now
+        }
+        refresh(
+            refreshOnlineStatus = true,
+            isUserInitiated = trigger == RefreshTrigger.User
+        )
+    }
+
+    fun refresh(refreshOnlineStatus: Boolean = false, isUserInitiated: Boolean = false) {
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true, errorMessageRes = null, errorMessageText = null) }
             if (sessionManager.isGuestMode() && !guestSyncPromptShown) {
@@ -139,6 +198,8 @@ class HomeViewModel @Inject constructor(
                 return@launch
             }
 
+            _uiState.update { it.copy(devices = devices) }
+
             val deviceId = devices.firstOrNull()?.id
                 ?: _uiState.value.devices.firstOrNull()?.id
 
@@ -156,6 +217,9 @@ class HomeViewModel @Inject constructor(
             }
 
             _uiState.update { it.copy(isRefreshing = false) }
+            if (refreshOnlineStatus) {
+                checkOnlineStatus(isUserInitiated)
+            }
         }
     }
 

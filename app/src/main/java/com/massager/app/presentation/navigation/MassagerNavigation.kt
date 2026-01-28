@@ -41,6 +41,7 @@ import com.massager.app.presentation.device.ManualAddDeviceViewModel
 import com.massager.app.presentation.home.AppBottomTab
 import com.massager.app.presentation.home.HomeDashboardScreen
 import com.massager.app.presentation.home.HomeViewModel
+import com.massager.app.presentation.home.RefreshTrigger
 import com.massager.app.presentation.recovery.RecoverySelectionScreen
 import com.massager.app.presentation.settings.AboutScreen
 import com.massager.app.presentation.settings.AccountSecurityScreen
@@ -260,10 +261,14 @@ fun MassagerNavHost(
             val viewModel: HomeViewModel = hiltViewModel()
             val homeState = viewModel.uiState.collectAsStateWithLifecycle()
             val homeLifecycleOwner = LocalLifecycleOwner.current
+            LaunchedEffect(Unit) {
+                // Ensure a refresh right after successful login/navigation to Home.
+                viewModel.refreshAll(RefreshTrigger.Initial)
+            }
             DisposableEffect(homeLifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_RESUME) {
-                        viewModel.refreshAll()
+                        viewModel.refreshAll(RefreshTrigger.AutoResume)
                     }
                 }
                 homeLifecycleOwner.lifecycle.addObserver(observer)
@@ -275,7 +280,7 @@ fun MassagerNavHost(
                 currentTab = AppBottomTab.Home,
                 isScanningOnline = homeState.value.isScanningOnline,
                 lastCheckedAt = homeState.value.lastCheckedAt,
-                onRefreshClick = { viewModel.refreshAll(isUserInitiated = true) },
+                onRefreshClick = { viewModel.refreshAll(RefreshTrigger.User) },
                 onAddDevice = {
                     val excludedSerials = homeState.value.devices.mapNotNull { it.macAddress }
                     navController.navigate(
@@ -423,8 +428,14 @@ fun MassagerNavHost(
                 currentTab = AppBottomTab.Profile,
                 onTabSelected = { tab ->
                     when (tab) {
-                        AppBottomTab.Home -> navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Settings.route) { inclusive = true }
+                        AppBottomTab.Home -> {
+                            val popped = navController.popBackStack(Screen.Home.route, inclusive = false)
+                            if (!popped) {
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                            }
                         }
                         AppBottomTab.Profile -> Unit
                         else -> Unit
