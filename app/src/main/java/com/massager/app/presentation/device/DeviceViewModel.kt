@@ -17,6 +17,7 @@ import com.massager.app.domain.usecase.device.UpdateDeviceComboInfoUseCase
 import com.massager.app.presentation.navigation.DeviceScanSource
 import com.massager.app.presentation.navigation.Screen
 import com.massager.app.data.bluetooth.scan.BleScanCoordinator
+import com.massager.app.presentation.home.HomeViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -179,6 +180,7 @@ class DeviceViewModel @Inject constructor(
     private fun handleScanResult(result: com.massager.app.data.bluetooth.scan.BleScanCoordinator.ScanStartResult) {
         when (result) {
             is com.massager.app.data.bluetooth.scan.BleScanCoordinator.ScanStartResult.Started -> {
+                HomeViewModel.bumpGlobalRefreshCooldown()
                 scheduleScanTimeout()
             }
             is com.massager.app.data.bluetooth.scan.BleScanCoordinator.ScanStartResult.Error -> {

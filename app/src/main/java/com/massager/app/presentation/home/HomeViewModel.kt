@@ -31,6 +31,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlin.jvm.Volatile
 
 private const val AUTO_REFRESH_COOLDOWN_MS = 15_000L
 private const val MANUAL_REFRESH_DEBOUNCE_MS = 1_200L
@@ -80,6 +81,15 @@ class HomeViewModel @Inject constructor(
     private val bluetoothService: MassagerBluetoothService
 ) : ViewModel() {
 
+    companion object {
+        @Volatile
+        private var globalLastRefreshTimestamp: Long = 0L
+
+        fun bumpGlobalRefreshCooldown() {
+            globalLastRefreshTimestamp = System.currentTimeMillis()
+        }
+    }
+
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
@@ -89,7 +99,6 @@ class HomeViewModel @Inject constructor(
     private var guestEntryPromptShown = false
     private var guestSyncPromptShown = false
     private var lastOnlineStatusCache: Map<String, Boolean> = emptyMap()
-    private var lastRefreshTimestamp: Long = 0L
     private var lastManualRefreshTimestamp: Long = 0L
     private var manualRefreshJob: Job? = null
     private var initialRefreshDone = false
@@ -156,7 +165,7 @@ class HomeViewModel @Inject constructor(
             }
 
             RefreshTrigger.AutoResume -> {
-                if (now - lastRefreshTimestamp < AUTO_REFRESH_COOLDOWN_MS) return
+                if (now - globalLastRefreshTimestamp < AUTO_REFRESH_COOLDOWN_MS) return
                 performRefresh(RefreshTrigger.AutoResume)
             }
 
@@ -169,7 +178,7 @@ class HomeViewModel @Inject constructor(
     private fun performRefresh(trigger: RefreshTrigger) {
         if (_uiState.value.isRefreshing) return
         val now = System.currentTimeMillis()
-        lastRefreshTimestamp = now
+        globalLastRefreshTimestamp = now
         if (trigger == RefreshTrigger.User) {
             lastManualRefreshTimestamp = now
         }
